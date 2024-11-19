@@ -1,9 +1,6 @@
 package dev.paulee.core.plugin
 
-import dev.paulee.api.plugin.IPlugin
-import dev.paulee.api.plugin.IPluginService
-import dev.paulee.api.plugin.PluginMetadata
-import dev.paulee.api.plugin.PluginOrder
+import dev.paulee.api.plugin.*
 import java.net.URLClassLoader
 import java.nio.file.Path
 import java.util.jar.JarFile
@@ -46,7 +43,6 @@ class PluginServiceImpl : IPluginService {
 
     override fun getPluginMetadata(plugin: IPlugin): PluginMetadata? = plugin::class.findAnnotation<PluginMetadata>()
 
-
     override fun initAll() {
         this.plugins.sortBy { it::class.findAnnotation<PluginOrder>()?.order ?: 0 }
 
@@ -59,6 +55,5 @@ class PluginServiceImpl : IPluginService {
     private fun collectClasses(path: Path): Set<String> = JarFile(path.toFile()).use {
         it.entries().asSequence().filter { !it.isDirectory && it.name.endsWith(".class") }
             .map { it.name.replace("/", ".").substring(0, it.name.length - 6) }.toSet()
-
     }
 }

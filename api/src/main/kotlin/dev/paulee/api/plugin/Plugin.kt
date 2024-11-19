@@ -14,3 +14,9 @@ annotation class PluginMetadata(
 interface IPlugin {
     fun init()
 }
+
+interface ISearchable {
+    fun convertValue(fields: Array<String>): Any?
+
+    fun search(entry: Any?)
+}
