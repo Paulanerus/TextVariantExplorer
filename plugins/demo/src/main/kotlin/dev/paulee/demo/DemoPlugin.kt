@@ -9,6 +9,6 @@ import dev.paulee.api.plugin.PluginOrder
 class DemoPlugin : IPlugin {
 
     override fun init() {
-        println("Hello world from Demo-Plugin")
+        println("${greeting()} from Demo-Plugin")
     }
 }
