@@ -12,6 +12,8 @@ repositories {
 dependencies {
     implementation(project(":api"))
 
+    implementation(kotlin("reflect"))
+
     testImplementation(kotlin("test"))
 }
 
