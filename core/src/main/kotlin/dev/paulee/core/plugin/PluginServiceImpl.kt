@@ -21,31 +21,31 @@ class PluginServiceImpl : IPluginService {
     override fun loadFromDirectory(path: Path): Int {
         require(path.isDirectory())
 
-        return path.walk()
-            .filter { it.extension == "jar" }
-            .mapNotNull { if (this.loadPlugin(it)) it else null }
-            .count()
+        return path.walk().filter { it.extension == "jar" }.mapNotNull { if (this.loadPlugin(it)) it else null }.count()
     }
 
     override fun loadPlugin(path: Path): Boolean {
         require(path.extension == "jar")
 
         return URLClassLoader(arrayOf(path.toUri().toURL()), this.javaClass.classLoader).use { classLoader ->
-            val plugin =
-                this.getPluginEntryPoint(path)?.let { runCatching { Class.forName(it, true, classLoader) }.getOrNull() }
-                    ?.takeIf { IPlugin::class.java.isAssignableFrom(it) }
-                    ?.let { runCatching { it.declaredConstructors.first() }.getOrNull() }
-                    ?.newInstance() as? IPlugin
 
-            return plugin?.let {
+            val entryPoint = this.getPluginEntryPoint(path)
+
+            val plugin = entryPoint?.let { runCatching { Class.forName(it, true, classLoader) }.getOrNull() }
+                ?.takeIf { IPlugin::class.java.isAssignableFrom(it) }
+                ?.let { runCatching { it.declaredConstructors.first() }.getOrNull() }?.newInstance() as? IPlugin
+
+            plugin?.let {
+                this.collectClasses(path).filter { it != entryPoint }
+                    .forEach { runCatching { Class.forName(it, true, classLoader) } }
+
                 this.plugins.add(it)
             } == true
         }
     }
 
-    override fun getPluginMetadata(plugin: IPlugin): PluginMetadata? {
-        return plugin::class.findAnnotation<PluginMetadata>()
-    }
+    override fun getPluginMetadata(plugin: IPlugin): PluginMetadata? = plugin::class.findAnnotation<PluginMetadata>()
+
 
     override fun initAll() {
         this.plugins.sortBy { it::class.findAnnotation<PluginOrder>()?.order ?: 0 }
@@ -55,4 +55,10 @@ class PluginServiceImpl : IPluginService {
 
     private fun getPluginEntryPoint(path: Path): String? =
         JarFile(path.toFile()).use { return it.manifest.mainAttributes.getValue("Main-Class") }
+
+    private fun collectClasses(path: Path): Set<String> = JarFile(path.toFile()).use {
+        it.entries().asSequence().filter { !it.isDirectory && it.name.endsWith(".class") }
+            .map { it.name.replace("/", ".").substring(0, it.name.length - 6) }.toSet()
+
+    }
 }
