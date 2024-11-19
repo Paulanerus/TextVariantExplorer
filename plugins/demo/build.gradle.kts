@@ -1,5 +1,3 @@
-import groovy.xml.dom.DOMCategory.attributes
-
 plugins {
     kotlin("jvm")
 }
