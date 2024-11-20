@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "dev.paulee"
-version = "1.0-SNAPSHOT"
+version = rootProject.extra["app.version"] as String
 
 repositories {
     mavenCentral()
