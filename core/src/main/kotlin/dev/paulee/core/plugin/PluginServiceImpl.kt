@@ -1,6 +1,9 @@
 package dev.paulee.core.plugin
 
-import dev.paulee.api.plugin.*
+import dev.paulee.api.plugin.IPlugin
+import dev.paulee.api.plugin.IPluginService
+import dev.paulee.api.plugin.PluginMetadata
+import dev.paulee.api.plugin.PluginOrder
 import java.net.URLClassLoader
 import java.nio.file.Path
 import java.util.jar.JarFile
@@ -12,7 +15,7 @@ import kotlin.reflect.full.findAnnotation
 
 class PluginServiceImpl : IPluginService {
 
-    val plugins = mutableListOf<IPlugin>()
+    private val plugins = mutableListOf<IPlugin>()
 
     @OptIn(ExperimentalPathApi::class)
     override fun loadFromDirectory(path: Path): Int {
@@ -25,7 +28,6 @@ class PluginServiceImpl : IPluginService {
         require(path.extension == "jar")
 
         return URLClassLoader(arrayOf(path.toUri().toURL()), this.javaClass.classLoader).use { classLoader ->
-
             val entryPoint = this.getPluginEntryPoint(path)
 
             val plugin = entryPoint?.let { runCatching { Class.forName(it, true, classLoader) }.getOrNull() }
