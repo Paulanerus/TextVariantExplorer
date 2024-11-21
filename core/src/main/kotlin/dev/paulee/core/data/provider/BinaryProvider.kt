@@ -5,8 +5,6 @@ import dev.paulee.api.data.RequiresData
 import dev.paulee.api.data.Unique
 import dev.paulee.api.data.provider.IStorageProvider
 import java.io.RandomAccessFile
-import java.nio.ByteBuffer
-import java.nio.IntBuffer
 import java.nio.file.Path
 import kotlin.io.path.Path
 import kotlin.io.path.exists
@@ -43,24 +41,20 @@ class BinaryProvider : IStorageProvider {
 
     override fun init(dataInfo: RequiresData, path: String): Int {
 
-        if (getPath(path, dataInfo.name).exists())
-            return 0
+        if (getPath(path, dataInfo.name).exists()) return 0
 
         this.binaryBlob = kotlin.runCatching {
             RandomAccessFile(getPath(path, dataInfo.name).toString(), "rw")
         }.getOrNull()
 
-        if (this.binaryBlob == null)
-            return -1
+        if (this.binaryBlob == null) return -1
 
-        if (!this.embedFiles(dataInfo.sources))
-            return -1
+        if (!this.embedFiles(dataInfo.sources)) return -1
 
         this.binaryBlob?.writeLong(0)
 
-        for (source in getValidEntries(dataInfo.sources))
-            source.primaryConstructor?.parameters.orEmpty()
-                .forEach { this.embedParameter(this.getSourceName(source)!!, it) }
+        for (source in getValidEntries(dataInfo.sources)) source.primaryConstructor?.parameters.orEmpty()
+            .forEach { this.embedParameter(this.getSourceName(source)!!, it) }
 
         this.binaryBlob?.run {
             val current = filePointer
@@ -91,9 +85,7 @@ class BinaryProvider : IStorageProvider {
             writeInt(files.size)
 
             dataStart += Int.SIZE_BYTES
-            getValidEntries(files)
-                .map { getSourceName(it)!! }
-                .forEachIndexed { idx, str ->
+            getValidEntries(files).map { getSourceName(it)!! }.forEachIndexed { idx, str ->
 
                     writeInt(str.length)
                     writeBytes(str)
