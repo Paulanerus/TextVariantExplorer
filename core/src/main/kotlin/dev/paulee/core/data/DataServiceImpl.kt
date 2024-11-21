@@ -10,11 +10,13 @@ import kotlin.io.path.bufferedReader
 import kotlin.io.path.deleteIfExists
 import kotlin.reflect.full.findAnnotation
 
-class DataServiceImpl(val storageProvider: IStorageProvider) : IDataService {
+class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataService {
 
     override fun createDataPool(dataInfo: RequiresData, path: Path): Boolean {
 
-        if (!this.storageProvider.init(dataInfo, path.toString())) return true
+        val initStatus = this.storageProvider.init(dataInfo, path.toString())
+
+        if (initStatus < 1) return initStatus == 0
 
         this.storageProvider.use {
 
@@ -24,24 +26,22 @@ class DataServiceImpl(val storageProvider: IStorageProvider) : IDataService {
 
                 if (file.isNullOrEmpty()) {
                     println("No data source provided for ${clazz.simpleName}")
-                    return false
+                    return@forEach
                 }
 
                 val sourcePath = path.resolve(file.plus(file.endsWith(".csv").let { if (it) "" else ".csv" }))
 
                 if (!Files.exists(sourcePath)) {
                     println("Source file '$sourcePath' not found for ${clazz.simpleName}")
-                    return false
+                    return@forEach
                 }
 
-                sourcePath.bufferedReader().use { reader -> reader.lines().forEach { it.plus(",") } }
+                sourcePath.bufferedReader().use { reader -> reader.lines().forEach { it } }
             }
-            //clazz.kotlin.primaryConstructor?.parameters?.firstOrNull()?.annotations.orEmpty()
-            //    .forEach { p0 -> println(p0) }
         }
 
         path.resolve("${dataInfo.name}.bin").deleteIfExists()
 
-        return false
+        return true
     }
 }
