@@ -67,7 +67,7 @@ class BinaryProvider : IStorageProvider {
         return 1
     }
 
-    override fun insert(entry: List<List<String>>) {
+    override fun insert(name: String, entry: List<Map<String, String>>) {
         TODO("Not yet implemented")
     }
 
