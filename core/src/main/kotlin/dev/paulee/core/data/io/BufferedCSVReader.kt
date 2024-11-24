@@ -12,20 +12,32 @@ class BufferedCSVReader(path: Path, private val delimiter: Char = ',') {
 
     private var headSize: Int = -1
 
-    fun readLines(callback: (List<List<String>>) -> Unit) {
-        val batch = mutableListOf<List<String>>()
+    fun readLines(callback: (List<Map<String, String>>) -> Unit) {
+        val batch = mutableListOf<Map<String, String>>()
 
         reader.use {
-            val header = this.readLine() ?: return
+            val head = this.readLine() ?: return
 
-            headSize = this.getDelimiterCount(header) + 1
+            val headToValue = mutableMapOf<String, String>()
+
+            val header = this.splitStr(head).also {
+                if (it.isEmpty()) return
+
+                it.forEach { entry -> headToValue[entry] = entry }
+            }
+
+            this.headSize = header.size
 
             var line: String? = this.readLine()
             while (line != null) {
-                val split = splitStr(line);
+                val split = this.splitStr(line);
 
-                if (split.size == this.headSize) batch.add(split).also { lineCount++ }
-                else errorCount++
+                if (split.size == this.headSize){
+
+                    split.forEachIndexed { index, entry -> headToValue[header[index]] = entry }
+
+                    batch.add(headToValue).also { lineCount++ }
+                } else errorCount++
 
                 if (batch.size == 50) callback(batch).also { batch.clear() }
 
