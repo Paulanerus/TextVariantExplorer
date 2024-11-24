@@ -4,11 +4,11 @@ import dev.paulee.api.data.DataSource
 import dev.paulee.api.data.IDataService
 import dev.paulee.api.data.RequiresData
 import dev.paulee.api.data.provider.IStorageProvider
+import dev.paulee.core.data.io.BufferedCSVReader
 import java.nio.file.Files
 import java.nio.file.Path
-import kotlin.io.path.bufferedReader
-import kotlin.io.path.deleteIfExists
 import kotlin.reflect.full.findAnnotation
+import kotlin.system.measureTimeMillis
 
 class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataService {
 
@@ -20,28 +20,29 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
 
         this.storageProvider.use {
 
-            dataInfo.sources.map { it.java }.forEach { clazz ->
+            dataInfo.sources.forEach { clazz ->
 
-                val file = clazz.kotlin.findAnnotation<DataSource>()?.file
+                val file = clazz.findAnnotation<DataSource>()?.file
 
                 if (file.isNullOrEmpty()) {
                     println("No data source provided for ${clazz.simpleName}")
                     return@forEach
                 }
 
-                val sourcePath = path.resolve(file.plus(file.endsWith(".csv").let { if (it) "" else ".csv" }))
+                val time = measureTimeMillis {
+                    val sourcePath = path.resolve(file.plus(file.endsWith(".csv").let { if (it) "" else ".csv" }))
 
-                if (!Files.exists(sourcePath)) {
-                    println("Source file '$sourcePath' not found for ${clazz.simpleName}")
-                    return@forEach
+                    if (!Files.exists(sourcePath)) {
+                        println("Source file '$sourcePath' not found")
+                        return@forEach
+                    }
+
+                    BufferedCSVReader(sourcePath).readLines { this.storageProvider.insert(it) }
                 }
 
-                sourcePath.bufferedReader().use { reader -> reader.lines().forEach { it } }
+                println("Loaded ${clazz.simpleName} in ${time}ms")
             }
         }
-
-        path.resolve("${dataInfo.name}.bin").deleteIfExists()
-
         return true
     }
 }
