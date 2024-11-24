@@ -14,7 +14,7 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
 
     override fun createDataPool(dataInfo: RequiresData, path: Path): Boolean {
 
-        val initStatus = this.storageProvider.init(dataInfo, path.toString())
+        val initStatus = this.storageProvider.init(dataInfo, path)
 
         if (initStatus < 1) return initStatus == 0
 

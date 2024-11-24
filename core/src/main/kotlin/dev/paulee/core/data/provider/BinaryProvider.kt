@@ -6,7 +6,6 @@ import dev.paulee.api.data.Unique
 import dev.paulee.api.data.provider.IStorageProvider
 import java.io.RandomAccessFile
 import java.nio.file.Path
-import kotlin.io.path.Path
 import kotlin.io.path.exists
 import kotlin.reflect.KClass
 import kotlin.reflect.KParameter
@@ -39,7 +38,7 @@ class BinaryProvider : IStorageProvider {
 
     private var dataStart: Long = 0
 
-    override fun init(dataInfo: RequiresData, path: String): Int {
+    override fun init(dataInfo: RequiresData, path: Path): Int {
 
         if (getPath(path, dataInfo.name).exists()) return 0
 
@@ -130,6 +129,6 @@ class BinaryProvider : IStorageProvider {
     private fun getValidEntries(sources: Array<KClass<*>>): List<KClass<*>> =
         sources.filter { !this.getSourceName(it).isNullOrEmpty() }
 
-    private fun getPath(path: String, name: String): Path =
-        Path(path).resolve(name.plus(name.endsWith(".bin").let { if (it) "" else ".bin" }))
+    private fun getPath(path: Path, name: String): Path =
+        path.resolve(name.plus(name.endsWith(".bin").let { if (it) "" else ".bin" }))
 }
