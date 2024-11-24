@@ -37,7 +37,7 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
                         return@forEach
                     }
 
-                    BufferedCSVReader(sourcePath).readLines { this.storageProvider.insert(it) }
+                    BufferedCSVReader(sourcePath).readLines { this.storageProvider.insert(file, it) }
                 }
 
                 println("Loaded ${clazz.simpleName} in ${time}ms")
