@@ -7,6 +7,6 @@ interface IStorageProvider : Closeable {
 
     fun init(dataInfo: RequiresData, path: String = ""): Int
 
-    fun insert(entry: Map<String, String>)
+    fun insert(entry: List<List<String>>)
 
 }
