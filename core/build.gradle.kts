@@ -18,6 +18,10 @@ dependencies {
     implementation("org.jetbrains.exposed:exposed-jdbc:0.56.0")
     implementation("org.xerial:sqlite-jdbc:3.47.0.0")
 
+    implementation("org.apache.lucene:lucene-core:${rootProject.extra["lucene.version"]}")
+    implementation("org.apache.lucene:lucene-analysis-common:${rootProject.extra["lucene.version"]}")
+    implementation("org.apache.lucene:lucene-queryparser:${rootProject.extra["lucene.version"]}")
+
     testImplementation(kotlin("test"))
 }
 
