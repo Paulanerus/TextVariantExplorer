@@ -80,7 +80,13 @@ class SQLiteProvider : IStorageProvider {
                             else text(prop.name)
                         }
 
+                        Char::class -> char(prop.name)
+                        Short::class -> short(prop.name)
                         Int::class -> integer(prop.name)
+                        Long::class -> long(prop.name)
+                        Float::class -> float(prop.name)
+                        Double::class -> double(prop.name)
+                        Boolean::class -> bool(prop.name)
                         else -> throw IllegalArgumentException("Unsupported type: ${type.classifier}")
                     }
 
