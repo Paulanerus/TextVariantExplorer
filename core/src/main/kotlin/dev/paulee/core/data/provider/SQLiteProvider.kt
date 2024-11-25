@@ -8,23 +8,20 @@ import dev.paulee.api.data.provider.IStorageProvider
 import org.jetbrains.exposed.dao.id.ULongIdTable
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.SchemaUtils
+import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.TransactionManager
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.nio.file.Path
-import kotlin.io.path.exists
 import kotlin.reflect.KClass
 import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.hasAnnotation
 import kotlin.reflect.full.memberProperties
-
 
 class SQLiteProvider : IStorageProvider {
 
     private val tableCache = mutableMapOf<String, ULongIdTable>()
 
     override fun init(dataInfo: RequiresData, path: Path): Int {
-
-        if (path.resolve("${dataInfo.name}.db").exists()) return 0
 
         val db = Database.connect("jdbc:sqlite:$path/${dataInfo.name}.db", "org.sqlite.JDBC")
         TransactionManager.defaultDatabase = db
@@ -40,15 +37,37 @@ class SQLiteProvider : IStorageProvider {
                 }
         }
 
-        return 1
+        return tableCache.values.any { transaction { it.selectAll().count() } == 0L }.let { if (it) 1 else 0 }
     }
 
     override fun insert(name: String, entries: List<Map<String, String>>) {
         val table = tableCache[name] ?: return
 
+        entriesToInsertQuery(table, entries)?.let {
+            transaction {
+                exec(it)
+            }
+        }
     }
 
     override fun close() {}
+
+    private fun entriesToInsertQuery(table: ULongIdTable, entries: List<Map<String, String>>): String? {
+        val tableNames = table.columns.map { it.name }
+
+        val header = entries.first().keys.filter { it in tableNames }
+
+        if (header.size != tableNames.size - 1) return null
+
+        val headerStr = header.joinToString(",")
+
+        var values = mutableListOf<String>()
+        entries.forEach {
+            values.add("(${header.map { name -> it[name] }.joinToString(",") { "'${it?.replace("'", "''")}'" }})")
+        }
+
+        return "INSERT INTO ${table.tableName} ($headerStr) VALUES ${values.joinToString(",")}"
+    }
 
     private fun generateTableObject(tableName: String, clazz: KClass<*>): ULongIdTable =
         object : ULongIdTable(tableName) {
