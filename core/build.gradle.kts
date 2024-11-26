@@ -20,6 +20,11 @@ dependencies {
 
     implementation("org.apache.lucene:lucene-core:${rootProject.extra["lucene.version"]}")
     implementation("org.apache.lucene:lucene-analysis-common:${rootProject.extra["lucene.version"]}")
+    implementation("org.apache.lucene:lucene-analysis-kuromoji:${rootProject.extra["lucene.version"]}")
+    implementation("org.apache.lucene:lucene-analysis-stempel:${rootProject.extra["lucene.version"]}")
+    implementation("org.apache.lucene:lucene-analysis-smartcn:${rootProject.extra["lucene.version"]}")
+    implementation("org.apache.lucene:lucene-analysis-nori:${rootProject.extra["lucene.version"]}")
+    implementation("org.apache.lucene:lucene-analysis-morfologik:${rootProject.extra["lucene.version"]}")
     implementation("org.apache.lucene:lucene-queryparser:${rootProject.extra["lucene.version"]}")
 
     testImplementation(kotlin("test"))
