@@ -4,6 +4,7 @@ import dev.paulee.api.data.DataSource
 import dev.paulee.api.data.IDataService
 import dev.paulee.api.data.RequiresData
 import dev.paulee.api.data.provider.IStorageProvider
+import dev.paulee.core.data.analysis.Indexer
 import dev.paulee.core.data.io.BufferedCSVReader
 import java.nio.file.Files
 import java.nio.file.Path
@@ -17,6 +18,8 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
         val initStatus = this.storageProvider.init(dataInfo, path)
 
         if (initStatus < 1) return initStatus == 0
+
+        val indexer = Indexer(path.resolve("index/${dataInfo.name}"), dataInfo.sources)
 
         this.storageProvider.use {
 
@@ -37,11 +40,16 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
                         return@forEach
                     }
 
-                    BufferedCSVReader(sourcePath).readLines { this.storageProvider.insert(file, it) }
+                    BufferedCSVReader(sourcePath).readLines {
+                        indexer.indexEntries(file, it)
+                        this.storageProvider.insert(file, it)
+                    }
                 }
 
                 println("Loaded ${clazz.simpleName} in ${time}ms")
             }
+
+            indexer.close()
         }
         return true
     }
