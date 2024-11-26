@@ -55,7 +55,7 @@ annotation class RequiresData(val name: String, val sources: Array<KClass<*>> = 
 annotation class DataSource(val file: String)
 
 @Target(AnnotationTarget.VALUE_PARAMETER)
-annotation class Unique
+annotation class Unique(val identify: Boolean = false)
 
 @Target(AnnotationTarget.VALUE_PARAMETER)
 annotation class Index(val lang: Language = Language.ENGLISH)
