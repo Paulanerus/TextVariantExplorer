@@ -21,8 +21,16 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
         if (initStatus < 1) return initStatus == 0
 
         this.storageProvider.use {
-            val indexer = runCatching { Indexer(path.resolve("index/${dataInfo.name}"), dataInfo.sources) }.getOrNull()
-                ?: return false
+            val indexer =
+                runCatching {
+                    Indexer(
+                        path.resolve("index/${dataInfo.name}"),
+                        dataInfo.sources
+                    )
+                }.getOrElse { exception ->
+                    println("Failed to create index for ${dataInfo.name}")
+                    return false
+                }
 
             dataInfo.sources.forEach { clazz ->
                 val file = clazz.findAnnotation<DataSource>()?.file
