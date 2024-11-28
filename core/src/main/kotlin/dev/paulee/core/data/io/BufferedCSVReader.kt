@@ -2,7 +2,6 @@ package dev.paulee.core.data.io
 
 import java.nio.file.Path
 import kotlin.io.path.bufferedReader
-import kotlin.system.exitProcess
 
 class BufferedCSVReader(path: Path, private val delimiter: Char = ',') {
 
@@ -25,10 +24,9 @@ class BufferedCSVReader(path: Path, private val delimiter: Char = ',') {
 
             var line: String? = this.readLine()
             while (line != null) {
-                val split = this.splitStr(line);
+                val split = this.splitStr(line)
 
-                if (split.size == this.headSize){
-
+                if (split.size == this.headSize) {
                     val headToValue = mutableMapOf<String, String>()
 
                     split.forEachIndexed { index, entry -> headToValue[header[index]] = entry }
@@ -36,7 +34,7 @@ class BufferedCSVReader(path: Path, private val delimiter: Char = ',') {
                     batch.add(headToValue).also { lineCount++ }
                 } else errorCount++
 
-                if (batch.size == 50) callback(batch).also { batch.clear() }
+                if (batch.size == 100) callback(batch).also { batch.clear() }
 
                 line = this.readLine()
             }
