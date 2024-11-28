@@ -1,14 +1,18 @@
 package dev.paulee.core.data.analysis
 
+import dev.paulee.api.data.DataSource
 import dev.paulee.api.data.Index
 import dev.paulee.api.data.Language
+import dev.paulee.api.data.Unique
 import org.apache.lucene.analysis.Analyzer
 import org.apache.lucene.analysis.miscellaneous.PerFieldAnalyzerWrapper
 import org.apache.lucene.document.Document
 import org.apache.lucene.document.Field
+import org.apache.lucene.document.LongField
 import org.apache.lucene.document.TextField
 import org.apache.lucene.index.IndexWriter
 import org.apache.lucene.index.IndexWriterConfig
+import org.apache.lucene.index.Term
 import org.apache.lucene.store.FSDirectory
 import org.apache.lucene.store.NIOFSDirectory
 import java.nio.file.Path
@@ -23,26 +27,31 @@ class Indexer(path: Path, sources: Array<KClass<*>>) {
 
     private val mappedAnalyzer = mutableMapOf<String, Analyzer>()
 
+    private val idFields = mutableSetOf<String>()
+
     init {
         //See https://lucene.apache.org/core/5_2_0/core/org/apache/lucene/store/NIOFSDirectory.html
         val directory = if (this.isWindows()) FSDirectory.open(path) else NIOFSDirectory.open(path)
 
-        sources
-            .forEach {
-                val name = it.simpleName?.lowercase() ?: return@forEach
+        sources.forEach {
+            val name = it.findAnnotation<DataSource>()?.file ?: return@forEach
 
-                it.primaryConstructor
-                    ?.parameters
-                    .orEmpty()
-                    .filter { it.hasAnnotation<Index>() }
-                    .forEach { param ->
-                        val paramName = param.name ?: return@forEach
+            it.primaryConstructor
+                ?.parameters
+                .orEmpty()
+                .filter { it.hasAnnotation<Index>() || it.hasAnnotation<Unique>() }
+                .forEach { param ->
+                    val paramName = param.name ?: return@forEach
 
-                        val lang = param.findAnnotation<Index>()!!.lang
-
-                        this.mappedAnalyzer["$name.$paramName"] = LangAnalyzer.new(lang)
+                    param.findAnnotation<Index>()?.also { index ->
+                        this.mappedAnalyzer["$name.$paramName"] = LangAnalyzer.new(index.lang)
                     }
-            }
+
+                    param.findAnnotation<Unique>()?.takeIf { param.type.classifier == Long::class && it.identify }
+                        ?.also { unique -> this.idFields.add("$name.$paramName") }
+                }
+        }
+
         val fieldAnalyzer = PerFieldAnalyzerWrapper(LangAnalyzer.new(Language.ENGLISH), mappedAnalyzer)
 
         val config = IndexWriterConfig(fieldAnalyzer).apply {
@@ -53,10 +62,14 @@ class Indexer(path: Path, sources: Array<KClass<*>>) {
     }
 
     fun indexEntries(name: String, entries: List<Map<String, String>>) {
-
         if (this.mappedAnalyzer.isEmpty() || entries.isEmpty()) return
 
-        this.writer.addDocuments(entries.map { this.createDoc(name, it) })
+        entries.forEach {
+            val fieldName = idFields.find { it.startsWith(name) } ?: return@forEach
+            val fieldValue = it[fieldName.substringAfter("$name.")] ?: return@forEach
+
+            this.writer.updateDocument(Term(fieldName, fieldValue), this.createDoc(name, it))
+        }
     }
 
     fun close() = this.writer.close()
@@ -65,10 +78,11 @@ class Indexer(path: Path, sources: Array<KClass<*>>) {
         return Document().apply {
             map.forEach { key, value ->
 
-                if (!mappedAnalyzer.contains("$name.$key"))
-                    return@forEach
+                val id = "$name.$key"
 
-                add(TextField("$name.$key", value, Field.Store.YES))
+                if (idFields.contains(id)) add(LongField(id, value.toLong(), Field.Store.YES))
+
+                if (mappedAnalyzer.contains(id)) add(TextField(id, value, Field.Store.YES))
             }
         }
     }
