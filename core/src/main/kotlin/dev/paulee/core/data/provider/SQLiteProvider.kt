@@ -25,19 +25,18 @@ class SQLiteProvider : IStorageProvider {
     private lateinit var indexer: Indexer
 
     override fun init(dataInfo: RequiresData, path: Path): Int {
-
         val db = Database.connect("jdbc:sqlite:$path/${dataInfo.name}.db", "org.sqlite.JDBC")
         TransactionManager.defaultDatabase = db
 
-        dataInfo.sources.forEach {
-            val tableName = it.findAnnotation<DataSource>()?.file ?: return@forEach
+        dataInfo.sources.forEach { clazz ->
+            val tableName = clazz.findAnnotation<DataSource>()?.file ?: return@forEach
 
             val primaryKey =
-                it.primaryConstructor?.parameters.orEmpty()
+                clazz.primaryConstructor?.parameters.orEmpty()
                     .find { prop -> prop.type.classifier == Long::class && prop.findAnnotation<Unique>()?.identify == true }?.name
-                    ?: return@forEach
+                    ?: "${tableName}_ag_id"
 
-            tableCache[tableName] = generateTableObject(tableName, primaryKey, it)
+            tableCache[tableName] = this.generateTableObject(tableName, primaryKey, clazz)
                 .also { table ->
                     transaction {
                         SchemaUtils.create(table)

@@ -50,6 +50,8 @@ class Indexer(path: Path, sources: Array<KClass<*>>) {
                     param.findAnnotation<Unique>()?.takeIf { param.type.classifier == Long::class && it.identify }
                         ?.also { unique -> this.idFields.add("$name.$paramName") }
                 }
+
+            idFields.add("${name}_ag_id")
         }
 
         val fieldAnalyzer = PerFieldAnalyzerWrapper(LangAnalyzer.new(Language.ENGLISH), mappedAnalyzer)
@@ -80,7 +82,7 @@ class Indexer(path: Path, sources: Array<KClass<*>>) {
 
                 val id = "$name.$key"
 
-                if (idFields.contains(id)) add(LongField(id, value.toLong(), Field.Store.YES))
+                if (idFields.contains(id) || idFields.contains(key)) add(LongField(id, value.toLong(), Field.Store.YES))
 
                 if (mappedAnalyzer.contains(id)) add(TextField(id, value, Field.Store.YES))
             }

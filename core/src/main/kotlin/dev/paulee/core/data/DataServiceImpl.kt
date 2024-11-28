@@ -3,25 +3,24 @@ package dev.paulee.core.data
 import dev.paulee.api.data.DataSource
 import dev.paulee.api.data.IDataService
 import dev.paulee.api.data.RequiresData
+import dev.paulee.api.data.Unique
 import dev.paulee.api.data.provider.IStorageProvider
 import dev.paulee.core.data.io.BufferedCSVReader
-import java.nio.file.Files
 import java.nio.file.Path
+import kotlin.io.path.exists
 import kotlin.reflect.full.findAnnotation
+import kotlin.reflect.full.primaryConstructor
 import kotlin.system.measureTimeMillis
 
 class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataService {
 
     override fun createDataPool(dataInfo: RequiresData, path: Path): Boolean {
-
         val initStatus = this.storageProvider.init(dataInfo, path)
 
         if (initStatus < 1) return initStatus == 0
 
         this.storageProvider.use {
-
             dataInfo.sources.forEach { clazz ->
-
                 val file = clazz.findAnnotation<DataSource>()?.file
 
                 if (file.isNullOrEmpty()) {
@@ -29,17 +28,28 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
                     return@forEach
                 }
 
-                val time = measureTimeMillis {
-                    val sourcePath = path.resolve(file.plus(file.endsWith(".csv").let { if (it) "" else ".csv" }))
+                val sourcePath = path.resolve(file.let { if (it.endsWith(".csv")) it else "$it.csv" })
 
-                    if (!Files.exists(sourcePath)) {
-                        println("Source file '$sourcePath' not found")
-                        return@forEach
-                    }
-
-                    BufferedCSVReader(sourcePath).readLines { this.storageProvider.insert(file, it) }
+                if (!sourcePath.exists()) {
+                    println("Source file '$sourcePath' not found")
+                    return@forEach
                 }
 
+                val hasIdentifier =
+                    clazz.primaryConstructor?.parameters.orEmpty().any { it.findAnnotation<Unique>()?.identify == true }
+
+                val idGenerator = generateSequence(1L) { it + 1 }.iterator()
+
+                val time = measureTimeMillis {
+                    BufferedCSVReader(sourcePath).readLines { lines ->
+                        val entries = lines.map { line ->
+                            if (hasIdentifier) line
+                            else line + ("${file}_ag_id" to idGenerator.next().toString())
+                        }
+
+                        this.storageProvider.insert(file, entries)
+                    }
+                }
                 println("Loaded ${clazz.simpleName} in ${time}ms")
             }
         }
