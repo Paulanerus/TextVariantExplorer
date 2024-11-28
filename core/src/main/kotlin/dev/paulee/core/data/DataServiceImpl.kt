@@ -11,7 +11,6 @@ import java.nio.file.Path
 import kotlin.io.path.exists
 import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.primaryConstructor
-import kotlin.system.measureTimeMillis
 
 class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataService {
 
@@ -52,18 +51,15 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
 
                 val idGenerator = generateSequence(1L) { it + 1 }.iterator()
 
-                val time = measureTimeMillis {
-                    BufferedCSVReader(sourcePath).readLines { lines ->
-                        val entries = lines.map { line ->
-                            if (hasIdentifier) line
-                            else line + ("${file}_ag_id" to idGenerator.next().toString())
-                        }
-
-                        indexer.indexEntries(file, entries)
-                        this.storageProvider.insert(file, entries)
+                BufferedCSVReader(sourcePath).readLines { lines ->
+                    val entries = lines.map { line ->
+                        if (hasIdentifier) line
+                        else line + ("${file}_ag_id" to idGenerator.next().toString())
                     }
+
+                    indexer.indexEntries(file, entries)
+                    this.storageProvider.insert(file, entries)
                 }
-                println("Loaded ${clazz.simpleName} in ${time}ms")
             }
             indexer.close()
         }
