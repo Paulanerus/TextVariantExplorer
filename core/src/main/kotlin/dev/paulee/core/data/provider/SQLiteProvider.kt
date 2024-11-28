@@ -5,7 +5,6 @@ import dev.paulee.api.data.NullValue
 import dev.paulee.api.data.RequiresData
 import dev.paulee.api.data.Unique
 import dev.paulee.api.data.provider.IStorageProvider
-import dev.paulee.core.data.analysis.Indexer
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.SchemaUtils
 import org.jetbrains.exposed.sql.Table
@@ -21,8 +20,6 @@ import kotlin.reflect.full.primaryConstructor
 class SQLiteProvider : IStorageProvider {
 
     private val tableCache = mutableMapOf<String, Table>()
-
-    private lateinit var indexer: Indexer
 
     override fun init(dataInfo: RequiresData, path: Path): Int {
         val db = Database.connect("jdbc:sqlite:$path/${dataInfo.name}.db", "org.sqlite.JDBC")
@@ -44,15 +41,12 @@ class SQLiteProvider : IStorageProvider {
                 }
         }
 
-        this.indexer = Indexer(path.resolve("index/${dataInfo.name}"), dataInfo.sources)
-
         return tableCache.values.any { transaction { it.selectAll().count() } == 0L }.let { if (it) 1 else 0 }
     }
 
     override fun insert(name: String, entries: List<Map<String, String>>) {
         val table = tableCache[name] ?: return
 
-        this.indexer.indexEntries(name, entries)
 
         entriesToInsertQuery(table, entries)?.let {
             transaction {
@@ -61,7 +55,7 @@ class SQLiteProvider : IStorageProvider {
         }
     }
 
-    override fun close() = this.indexer.close()
+    override fun close() {}
 
     private fun entriesToInsertQuery(table: Table, entries: List<Map<String, String>>): String? {
         val tableNames = table.columns.map { it.name }

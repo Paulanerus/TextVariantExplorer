@@ -5,6 +5,7 @@ import dev.paulee.api.data.IDataService
 import dev.paulee.api.data.RequiresData
 import dev.paulee.api.data.Unique
 import dev.paulee.api.data.provider.IStorageProvider
+import dev.paulee.core.data.analysis.Indexer
 import dev.paulee.core.data.io.BufferedCSVReader
 import java.nio.file.Path
 import kotlin.io.path.exists
@@ -20,6 +21,9 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
         if (initStatus < 1) return initStatus == 0
 
         this.storageProvider.use {
+            val indexer = runCatching { Indexer(path.resolve("index/${dataInfo.name}"), dataInfo.sources) }.getOrNull()
+                ?: return false
+
             dataInfo.sources.forEach { clazz ->
                 val file = clazz.findAnnotation<DataSource>()?.file
 
@@ -47,11 +51,13 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
                             else line + ("${file}_ag_id" to idGenerator.next().toString())
                         }
 
+                        indexer.indexEntries(file, entries)
                         this.storageProvider.insert(file, entries)
                     }
                 }
                 println("Loaded ${clazz.simpleName} in ${time}ms")
             }
+            indexer.close()
         }
         return true
     }
