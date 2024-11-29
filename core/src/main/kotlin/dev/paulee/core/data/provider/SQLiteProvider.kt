@@ -47,7 +47,6 @@ class SQLiteProvider : IStorageProvider {
     override fun insert(name: String, entries: List<Map<String, String>>) {
         val table = tableCache[name] ?: return
 
-
         entriesToInsertQuery(table, entries)?.let {
             transaction {
                 exec(it)
