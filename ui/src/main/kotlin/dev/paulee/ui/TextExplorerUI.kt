@@ -24,6 +24,19 @@ class TextExplorerUI {
     private fun content() {
         var text by remember { mutableStateOf("") }
 
+        val header = listOf(
+            "Column 1",
+            "Column 2",
+            "Column 3",
+            "Column 4",
+            "Column 5",
+            "Column 6",
+        )
+
+        val data = List(150) { row ->
+            List(header.size) { col -> "${header[col]} - $row" }
+        }
+
         MaterialTheme {
             Column(
                 modifier = Modifier.fillMaxSize().padding(16.dp),
@@ -61,6 +74,16 @@ class TextExplorerUI {
                     ) {
                         Icon(Icons.Default.Search, contentDescription = "Search")
                     }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Box(
+                    modifier = Modifier.fillMaxWidth().padding(8.dp)
+                ) {
+                    TableView(columns = header, data = data, onRowSelect = { rowIndex ->
+                        println("Rows $rowIndex selected")
+                    })
                 }
             }
         }
