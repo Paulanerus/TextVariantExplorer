@@ -1,16 +1,11 @@
 package dev.paulee.ui
 
-import androidx.compose.desktop.ui.tooling.preview.Preview
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.Text
-import androidx.compose.material.TextField
-import androidx.compose.material.TextFieldDefaults
+import androidx.compose.material.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -24,35 +19,49 @@ import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 
 class TextExplorerUI {
+
     @Composable
-    @Preview
     private fun content() {
         var text by remember { mutableStateOf("") }
 
         MaterialTheme {
             Column(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
+                verticalArrangement = Arrangement.Top
             ) {
                 Text("Text Explorer", fontSize = 32.sp)
 
-                TextField(
-                    value = text,
-                    onValueChange = { text = it },
-                    placeholder = { Text("Search...") },
-                    modifier = Modifier
-                        .width(600.dp)
-                        .background(
-                            color = Color.LightGray,
-                            shape = RoundedCornerShape(24.dp),
-                        ),
-                    colors = TextFieldDefaults.textFieldColors(
-                        backgroundColor = Color.Transparent,
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextField(
+                        value = text,
+                        onValueChange = { text = it },
+                        placeholder = { Text("Search...") },
+                        modifier = Modifier
+                            .width(600.dp)
+                            .background(
+                                color = Color.LightGray,
+                                shape = RoundedCornerShape(24.dp),
+                            ),
+                        colors = TextFieldDefaults.textFieldColors(
+                            backgroundColor = Color.Transparent,
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent
+                        )
                     )
-                )
+
+                    IconButton(
+                        onClick = { println(text) },
+                        modifier = Modifier
+                            .height(70.dp)
+                            .padding(horizontal = 10.dp),
+                        enabled = text.isNotEmpty()
+                    ) {
+                        Icon(Icons.Default.Search, contentDescription = "Search")
+                    }
+                }
             }
         }
     }
