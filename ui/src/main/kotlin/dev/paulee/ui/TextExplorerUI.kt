@@ -41,7 +41,7 @@ class TextExplorerUI {
             Column(
                 modifier = Modifier.fillMaxSize().padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Top
+                verticalArrangement = Arrangement.Center
             ) {
                 Text("Text Explorer", fontSize = 32.sp)
 
