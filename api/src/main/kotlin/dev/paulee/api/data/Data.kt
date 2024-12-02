@@ -64,4 +64,4 @@ annotation class Index(val lang: Language = Language.ENGLISH)
 annotation class NullValue(val values: Array<String>)
 
 @Target(AnnotationTarget.VALUE_PARAMETER)
-annotation class MergeWith(val field: String)
+annotation class Link(val clazz: KClass<*>, val field: String = "")
