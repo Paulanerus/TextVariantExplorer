@@ -51,6 +51,8 @@ class PluginServiceImpl : IPluginService {
         this.plugins.forEach { it.init() }
     }
 
+    override fun getPlugins(): List<IPlugin> = this.plugins.toList()
+
     private fun getPluginEntryPoint(path: Path): String? =
         JarFile(path.toFile()).use { return it.manifest.mainAttributes.getValue("Main-Class") }
 

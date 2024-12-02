@@ -11,4 +11,6 @@ interface IPluginService {
     fun getPluginMetadata(plugin: IPlugin): PluginMetadata?
 
     fun initAll()
+
+    fun getPlugins(): List<IPlugin>
 }
