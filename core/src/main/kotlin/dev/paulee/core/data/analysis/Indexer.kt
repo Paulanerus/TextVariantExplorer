@@ -5,23 +5,32 @@ import dev.paulee.api.data.Index
 import dev.paulee.api.data.Language
 import dev.paulee.api.data.Unique
 import org.apache.lucene.analysis.Analyzer
+import org.apache.lucene.analysis.en.EnglishAnalyzer
 import org.apache.lucene.analysis.miscellaneous.PerFieldAnalyzerWrapper
 import org.apache.lucene.document.Document
 import org.apache.lucene.document.Field
 import org.apache.lucene.document.LongField
 import org.apache.lucene.document.TextField
+import org.apache.lucene.index.DirectoryReader
 import org.apache.lucene.index.IndexWriter
 import org.apache.lucene.index.IndexWriterConfig
 import org.apache.lucene.index.Term
+import org.apache.lucene.queryparser.flexible.standard.StandardQueryParser
+import org.apache.lucene.queryparser.flexible.standard.config.StandardQueryConfigHandler
+import org.apache.lucene.search.IndexSearcher
+import org.apache.lucene.store.BaseDirectory
 import org.apache.lucene.store.FSDirectory
 import org.apache.lucene.store.NIOFSDirectory
+import java.io.Closeable
 import java.nio.file.Path
 import kotlin.reflect.KClass
 import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.hasAnnotation
 import kotlin.reflect.full.primaryConstructor
 
-class Indexer(path: Path, sources: Array<KClass<*>>) {
+class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
+
+    private val directory: BaseDirectory
 
     private val writer: IndexWriter
 
@@ -31,7 +40,7 @@ class Indexer(path: Path, sources: Array<KClass<*>>) {
 
     init {
         //See https://lucene.apache.org/core/5_2_0/core/org/apache/lucene/store/NIOFSDirectory.html
-        val directory = if (this.isWindows()) FSDirectory.open(path) else NIOFSDirectory.open(path)
+        this.directory = if (this.isWindows()) FSDirectory.open(path) else NIOFSDirectory.open(path)
 
         sources.forEach {
             val name = it.findAnnotation<DataSource>()?.file ?: return@forEach
@@ -74,7 +83,24 @@ class Indexer(path: Path, sources: Array<KClass<*>>) {
         }
     }
 
-    fun close() = this.writer.close()
+    fun searchFieldIndex(field: String, query: String): List<Document> {
+        val queryParser = StandardQueryParser(mappedAnalyzer[field] ?: EnglishAnalyzer())
+
+        queryParser.defaultOperator = StandardQueryConfigHandler.Operator.AND
+        queryParser.allowLeadingWildcard = true
+
+        return DirectoryReader.open(this.directory).use { reader ->
+            val searcher = IndexSearcher(reader)
+
+            val topDocs = searcher.search(queryParser.parse(query, field), Int.MAX_VALUE)
+
+            val storedFields = searcher.storedFields()
+
+            topDocs.scoreDocs.map { storedFields.document(it.doc) }
+        }
+    }
+
+    override fun close() = this.writer.close()
 
     private fun createDoc(name: String, map: Map<String, String>): Document {
         return Document().apply {
