@@ -58,7 +58,7 @@ annotation class DataSource(val file: String)
 annotation class Unique(val identify: Boolean = false)
 
 @Target(AnnotationTarget.VALUE_PARAMETER)
-annotation class Index(val lang: Language = Language.ENGLISH)
+annotation class Index(val lang: Language = Language.ENGLISH, val default: Boolean = false)
 
 @Target(AnnotationTarget.VALUE_PARAMETER)
 annotation class NullValue(val values: Array<String>)
