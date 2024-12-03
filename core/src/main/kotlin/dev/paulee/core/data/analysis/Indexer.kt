@@ -28,7 +28,7 @@ import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.hasAnnotation
 import kotlin.reflect.full.primaryConstructor
 
-class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
+internal class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
 
     private val directory: BaseDirectory
 

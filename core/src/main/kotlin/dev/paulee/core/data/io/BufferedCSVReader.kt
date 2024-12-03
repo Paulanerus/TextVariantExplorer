@@ -3,7 +3,7 @@ package dev.paulee.core.data.io
 import java.nio.file.Path
 import kotlin.io.path.bufferedReader
 
-class BufferedCSVReader(path: Path, private val delimiter: Char = ',') {
+internal class BufferedCSVReader(path: Path, private val delimiter: Char = ',') {
 
     var lineCount: Long = 0
     var errorCount: Long = 0

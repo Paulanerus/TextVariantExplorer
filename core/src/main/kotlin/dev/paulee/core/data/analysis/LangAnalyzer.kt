@@ -49,7 +49,7 @@ import java.nio.file.Path
 import kotlin.io.path.Path
 import kotlin.reflect.full.createInstance
 
-object LangAnalyzer {
+internal object LangAnalyzer {
 
     private val EMPTY_PATH = Path("")
 
