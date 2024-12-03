@@ -44,7 +44,6 @@ class SearchServiceImpl : SearchService {
                         if (index.default && defaultIndexField.isEmpty()) defaultIndexField = "$file.$name"
                     }
 
-
                     param.findAnnotation<Unique>()?.identify?.let {
                         if (it && param.type.classifier == Long::class) identifier[file] = "$file.$name"
                     }
