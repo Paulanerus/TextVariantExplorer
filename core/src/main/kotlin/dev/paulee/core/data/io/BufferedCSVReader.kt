@@ -1,5 +1,6 @@
 package dev.paulee.core.data.io
 
+import dev.paulee.core.splitStr
 import java.nio.file.Path
 import kotlin.io.path.bufferedReader
 
@@ -18,13 +19,13 @@ internal class BufferedCSVReader(path: Path, private val delimiter: Char = ',') 
         reader.use {
             val head = this.readLine() ?: return
 
-            val header = this.splitStr(head)
+            val header = splitStr(head, delimiter)
 
             this.headSize = header.size
 
             var line: String? = this.readLine()
             while (line != null) {
-                val split = this.splitStr(line)
+                val split = splitStr(line, delimiter)
 
                 if (split.size == this.headSize) {
                     val headToValue = mutableMapOf<String, String>()
@@ -67,28 +68,5 @@ internal class BufferedCSVReader(path: Path, private val delimiter: Char = ',') 
         }
 
         return amount
-    }
-
-    private fun splitStr(str: String): List<String> {
-        var tokens = mutableListOf<String>()
-
-        var tokenStart = 0
-        var insideQuotes = false
-        (0 until str.length).forEach {
-            val c = str[it]
-
-            if (c == '"') insideQuotes = !insideQuotes
-
-            if (c == delimiter && !insideQuotes) {
-                if (it > tokenStart) tokens.add(str.substring(tokenStart, it))
-                else tokens.add("")
-
-                tokenStart = it + 1
-            }
-        }
-
-        if (tokenStart < str.length) tokens.add(str.substring(tokenStart))
-
-        return tokens
     }
 }
