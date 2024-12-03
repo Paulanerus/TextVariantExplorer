@@ -30,7 +30,7 @@ import kotlin.reflect.full.primaryConstructor
         [Index]
  */
 
-class BinaryProvider : IStorageProvider {
+internal class BinaryProvider : IStorageProvider {
 
     private var binaryBlob: RandomAccessFile? = null
 

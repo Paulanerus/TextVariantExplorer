@@ -17,7 +17,7 @@ import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.hasAnnotation
 import kotlin.reflect.full.primaryConstructor
 
-class SQLiteProvider : IStorageProvider {
+internal class SQLiteProvider : IStorageProvider {
 
     private val tableCache = mutableMapOf<String, Table>()
 
