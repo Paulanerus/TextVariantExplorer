@@ -1,8 +1,11 @@
 package dev.paulee.api.data.search
 
-interface SearchService {
+import dev.paulee.api.data.RequiresData
+import java.io.Closeable
 
-    fun init()
+interface SearchService : Closeable {
 
-    fun search(query: String)
+    fun init(dataInfo: RequiresData)
+
+    fun search(source: String, query: String)
 }
