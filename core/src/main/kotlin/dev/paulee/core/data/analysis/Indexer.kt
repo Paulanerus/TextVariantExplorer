@@ -27,6 +27,7 @@ import kotlin.reflect.KClass
 import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.hasAnnotation
 import kotlin.reflect.full.primaryConstructor
+import kotlin.text.replace
 
 internal class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
 
@@ -37,6 +38,8 @@ internal class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
     private val mappedAnalyzer = mutableMapOf<String, Analyzer>()
 
     private val idFields = mutableSetOf<String>()
+
+    private val operator = mapOf("(?i)\\bor\\b" to "OR", "(?i)\\band\\b" to "AND", "(?i)\\bnot\\b" to "NOT")
 
     init {
         //See https://lucene.apache.org/core/5_2_0/core/org/apache/lucene/store/NIOFSDirectory.html
@@ -92,7 +95,7 @@ internal class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
         return DirectoryReader.open(this.directory).use { reader ->
             val searcher = IndexSearcher(reader)
 
-            val topDocs = searcher.search(queryParser.parse(query, field), Int.MAX_VALUE)
+            val topDocs = searcher.search(queryParser.parse(this.normalizeOperator(query), field), Int.MAX_VALUE)
 
             val storedFields = searcher.storedFields()
 
@@ -102,16 +105,16 @@ internal class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
 
     override fun close() = this.writer.close()
 
-    private fun createDoc(name: String, map: Map<String, String>): Document {
-        return Document().apply {
-            map.forEach { key, value ->
+    private fun normalizeOperator(query: String) =
+        operator.entries.fold(query) { acc, entry -> acc.replace(entry.key.toRegex(), entry.value) }
 
-                val id = "$name.$key"
+    private fun createDoc(name: String, map: Map<String, String>): Document = Document().apply {
+        map.forEach { key, value ->
+            val id = "$name.$key"
 
-                if (idFields.contains(id) || idFields.contains(key)) add(LongField(id, value.toLong(), Field.Store.YES))
+            if (idFields.contains(id) || idFields.contains(key)) add(LongField(id, value.toLong(), Field.Store.YES))
 
-                if (mappedAnalyzer.contains(id)) add(TextField(id, value, Field.Store.YES))
-            }
+            if (mappedAnalyzer.contains(id)) add(TextField(id, value, Field.Store.YES))
         }
     }
 
