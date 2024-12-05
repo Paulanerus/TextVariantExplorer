@@ -38,7 +38,7 @@ class PluginServiceImpl : IPluginService {
                 this.collectClasses(path).filter { it != entryPoint }
                     .forEach { runCatching { Class.forName(it, true, classLoader) } }
 
-                this.plugins.add(it)
+                this.plugins.add(plugin)
             } == true
         }
     }
@@ -56,8 +56,8 @@ class PluginServiceImpl : IPluginService {
     private fun getPluginEntryPoint(path: Path): String? =
         JarFile(path.toFile()).use { return it.manifest.mainAttributes.getValue("Main-Class") }
 
-    private fun collectClasses(path: Path): Set<String> = JarFile(path.toFile()).use {
-        it.entries().asSequence().filter { !it.isDirectory && it.name.endsWith(".class") }
+    private fun collectClasses(path: Path): Set<String> = JarFile(path.toFile()).use { jar ->
+        jar.entries().asSequence().filter { !it.isDirectory && it.name.endsWith(".class") }
             .map { it.name.replace("/", ".").substring(0, it.name.length - 6) }.toSet()
     }
 }
