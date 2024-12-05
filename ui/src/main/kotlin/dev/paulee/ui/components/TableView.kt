@@ -1,4 +1,4 @@
-package dev.paulee.ui
+package dev.paulee.ui.components
 
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
@@ -14,7 +14,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun TableView(columns: List<String>, data: List<List<String>>, onRowSelect: (Set<Int>) -> Unit) {
+fun TableView(columns: List<String>, data: List<List<String>>, onRowSelect: (Set<List<String>>) -> Unit) {
     val selectedRows = remember { mutableStateOf(setOf<Int>()) }
     val scrollState = rememberScrollState()
 
@@ -52,9 +52,8 @@ fun TableView(columns: List<String>, data: List<List<String>>, onRowSelect: (Set
                                 }
 
                                 selectedRows.value = selected
-                                onRowSelect(selected)
-                            }
-                                .background(if (selectedRows.value.contains(index)) Color.LightGray else Color.Transparent)
+                                onRowSelect(selected.map { data[it] }.toSet())
+                            }.background(if (selectedRows.value.contains(index)) Color.LightGray else Color.Transparent)
                                 .padding(vertical = 8.dp),
                         ) {
                             row.forEach { cell ->
@@ -68,8 +67,7 @@ fun TableView(columns: List<String>, data: List<List<String>>, onRowSelect: (Set
             }
 
             HorizontalScrollbar(
-                adapter = rememberScrollbarAdapter(scrollState),
-                modifier = Modifier.align(Alignment.BottomCenter)
+                adapter = rememberScrollbarAdapter(scrollState), modifier = Modifier.align(Alignment.BottomCenter)
             )
         }
     }

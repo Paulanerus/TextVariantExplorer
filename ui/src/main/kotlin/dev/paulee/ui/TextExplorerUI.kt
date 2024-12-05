@@ -17,12 +17,14 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import dev.paulee.ui.components.TableView
 
 class TextExplorerUI {
 
     @Composable
     private fun content() {
         var text by remember { mutableStateOf("") }
+        var selectedRows by remember { mutableStateOf(setOf<List<String>>()) }
 
         val header = listOf(
             "Column 1",
@@ -81,9 +83,7 @@ class TextExplorerUI {
                 Box(
                     modifier = Modifier.fillMaxWidth().padding(8.dp)
                 ) {
-                    TableView(columns = header, data = data, onRowSelect = { rowIndex ->
-                        println("Rows $rowIndex selected")
-                    })
+                    TableView(columns = header, data = data, onRowSelect = { selectedRows = it })
                 }
             }
         }
