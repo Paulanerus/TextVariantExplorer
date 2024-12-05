@@ -6,17 +6,20 @@ import dev.paulee.api.data.RequiresData
 import dev.paulee.api.data.Unique
 import dev.paulee.api.data.search.SearchService
 import dev.paulee.core.data.analysis.Indexer
+import dev.paulee.core.splitStr
 import kotlin.io.path.Path
 import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.primaryConstructor
 
 private class SearchInfo(val indexer: Indexer) {
 
-    var indexedFields = mutableSetOf<String>()
+    var fields = mutableMapOf<String, Boolean>()
 
     var identifier = mutableMapOf<String, String>()
 
-    var defaultIndexField: String = ""
+    var defaultIndexField: String? = null
+
+    var defaultClass: String? = null
 }
 
 class SearchServiceImpl : SearchService {
@@ -27,7 +30,6 @@ class SearchServiceImpl : SearchService {
 
     override fun init(dataInfo: RequiresData) {
         entries[dataInfo.name] = SearchInfo(Indexer(Path("data/index/${dataInfo.name}"), dataInfo.sources)).apply {
-
             dataInfo.sources.forEach { clazz ->
                 val file = clazz.findAnnotation<DataSource>()?.file ?: return@forEach
 
@@ -35,13 +37,17 @@ class SearchServiceImpl : SearchService {
                     val name = param.name ?: return@forEach
 
                     val key = "$file.$name"
+                    fields[key] = false
 
                     param.findAnnotation<Index>()?.let { index ->
-                        indexedFields.add(key)
+                        fields[key] = true
 
                         identifier.putIfAbsent(file, "${file}_ag_id")
 
-                        if (index.default && defaultIndexField.isEmpty()) defaultIndexField = "$file.$name"
+                        if (index.default && defaultIndexField.isNullOrEmpty()) {
+                            defaultIndexField = "$file.$name"
+                            defaultClass = file
+                        }
                     }
 
                     param.findAnnotation<Unique>()?.identify?.let {
@@ -49,12 +55,55 @@ class SearchServiceImpl : SearchService {
                     }
                 }
             }
+            if (defaultIndexField.isNullOrEmpty()) println("${dataInfo.name} has no default index field")
         }
     }
 
     override fun search(source: String, query: String) {
-
         val entry = entries[source] ?: return
+
+        val ids = mutableSetOf<Long>()
+
+        val token = mutableListOf<String>()
+        if (keyValueRgx.containsMatchIn(query)) {
+
+            val queryToken = mutableListOf<String>()
+
+            splitStr(query, delimiter = ' ').forEach { str ->
+
+                val colon = str.indexOf(':')
+
+                if (colon == -1) {
+                    queryToken.add(str)
+                    return@forEach
+                }
+
+                val field = str.substring(0, colon).let {
+                    if (it.contains(".")) it
+                    else "${entry.defaultClass ?: return}.$it"
+                }
+
+                if (entry.fields[field] == true) {
+                    val value = str.substring(colon + 1).trim('"')
+                    val fieldClass = field.substringBefore('.')
+
+                    entry.indexer.searchFieldIndex(field, value)
+                        .mapTo(ids) { doc -> doc.getField(entry.identifier[fieldClass]).numericValue().toLong() }
+
+                } else token.add(str)
+            }
+
+            entry.defaultIndexField?.let { defaultField ->
+                queryToken.takeIf { it.isNotEmpty() }?.let {
+                    entry.indexer.searchFieldIndex(defaultField, it.joinToString(" ")).mapTo(ids) { doc ->
+                            doc.getField(entry.identifier[entry.defaultClass]).numericValue().toLong()
+                        }
+                }
+            }
+        } else {
+            entry.defaultIndexField?.let { entry.indexer.searchFieldIndex(it, query) }
+                ?.mapTo(ids) { doc -> doc.getField(entry.identifier[entry.defaultClass]).numericValue().toLong() }
+        }
     }
 
     override fun close() = this.entries.values.forEach { it.indexer.close() }
