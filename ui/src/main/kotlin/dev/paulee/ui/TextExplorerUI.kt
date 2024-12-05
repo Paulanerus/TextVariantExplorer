@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,6 +18,7 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import dev.paulee.ui.components.DiffViewerWindow
 import dev.paulee.ui.components.TableView
 
 class TextExplorerUI {
@@ -25,6 +27,7 @@ class TextExplorerUI {
     private fun content() {
         var text by remember { mutableStateOf("") }
         var selectedRows by remember { mutableStateOf(setOf<List<String>>()) }
+        var displayDiffWindow by remember { mutableStateOf(false) }
 
         val header = listOf(
             "Column 1",
@@ -54,12 +57,10 @@ class TextExplorerUI {
                         value = text,
                         onValueChange = { text = it },
                         placeholder = { Text("Search...") },
-                        modifier = Modifier
-                            .width(600.dp)
-                            .background(
-                                color = Color.LightGray,
-                                shape = RoundedCornerShape(24.dp),
-                            ),
+                        modifier = Modifier.width(600.dp).background(
+                            color = Color.LightGray,
+                            shape = RoundedCornerShape(24.dp),
+                        ),
                         colors = TextFieldDefaults.textFieldColors(
                             backgroundColor = Color.Transparent,
                             focusedIndicatorColor = Color.Transparent,
@@ -69,12 +70,31 @@ class TextExplorerUI {
 
                     IconButton(
                         onClick = { println(text) },
-                        modifier = Modifier
-                            .height(70.dp)
-                            .padding(horizontal = 10.dp),
+                        modifier = Modifier.height(70.dp).padding(horizontal = 10.dp),
                         enabled = text.isNotEmpty()
                     ) {
                         Icon(Icons.Default.Search, contentDescription = "Search")
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth()){
+                    IconButton(
+                        onClick = {},
+                        modifier = Modifier.align(Alignment.CenterStart),
+                        enabled = selectedRows.isNotEmpty()
+                    ) {
+                        Icon(Icons.Default.Delete, contentDescription = "Delete")
+                    }
+
+                    Button(
+                        onClick = { displayDiffWindow = true },
+                        enabled = selectedRows.isNotEmpty(),
+                        modifier = Modifier.width(120.dp).align(Alignment.CenterEnd)
+                    ) {
+                        if (selectedRows.size <= 1) Text("View")
+                        else Text("View Diff")
                     }
                 }
 
@@ -86,6 +106,8 @@ class TextExplorerUI {
                     TableView(columns = header, data = data, onRowSelect = { selectedRows = it })
                 }
             }
+
+            if (displayDiffWindow) DiffViewerWindow(selectedRows) { displayDiffWindow = false }
         }
     }
 
