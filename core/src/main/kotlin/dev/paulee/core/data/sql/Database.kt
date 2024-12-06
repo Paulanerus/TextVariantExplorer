@@ -96,10 +96,9 @@ internal class Database(private val path: Path) : Closeable {
     }
 
     fun insert(name: String, entries: List<Map<String, String>>) {
-
         val table = tables.find { it.name == name } ?: return
 
-        table.insert(this.connection ?: return, entries.filter { map -> map.size == table.columns.size })
+        table.insert(this.connection ?: return, entries)
     }
 
     fun createTable(klass: KClass<*>) {
