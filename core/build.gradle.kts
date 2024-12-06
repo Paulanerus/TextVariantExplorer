@@ -14,8 +14,6 @@ dependencies {
 
     implementation(kotlin("reflect"))
 
-    implementation("org.jetbrains.exposed:exposed-core:0.56.0")
-    implementation("org.jetbrains.exposed:exposed-jdbc:0.56.0")
     implementation("org.xerial:sqlite-jdbc:3.47.0.0")
 
     implementation("org.apache.lucene:lucene-core:${rootProject.extra["lucene.version"]}")

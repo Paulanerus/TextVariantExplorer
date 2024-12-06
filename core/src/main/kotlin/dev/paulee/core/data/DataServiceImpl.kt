@@ -58,7 +58,7 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
                     }
 
                     indexer.indexEntries(file, entries)
-                    this.storageProvider.insert(file, entries)
+                    this.storageProvider.insert("${dataInfo.name}.$file", entries)
                 }
             }
             indexer.close()
