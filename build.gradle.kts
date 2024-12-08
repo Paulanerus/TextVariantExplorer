@@ -37,9 +37,13 @@ compose.desktop {
     application {
         mainClass = "dev.paulee.MainKt"
 
+        buildTypes.release.proguard {
+            isEnabled = false
+        }
+
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
-            packageName = "VariantExplorer"
+            packageName = "TextExplorer"
             packageVersion = "1.0.0"
         }
     }
