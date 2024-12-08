@@ -14,7 +14,7 @@ pluginManagement {
     }
 }
 
-rootProject.name = "VariantExplorer"
+rootProject.name = "TextExplorer"
 include("api")
 include("core")
 include("ui")
