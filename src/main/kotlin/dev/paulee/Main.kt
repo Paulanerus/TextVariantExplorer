@@ -1,5 +1,8 @@
 package dev.paulee
 
+import dev.paulee.ui.TextExplorerUI
+
 fun main() {
-    println("Hi")
+    val explorerUI = TextExplorerUI()
+    explorerUI.start()
 }
