@@ -27,7 +27,6 @@ import kotlin.reflect.KClass
 import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.hasAnnotation
 import kotlin.reflect.full.primaryConstructor
-import kotlin.text.replace
 
 internal class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
 

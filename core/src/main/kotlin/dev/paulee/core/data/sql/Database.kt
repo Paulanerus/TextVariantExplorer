@@ -41,8 +41,9 @@ private class Table(val name: String, columns: List<Column>) {
     val columns = listOf(primaryKey) + columns.filter { !it.primary }
 
     fun createIfNotExists(connection: Connection) {
-        connection.createStatement()
-            .execute("CREATE TABLE IF NOT EXISTS $name (${columns.joinToString(", ")})")
+        connection.createStatement().use {
+            it.execute("CREATE TABLE IF NOT EXISTS $name (${columns.joinToString(", ")})")
+        }
     }
 
     fun insert(connection: Connection, entries: List<Map<String, String>>) {
@@ -52,28 +53,68 @@ private class Table(val name: String, columns: List<Column>) {
         val placeholders =
             List(entries.size) { List(columns.size) { "?" }.joinToString(", ", prefix = "(", postfix = ")") }
 
-        val insertQuery =
-            "INSERT INTO $name (${columns.joinToString(", ") { it.name }}) VALUES ${placeholders.joinToString(", ")}"
-
-        val statement = connection.prepareStatement(insertQuery)
-
-        var size = columns.size
-        entries.forEachIndexed { index, map ->
-            columns.forEachIndexed { idx, column ->
-                val value = map[column.name] ?: return@forEachIndexed
-
-                statement.setString((size * index) + idx + 1, value)
-            }
+        val query = buildString {
+            append("INSERT INTO ")
+            append(name)
+            append(" (")
+            append(columns.joinToString(", ") { it.name })
+            append(") VALUES ")
+            append(placeholders.joinToString(", "))
         }
 
-        statement.executeUpdate()
+        connection.prepareStatement(query).use {
+            var size = columns.size
+            entries.forEachIndexed { index, map ->
+                columns.forEachIndexed { idx, column ->
+                    val value = map[column.name] ?: return@forEachIndexed
+
+                    it.setString((size * index) + idx + 1, value)
+                }
+            }
+            it.executeUpdate()
+        }
     }
 
-    override fun toString(): String =
-        "$name primary=${primaryKey}, columns={${columns.joinToString(", ")}}"
+    fun selectAll(
+        connection: Connection, whereClause: String? = null, offset: Int = 0, limit: Int = Int.MAX_VALUE
+    ): List<Map<String, String>> {
+        val query = buildString {
+            append("SELECT * FROM ")
+            append(name)
+
+            if (!whereClause.isNullOrEmpty()) {
+                append(" WHERE ")
+                append(whereClause)
+            }
+
+            append("OFFSET ")
+            append(offset)
+
+            append(" LIMIT ")
+            append(limit)
+        }
+
+        return connection.createStatement().use { statement ->
+            statement.executeQuery(query).use {
+                val results = mutableListOf<Map<String, String>>()
+
+                while (it.next()) {
+                    val row = columns.associate { column -> column.name to (it.getString(column.name) ?: "") }
+
+                    results.add(row)
+
+                    println(row)
+                }
+
+                results
+            }
+        }
+    }
+
+    override fun toString(): String = "$name primary=${primaryKey}, columns={${columns.joinToString(", ")}}"
 }
 
-internal class Database(private val path: Path) : Closeable {
+internal class Database(path: Path) : Closeable {
 
     private val dbPath = "jdbc:sqlite:$path"
 
@@ -102,7 +143,6 @@ internal class Database(private val path: Path) : Closeable {
     }
 
     fun createTable(klass: KClass<*>) {
-
         val tableName = klass.findAnnotation<DataSource>()?.file ?: return
 
         val columns = klass.primaryConstructor?.parameters.orEmpty().mapNotNull { param ->
@@ -122,6 +162,23 @@ internal class Database(private val path: Path) : Closeable {
             table.createIfNotExists(this)
 
             tables.add(table)
+        }
+    }
+
+    fun selectAll(
+        name: String,
+        whereClause: String? = null,
+        offset: Int = 0,
+        limit: Int = Int.MAX_VALUE
+    ): List<Map<String, String>> {
+        println(tables)
+
+        val table = tables.find { it.name == name } ?: return emptyList()
+
+        println("Here")
+
+        return transaction {
+            table.selectAll(this, whereClause, offset, limit)
         }
     }
 
