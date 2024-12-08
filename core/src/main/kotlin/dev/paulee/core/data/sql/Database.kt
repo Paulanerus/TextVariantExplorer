@@ -171,11 +171,7 @@ internal class Database(path: Path) : Closeable {
         offset: Int = 0,
         limit: Int = Int.MAX_VALUE
     ): List<Map<String, String>> {
-        println(tables)
-
         val table = tables.find { it.name == name } ?: return emptyList()
-
-        println("Here")
 
         return transaction {
             table.selectAll(this, whereClause, offset, limit)
