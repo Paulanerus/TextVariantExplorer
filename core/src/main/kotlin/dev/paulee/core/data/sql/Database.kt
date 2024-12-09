@@ -102,12 +102,26 @@ private class Table(val name: String, columns: List<Column>) {
                     val row = columns.associate { column -> column.name to (it.getString(column.name) ?: "") }
 
                     results.add(row)
-
-                    println(row)
                 }
 
                 results
             }
+        }
+    }
+
+    fun count(connection: Connection, whereClause: String? = null): Long {
+        val query = buildString {
+            append("SELECT COUNT(*) FROM ")
+            append(name)
+
+            if (!whereClause.isNullOrEmpty()) {
+                append(" WHERE ")
+                append(whereClause)
+            }
+        }
+
+        return connection.createStatement().use { statement ->
+            statement.executeQuery(query).use { if (it.next()) it.getLong(1) else -1L }
         }
     }
 
@@ -175,6 +189,14 @@ internal class Database(path: Path) : Closeable {
 
         return transaction {
             table.selectAll(this, whereClause, offset, limit)
+        }
+    }
+
+    fun count(name: String, whereClause: String? = null): Long {
+        val table = tables.find { it.name == name } ?: return -1L
+
+        return transaction {
+            table.count(this, whereClause)
         }
     }
 
