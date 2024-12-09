@@ -65,4 +65,6 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
         }
         return true
     }
+
+    override fun getPage(query: String, amount: Int, pageCount: Int) {}
 }
