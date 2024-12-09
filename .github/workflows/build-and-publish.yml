@@ -8,32 +8,37 @@ on:
 
 jobs:
   create-release:
+    runs-on: ubuntu-latest
+
     env:
       GH_TOKEN: ${{ github.token }}
 
-    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.extract_version.outputs.ver }}
 
     steps:
       - name: Check out code
         uses: actions/checkout@v4
 
       - name: Extract App Version
-        run: echo "VERSION=$(grep 'app.version=' gradle.properties | cut -d '=' -f2)" >> $GITHUB_ENV
+        id: extract_version
+        run: echo "ver=$(grep 'app.version=' gradle.properties | cut -d '=' -f2)" >> $GITHUB_OUTPUT
 
       - name: Create Release
-        run: gh release create v${{ env.VERSION }} --generate-notes
+        run: gh release create v${{ steps.extract_version.outputs.ver }} --generate-notes
 
   build:
+    needs: create-release
+
+    runs-on: ${{ matrix.os }}
+
     env:
       GH_TOKEN: ${{ github.token }}
-
-    needs: create-release
+      VERSION: ${{ needs.create-release.outputs.version }}
 
     strategy:
       matrix:
         os: [windows-latest, macos-latest, ubuntu-latest]
-
-    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Check out code
