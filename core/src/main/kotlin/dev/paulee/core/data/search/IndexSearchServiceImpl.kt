@@ -4,7 +4,8 @@ import dev.paulee.api.data.DataSource
 import dev.paulee.api.data.Index
 import dev.paulee.api.data.RequiresData
 import dev.paulee.api.data.Unique
-import dev.paulee.api.data.search.SearchService
+import dev.paulee.api.data.search.IndexSearchResult
+import dev.paulee.api.data.search.IndexSearchService
 import dev.paulee.core.data.analysis.Indexer
 import dev.paulee.core.splitStr
 import kotlin.io.path.Path
@@ -22,7 +23,7 @@ private class SearchInfo(val indexer: Indexer) {
     var defaultClass: String? = null
 }
 
-class SearchServiceImpl : SearchService {
+class IndexSearchServiceImpl : IndexSearchService {
 
     private val entries = mutableMapOf<String, SearchInfo>()
 
@@ -59,8 +60,8 @@ class SearchServiceImpl : SearchService {
         }
     }
 
-    override fun search(source: String, query: String) {
-        val entry = entries[source] ?: return
+    override fun search(source: String, query: String): IndexSearchResult {
+        val entry = entries[source] ?: return IndexSearchResult(emptySet(), emptyList())
 
         val ids = mutableSetOf<Long>()
 
@@ -80,7 +81,7 @@ class SearchServiceImpl : SearchService {
 
                 val field = str.substring(0, colon).let {
                     if (it.contains(".")) it
-                    else "${entry.defaultClass ?: return}.$it"
+                    else "${entry.defaultClass ?: return IndexSearchResult(emptySet(), emptyList())}.$it"
                 }
 
                 if (entry.fields[field] == true) {
@@ -96,14 +97,16 @@ class SearchServiceImpl : SearchService {
             entry.defaultIndexField?.let { defaultField ->
                 queryToken.takeIf { it.isNotEmpty() }?.let {
                     entry.indexer.searchFieldIndex(defaultField, it.joinToString(" ")).mapTo(ids) { doc ->
-                            doc.getField(entry.identifier[entry.defaultClass]).numericValue().toLong()
-                        }
+                        doc.getField(entry.identifier[entry.defaultClass]).numericValue().toLong()
+                    }
                 }
             }
         } else {
             entry.defaultIndexField?.let { entry.indexer.searchFieldIndex(it, query) }
                 ?.mapTo(ids) { doc -> doc.getField(entry.identifier[entry.defaultClass]).numericValue().toLong() }
         }
+
+        return IndexSearchResult(ids, token)
     }
 
     override fun close() = this.entries.values.forEach { it.indexer.close() }
