@@ -55,11 +55,11 @@ jobs:
         run: ./gradlew packageReleaseDistributionForCurrentOS
 
       - name: Upload Linux Artifact
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'windows-latest'
         run: gh release upload v${{ env.VERSION }} build/compose/binaries/main-release/msi/TextExplorer-${{ env.VERSION }}.msi --clobber
 
       - name: Upload Windows Artifact
-        if: matrix.os == 'windows-latest'
+        if: matrix.os == 'ubuntu-latest'
         run: gh release upload v${{ env.VERSION }} build/compose/binaries/main-release/deb/TextExplorer-${{ env.VERSION }}.deb --clobber
 
       - name: Upload macOS Artifact
