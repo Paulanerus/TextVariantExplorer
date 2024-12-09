@@ -1,0 +1,58 @@
+name: Build and Publish
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Extract App Version
+        id: extract_version
+        run: echo "VERSION=$(grep 'app.version=' gradle.properties | cut -d '=' -f2)" >> $GITHUB_ENV
+
+      - name: Create Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create v${{ env.VERSION }}
+
+  build:
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    needs: create-release
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v2
+        with:
+          java-version: '21'
+          distribution: 'corretto'
+          cache: 'gradle'
+
+      - name: Build ${{ matrix.os }}
+        run: ./gradlew packageReleaseDistributionForCurrentOS
+
+      - name: Upload Linux Artifact
+        if: runner.os == "Linux"
+        run: gh release upload v${{ env.VERSION }} build/compose/binaries/main-release/msi/TextExplorer-${{ env.VERSION }}.msi --clobber
+
+      - name: Upload Windows Artifact
+        if: runner.os == "Windows"
+        run: gh release upload v${{ env.VERSION }} build/compose/binaries/main-release/deb/TextExplorer-${{ env.VERSION }}.deb --clobber
+
+      - name: Upload macOS Artifact
+        if: runner.os == "macOS"
+        run: gh release upload v${{ env.VERSION }} build/compose/binaries/main-release/dmg/TextExplorer-${{ env.VERSION }}.Dmg --clobber

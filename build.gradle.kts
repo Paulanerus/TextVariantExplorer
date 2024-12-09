@@ -44,7 +44,6 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "TextExplorer"
-            packageVersion = "1.0.0"
         }
     }
 }
