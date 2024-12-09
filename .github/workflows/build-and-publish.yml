@@ -18,11 +18,10 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Extract App Version
-        id: extract_version
         run: echo "VERSION=$(grep 'app.version=' gradle.properties | cut -d '=' -f2)" >> $GITHUB_ENV
 
       - name: Create Release
-        run: gh release create v${{ env.VERSION }}
+        run: gh release create v${{ env.VERSION }} --generate-notes
 
   build:
     env:
