@@ -76,22 +76,25 @@ private class Table(val name: String, columns: List<Column>) {
     }
 
     fun selectAll(
-        connection: Connection, whereClause: String? = null, offset: Int = 0, limit: Int = Int.MAX_VALUE
+        connection: Connection,
+        whereClause: Map<String, List<String>> = emptyMap<String, List<String>>(),
+        offset: Int = 0,
+        limit: Int = Int.MAX_VALUE
     ): List<Map<String, String>> {
         val query = buildString {
             append("SELECT * FROM ")
             append(name)
 
-            if (!whereClause.isNullOrEmpty()) {
+            if (whereClause.isNotEmpty()) {
                 append(" WHERE ")
                 append(whereClause)
             }
 
-            append("OFFSET ")
-            append(offset)
-
             append(" LIMIT ")
             append(limit)
+
+            append(" OFFSET ")
+            append(offset)
         }
 
         return connection.createStatement().use { statement ->
@@ -179,9 +182,11 @@ internal class Database(path: Path) : Closeable {
         }
     }
 
+    fun primaryKeyOf(name: String): String? = tables.find { it.name == name }?.primaryKey?.name
+
     fun selectAll(
         name: String,
-        whereClause: String? = null,
+        whereClause: Map<String, List<String>> = emptyMap<String, List<String>>(),
         offset: Int = 0,
         limit: Int = Int.MAX_VALUE
     ): List<Map<String, String>> {
