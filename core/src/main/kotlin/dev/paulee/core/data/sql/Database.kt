@@ -86,8 +86,22 @@ private class Table(val name: String, columns: List<Column>) {
             append(name)
 
             if (whereClause.isNotEmpty()) {
-                append(" WHERE ")
-                append(whereClause)
+                val clause = whereClause.entries.joinToString(" AND ") { (column, values) ->
+                    val columnType = getColumnType(column) ?: return@joinToString ""
+
+                    val inClause = values.joinToString(
+                        ", ",
+                        prefix = "IN (",
+                        postfix = ")"
+                    ) { if (columnType == ColumnType.TEXT) "'$it'" else it }
+
+                    "$column $inClause"
+                }
+
+                if (clause.isNotEmpty()) {
+                    append(" WHERE ")
+                    append(clause)
+                }
             }
 
             append(" LIMIT ")
@@ -127,6 +141,8 @@ private class Table(val name: String, columns: List<Column>) {
             statement.executeQuery(query).use { if (it.next()) it.getLong(1) else -1L }
         }
     }
+
+    fun getColumnType(name: String): ColumnType? = columns.find { it.name == name }?.type
 
     override fun toString(): String = "$name primary=${primaryKey}, columns={${columns.joinToString(", ")}}"
 }
