@@ -1,5 +1,6 @@
 package dev.paulee.ui
 
+import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,6 +28,7 @@ class TextExplorerUI {
         var text by remember { mutableStateOf("") }
         var selectedRows by remember { mutableStateOf(setOf<List<String>>()) }
         var displayDiffWindow by remember { mutableStateOf(false) }
+        var showTable by remember { mutableStateOf(false) }
 
         val header = listOf(
             "Column 1",
@@ -68,7 +70,7 @@ class TextExplorerUI {
                     )
 
                     IconButton(
-                        onClick = { println(text) },
+                        onClick = { showTable = true },
                         modifier = Modifier.height(70.dp).padding(horizontal = 10.dp),
                         enabled = text.isNotEmpty() && text.isNotBlank()
                     ) {
@@ -78,14 +80,20 @@ class TextExplorerUI {
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                Box(
-                    modifier = Modifier.fillMaxWidth().padding(8.dp)
+                AnimatedVisibility(
+                    visible = showTable,
+                    enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
+                    exit = fadeOut() + slideOutVertically(targetOffsetY = { it })
                 ) {
-                    TableView(
-                        columns = header,
-                        data = data,
-                        onRowSelect = { selectedRows = it },
-                        clicked = { displayDiffWindow = true })
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(8.dp)
+                    ) {
+                        TableView(
+                            columns = header,
+                            data = data,
+                            onRowSelect = { selectedRows = it },
+                            clicked = { displayDiffWindow = true })
+                    }
                 }
             }
 
