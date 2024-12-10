@@ -5,14 +5,28 @@ import dev.paulee.api.data.IDataService
 import dev.paulee.api.data.RequiresData
 import dev.paulee.api.data.Unique
 import dev.paulee.api.data.provider.IStorageProvider
+import dev.paulee.api.data.search.IndexSearchService
 import dev.paulee.core.data.analysis.Indexer
 import dev.paulee.core.data.io.BufferedCSVReader
+import dev.paulee.core.data.search.IndexSearchServiceImpl
 import java.nio.file.Path
 import kotlin.io.path.exists
 import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.primaryConstructor
 
 class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataService {
+
+    private val searchService: IndexSearchService = IndexSearchServiceImpl()
+
+    private val pageSize = 2
+
+    private var currentPage = 0
+
+    private val pageCache = object : LinkedHashMap<Int, List<Map<String, String>>>(3, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Int, List<Map<String, String>>>?): Boolean {
+            return size > 3
+        }
+    }
 
     override fun createDataPool(dataInfo: RequiresData, path: Path): Boolean {
         val initStatus = this.storageProvider.init(dataInfo, path)
@@ -64,5 +78,31 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
             indexer.close()
         }
         return true
+    }
+
+    override fun getPage(query: String, pageCount: Int): List<Map<String, String>> {
+
+        pageCache[pageCount]?.let { return it }
+
+        val indexResult = this.searchService.search("", query)
+
+        val entries = storageProvider.get(
+            "",
+            indexResult.ids,
+            indexResult.tokens,
+            offset = this.currentPage * this.pageSize,
+            limit = pageSize
+        )
+
+        pageCache[this.currentPage] = entries
+
+        this.currentPage++
+
+        return entries
+    }
+
+    override fun close() {
+        this.searchService.close()
+        this.storageProvider.close()
     }
 }

@@ -71,6 +71,16 @@ internal class BinaryProvider : IStorageProvider {
         TODO("Not yet implemented")
     }
 
+    override fun get(
+        name: String,
+        ids: Set<Long>,
+        whereClause: List<String>,
+        offset: Int,
+        limit: Int
+    ): List<Map<String, String>> {
+        TODO("Not yet implemented")
+    }
+
     override fun close() {
         this.binaryBlob?.close()
     }

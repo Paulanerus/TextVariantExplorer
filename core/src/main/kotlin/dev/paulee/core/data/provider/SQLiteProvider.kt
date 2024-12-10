@@ -13,7 +13,7 @@ internal class SQLiteProvider : IStorageProvider {
     override fun init(dataInfo: RequiresData, path: Path): Int {
         val dbPath = path.resolve("${dataInfo.name}.db")
 
-        if (dbPath.exists()) return 0
+        val exists = dbPath.exists()
 
         val database = Database(dbPath)
 
@@ -23,16 +23,38 @@ internal class SQLiteProvider : IStorageProvider {
 
         dataSources[dataInfo.name] = database
 
-        return 1
+        return if (exists) 0 else 1
     }
 
     override fun insert(name: String, entries: List<Map<String, String>>) {
         val sourceName = name.substringBefore(".")
         val tableName = name.substringAfter(".")
 
-        val table = dataSources[sourceName] ?: return
+        val db = dataSources[sourceName] ?: return
 
-        table.insert(tableName, entries)
+        db.insert(tableName, entries)
+    }
+
+    override fun get(
+        name: String,
+        ids: Set<Long>,
+        whereClause: List<String>,
+        offset: Int,
+        limit: Int
+    ): List<Map<String, String>> {
+        val sourceName = name.substringBefore(".")
+        val tableName = name.substringAfter(".")
+
+        val db = dataSources[sourceName] ?: return emptyList()
+
+        var entries = whereClause.filter { it.contains(":") }.groupBy { it.substringBefore(":") }
+            .mapValues { it.value.map { it.substringAfter(":") } }.toMutableMap()
+
+        val primaryKey = db.primaryKeyOf(tableName) ?: return emptyList()
+
+        if (ids.isNotEmpty()) entries += primaryKey to ids.map { it.toString() }.toList()
+
+        return db.selectAll(tableName, entries, offset = offset, limit = limit)
     }
 
     override fun close() = dataSources.values.forEach { it.close() }

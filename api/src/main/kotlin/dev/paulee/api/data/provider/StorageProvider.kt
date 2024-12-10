@@ -15,4 +15,11 @@ interface IStorageProvider : Closeable {
 
     fun insert(name: String, entry: List<Map<String, String>>)
 
+    fun get(
+        name: String,
+        ids: Set<Long> = emptySet<Long>(),
+        whereClause: List<String> = emptyList<String>(),
+        offset: Int = 0,
+        limit: Int = Int.MAX_VALUE
+    ): List<Map<String, String>>
 }

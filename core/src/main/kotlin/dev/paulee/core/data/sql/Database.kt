@@ -76,22 +76,39 @@ private class Table(val name: String, columns: List<Column>) {
     }
 
     fun selectAll(
-        connection: Connection, whereClause: String? = null, offset: Int = 0, limit: Int = Int.MAX_VALUE
+        connection: Connection,
+        whereClause: Map<String, List<String>> = emptyMap<String, List<String>>(),
+        offset: Int = 0,
+        limit: Int = Int.MAX_VALUE
     ): List<Map<String, String>> {
         val query = buildString {
             append("SELECT * FROM ")
             append(name)
 
-            if (!whereClause.isNullOrEmpty()) {
-                append(" WHERE ")
-                append(whereClause)
-            }
+            if (whereClause.isNotEmpty()) {
+                val clause = whereClause.entries.joinToString(" AND ") { (column, values) ->
+                    val columnType = getColumnType(column) ?: return@joinToString ""
 
-            append("OFFSET ")
-            append(offset)
+                    val inClause = values.joinToString(
+                        ", ",
+                        prefix = "IN (",
+                        postfix = ")"
+                    ) { if (columnType == ColumnType.TEXT) "'$it'" else it }
+
+                    "$column $inClause"
+                }
+
+                if (clause.isNotEmpty()) {
+                    append(" WHERE ")
+                    append(clause)
+                }
+            }
 
             append(" LIMIT ")
             append(limit)
+
+            append(" OFFSET ")
+            append(offset)
         }
 
         return connection.createStatement().use { statement ->
@@ -124,6 +141,8 @@ private class Table(val name: String, columns: List<Column>) {
             statement.executeQuery(query).use { if (it.next()) it.getLong(1) else -1L }
         }
     }
+
+    fun getColumnType(name: String): ColumnType? = columns.find { it.name == name }?.type
 
     override fun toString(): String = "$name primary=${primaryKey}, columns={${columns.joinToString(", ")}}"
 }
@@ -179,9 +198,11 @@ internal class Database(path: Path) : Closeable {
         }
     }
 
+    fun primaryKeyOf(name: String): String? = tables.find { it.name == name }?.primaryKey?.name
+
     fun selectAll(
         name: String,
-        whereClause: String? = null,
+        whereClause: Map<String, List<String>> = emptyMap<String, List<String>>(),
         offset: Int = 0,
         limit: Int = Int.MAX_VALUE
     ): List<Map<String, String>> {
