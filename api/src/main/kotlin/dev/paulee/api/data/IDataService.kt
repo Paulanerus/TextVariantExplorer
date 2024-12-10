@@ -1,10 +1,11 @@
 package dev.paulee.api.data
 
+import java.io.Closeable
 import java.nio.file.Path
 
-interface IDataService {
+interface IDataService : Closeable {
 
     fun createDataPool(dataInfo: RequiresData, path: Path): Boolean
 
-    fun getPage(query: String, amount: Int, pageCount: Int = -1)
+    fun getPage(query: String, pageCount: Int = -1): List<Map<String, String>>
 }
