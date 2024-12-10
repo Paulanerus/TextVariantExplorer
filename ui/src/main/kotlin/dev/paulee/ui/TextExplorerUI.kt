@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -71,30 +70,9 @@ class TextExplorerUI {
                     IconButton(
                         onClick = { println(text) },
                         modifier = Modifier.height(70.dp).padding(horizontal = 10.dp),
-                        enabled = text.isNotEmpty()
+                        enabled = text.isNotEmpty() && text.isNotBlank()
                     ) {
                         Icon(Icons.Default.Search, contentDescription = "Search")
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth()){
-                    IconButton(
-                        onClick = {},
-                        modifier = Modifier.align(Alignment.CenterStart),
-                        enabled = selectedRows.isNotEmpty()
-                    ) {
-                        Icon(Icons.Default.Delete, contentDescription = "Delete")
-                    }
-
-                    Button(
-                        onClick = { displayDiffWindow = true },
-                        enabled = selectedRows.isNotEmpty(),
-                        modifier = Modifier.width(120.dp).align(Alignment.CenterEnd)
-                    ) {
-                        if (selectedRows.size <= 1) Text("View")
-                        else Text("View Diff")
                     }
                 }
 
@@ -103,7 +81,11 @@ class TextExplorerUI {
                 Box(
                     modifier = Modifier.fillMaxWidth().padding(8.dp)
                 ) {
-                    TableView(columns = header, data = data, onRowSelect = { selectedRows = it })
+                    TableView(
+                        columns = header,
+                        data = data,
+                        onRowSelect = { selectedRows = it },
+                        clicked = { displayDiffWindow = true })
                 }
             }
 
