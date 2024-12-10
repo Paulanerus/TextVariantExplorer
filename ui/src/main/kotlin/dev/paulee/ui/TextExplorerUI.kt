@@ -19,6 +19,7 @@ import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import dev.paulee.ui.components.DiffViewerWindow
+import dev.paulee.ui.components.DropDownMenu
 import dev.paulee.ui.components.TableView
 
 class TextExplorerUI {
@@ -44,60 +45,69 @@ class TextExplorerUI {
         }
 
         MaterialTheme {
-            Column(
-                modifier = Modifier.fillMaxSize().padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Text("Text Explorer", fontSize = 32.sp)
+            Box(modifier = Modifier.fillMaxSize()) {
 
-                Spacer(modifier = Modifier.height(16.dp))
+                DropDownMenu(
+                    modifier = Modifier.align(Alignment.TopEnd),
+                    items = listOf("Item 1", "Item 2", "Item 3"),
+                    clicked = { println(it) }
+                )
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    TextField(
-                        value = text,
-                        onValueChange = { text = it },
-                        placeholder = { Text("Search...") },
-                        modifier = Modifier.width(600.dp).background(
-                            color = Color.LightGray,
-                            shape = RoundedCornerShape(24.dp),
-                        ),
-                        colors = TextFieldDefaults.textFieldColors(
-                            backgroundColor = Color.Transparent,
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent
-                        )
-                    )
-
-                    IconButton(
-                        onClick = { showTable = true },
-                        modifier = Modifier.height(70.dp).padding(horizontal = 10.dp),
-                        enabled = text.isNotEmpty() && text.isNotBlank()
-                    ) {
-                        Icon(Icons.Default.Search, contentDescription = "Search")
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                AnimatedVisibility(
-                    visible = showTable,
-                    enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
-                    exit = fadeOut() + slideOutVertically(targetOffsetY = { it })
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
                 ) {
-                    Box(
-                        modifier = Modifier.fillMaxWidth().padding(8.dp)
+                    Text("Text Explorer", fontSize = 32.sp)
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        TextField(
+                            value = text,
+                            onValueChange = { text = it },
+                            placeholder = { Text("Search...") },
+                            modifier = Modifier.width(600.dp).background(
+                                color = Color.LightGray,
+                                shape = RoundedCornerShape(24.dp),
+                            ),
+                            colors = TextFieldDefaults.textFieldColors(
+                                backgroundColor = Color.Transparent,
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent
+                            )
+                        )
+
+                        IconButton(
+                            onClick = { showTable = true },
+                            modifier = Modifier.height(70.dp).padding(horizontal = 10.dp),
+                            enabled = text.isNotEmpty() && text.isNotBlank()
+                        ) {
+                            Icon(Icons.Default.Search, contentDescription = "Search")
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    AnimatedVisibility(
+                        visible = showTable,
+                        enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
+                        exit = fadeOut() + slideOutVertically(targetOffsetY = { it })
                     ) {
-                        TableView(
-                            columns = header,
-                            data = data,
-                            onRowSelect = { selectedRows = it },
-                            clicked = { displayDiffWindow = true })
+                        Box(
+                            modifier = Modifier.fillMaxWidth().padding(8.dp)
+                        ) {
+                            TableView(
+                                columns = header,
+                                data = data,
+                                onRowSelect = { selectedRows = it },
+                                clicked = { displayDiffWindow = true })
+                        }
                     }
                 }
-            }
 
-            if (displayDiffWindow) DiffViewerWindow(selectedRows) { displayDiffWindow = false }
+                if (displayDiffWindow) DiffViewerWindow(selectedRows) { displayDiffWindow = false }
+            }
         }
     }
 
