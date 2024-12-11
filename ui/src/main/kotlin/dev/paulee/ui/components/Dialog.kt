@@ -13,6 +13,11 @@ fun FileDialog(
 ) = AwtWindow(
     create = {
         object : FileDialog(parent, "Choose a file", LOAD) {
+
+            init {
+                isMultipleMode = true
+            }
+
             override fun setVisible(value: Boolean) {
                 super.setVisible(value)
 
