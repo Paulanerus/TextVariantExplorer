@@ -1,11 +1,12 @@
 package dev.paulee.ui
 
-import androidx.compose.animation.*
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -75,7 +76,15 @@ class TextExplorerUI {
                                 backgroundColor = Color.Transparent,
                                 focusedIndicatorColor = Color.Transparent,
                                 unfocusedIndicatorColor = Color.Transparent
-                            )
+                            ),
+                            trailingIcon = {
+                                IconButton(onClick = {
+                                    text = ""
+                                    showTable = false
+                                }) {
+                                    Icon(Icons.Default.Close, contentDescription = "Close")
+                                }
+                            }
                         )
 
                         IconButton(
@@ -89,11 +98,7 @@ class TextExplorerUI {
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    AnimatedVisibility(
-                        visible = showTable,
-                        enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
-                        exit = fadeOut() + slideOutVertically(targetOffsetY = { it })
-                    ) {
+                    AnimatedVisibility(visible = showTable) {
                         Box(
                             modifier = Modifier.fillMaxWidth().padding(8.dp)
                         ) {
