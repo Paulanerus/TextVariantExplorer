@@ -4,9 +4,9 @@ import java.nio.file.Path
 
 interface IPluginService {
 
-    fun loadFromDirectory(path: Path) : Int
+    fun loadFromDirectory(path: Path): Int
 
-    fun loadPlugin(path: Path) : Boolean
+    fun loadPlugin(path: Path, init: Boolean = false): Boolean
 
     fun getPluginMetadata(plugin: IPlugin): PluginMetadata?
 

@@ -19,13 +19,13 @@ class PluginServiceImpl : IPluginService {
 
     @OptIn(ExperimentalPathApi::class)
     override fun loadFromDirectory(path: Path): Int {
-        require(path.isDirectory())
+        if (!path.isDirectory()) return -1
 
         return path.walk().filter { it.extension == "jar" }.mapNotNull { if (this.loadPlugin(it)) it else null }.count()
     }
 
-    override fun loadPlugin(path: Path): Boolean {
-        require(path.extension == "jar")
+    override fun loadPlugin(path: Path, init: Boolean): Boolean {
+        if (path.extension != "jar") return false
 
         return URLClassLoader(arrayOf(path.toUri().toURL()), this.javaClass.classLoader).use { classLoader ->
             val entryPoint = this.getPluginEntryPoint(path)
@@ -37,6 +37,8 @@ class PluginServiceImpl : IPluginService {
             plugin?.let {
                 this.collectClasses(path).filter { it != entryPoint }
                     .forEach { runCatching { Class.forName(it, true, classLoader) } }
+
+                if (init) plugin.init()
 
                 this.plugins.add(plugin)
             } == true
