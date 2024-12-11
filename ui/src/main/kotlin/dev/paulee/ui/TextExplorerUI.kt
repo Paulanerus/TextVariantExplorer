@@ -27,6 +27,7 @@ import dev.paulee.ui.components.TableView
 import java.nio.file.Files
 import kotlin.io.path.Path
 import kotlin.io.path.copyTo
+import kotlin.io.path.exists
 import kotlin.io.path.extension
 import kotlin.io.path.name
 
@@ -84,6 +85,8 @@ class TextExplorerUI(private val pluginService: IPluginService) {
 
                         paths.filter { it.extension == "jar" }.forEach {
                             val path = pluginsDir.resolve(it.name)
+
+                            if (path.exists()) return@forEach
 
                             it.copyTo(path)
                             pluginService.loadPlugin(path, true)
