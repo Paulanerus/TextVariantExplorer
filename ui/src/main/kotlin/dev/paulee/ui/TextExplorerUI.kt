@@ -19,12 +19,30 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import dev.paulee.api.plugin.IPluginService
 import dev.paulee.ui.components.DiffViewerWindow
 import dev.paulee.ui.components.DropDownMenu
 import dev.paulee.ui.components.FileDialog
 import dev.paulee.ui.components.TableView
+import java.nio.file.Files
+import kotlin.io.path.Path
+import kotlin.io.path.copyTo
+import kotlin.io.path.extension
+import kotlin.io.path.name
 
-class TextExplorerUI {
+class TextExplorerUI(private val pluginService: IPluginService) {
+
+    private val appDir = Path(System.getProperty("user.home")).resolve(".textexplorer")
+
+    private val pluginsDir = appDir.resolve("plugins")
+
+    init {
+        Files.createDirectories(pluginsDir)
+
+        this.pluginService.loadFromDirectory(pluginsDir)
+
+        this.pluginService.initAll()
+    }
 
     @Composable
     private fun content() {
@@ -52,14 +70,24 @@ class TextExplorerUI {
 
                 DropDownMenu(
                     modifier = Modifier.align(Alignment.TopEnd),
-                    items = listOf("Item 1", "Item 2", "Item 3"),
-                    clicked = { isOpened = true }
+                    items = listOf("Load Plugin"),
+                    clicked = {
+                        when (it) {
+                            "Load Plugin" -> isOpened = true
+                        }
+                    }
                 )
 
                 if (isOpened) {
-                    FileDialog {
-                        println(it)
+                    FileDialog { paths ->
                         isOpened = false
+
+                        paths.filter { it.extension == "jar" }.forEach {
+                            val path = pluginsDir.resolve(it.name)
+
+                            it.copyTo(path)
+                            pluginService.loadPlugin(path, true)
+                        }
                     }
                 }
 
