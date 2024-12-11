@@ -81,6 +81,14 @@ internal class BinaryProvider : IStorageProvider {
         TODO("Not yet implemented")
     }
 
+    override fun count(
+        name: String,
+        ids: Set<Long>,
+        whereClause: List<String>
+    ): Long {
+        TODO("Not yet implemented")
+    }
+
     override fun close() {
         this.binaryBlob?.close()
     }

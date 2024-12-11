@@ -22,4 +22,10 @@ interface IStorageProvider : Closeable {
         offset: Int = 0,
         limit: Int = Int.MAX_VALUE
     ): List<Map<String, String>>
+
+    fun count(
+        name: String,
+        ids: Set<Long> = emptySet<Long>(),
+        whereClause: List<String> = emptyList<String>()
+    ): Long
 }
