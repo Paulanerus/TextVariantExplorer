@@ -126,14 +126,28 @@ private class Table(val name: String, columns: List<Column>) {
         }
     }
 
-    fun count(connection: Connection, whereClause: String? = null): Long {
+    fun count(connection: Connection, whereClause: Map<String, List<String>> = emptyMap<String, List<String>>()): Long {
         val query = buildString {
             append("SELECT COUNT(*) FROM ")
             append(name)
 
-            if (!whereClause.isNullOrEmpty()) {
-                append(" WHERE ")
-                append(whereClause)
+            if (whereClause.isNotEmpty()) {
+                val clause = whereClause.entries.joinToString(" AND ") { (column, values) ->
+                    val columnType = getColumnType(column) ?: return@joinToString ""
+
+                    val inClause = values.joinToString(
+                        ", ",
+                        prefix = "IN (",
+                        postfix = ")"
+                    ) { if (columnType == ColumnType.TEXT) "'$it'" else it }
+
+                    "$column $inClause"
+                }
+
+                if (clause.isNotEmpty()) {
+                    append(" WHERE ")
+                    append(clause)
+                }
             }
         }
 
@@ -213,7 +227,7 @@ internal class Database(path: Path) : Closeable {
         }
     }
 
-    fun count(name: String, whereClause: String? = null): Long {
+    fun count(name: String, whereClause: Map<String, List<String>> = emptyMap<String, List<String>>()): Long {
         val table = tables.find { it.name == name } ?: return -1L
 
         return transaction {
