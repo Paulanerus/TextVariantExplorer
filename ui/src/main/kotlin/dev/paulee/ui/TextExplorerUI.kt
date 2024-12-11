@@ -21,6 +21,7 @@ import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import dev.paulee.ui.components.DiffViewerWindow
 import dev.paulee.ui.components.DropDownMenu
+import dev.paulee.ui.components.FileDialog
 import dev.paulee.ui.components.TableView
 
 class TextExplorerUI {
@@ -31,6 +32,7 @@ class TextExplorerUI {
         var selectedRows by remember { mutableStateOf(setOf<List<String>>()) }
         var displayDiffWindow by remember { mutableStateOf(false) }
         var showTable by remember { mutableStateOf(false) }
+        var isOpened by remember { mutableStateOf(false) }
 
         val header = listOf(
             "Column 1",
@@ -51,8 +53,15 @@ class TextExplorerUI {
                 DropDownMenu(
                     modifier = Modifier.align(Alignment.TopEnd),
                     items = listOf("Item 1", "Item 2", "Item 3"),
-                    clicked = { println(it) }
+                    clicked = { isOpened = true }
                 )
+
+                if (isOpened) {
+                    FileDialog {
+                        println(it)
+                        isOpened = false
+                    }
+                }
 
                 Column(
                     modifier = Modifier.fillMaxSize().padding(16.dp),
