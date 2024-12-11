@@ -11,6 +11,7 @@ import dev.paulee.core.data.io.BufferedCSVReader
 import dev.paulee.core.data.search.IndexSearchServiceImpl
 import java.nio.file.Path
 import kotlin.io.path.exists
+import kotlin.math.ceil
 import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.primaryConstructor
 
@@ -18,7 +19,7 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
 
     private val searchService: IndexSearchService = IndexSearchServiceImpl()
 
-    private val pageSize = 2
+    private val pageSize = 50
 
     private var currentPage = 0
 
@@ -99,6 +100,14 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
         this.currentPage++
 
         return entries
+    }
+
+    override fun getPageCount(query: String): Long {
+        val indexResult = this.searchService.search("", query)
+
+        val count = this.storageProvider.count("", indexResult.ids, indexResult.tokens)
+
+        return ceil(count / pageSize.toDouble()).toLong()
     }
 
     override fun close() {
