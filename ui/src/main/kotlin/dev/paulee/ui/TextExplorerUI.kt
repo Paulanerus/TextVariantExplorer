@@ -25,7 +25,7 @@ import dev.paulee.ui.components.DiffViewerWindow
 import dev.paulee.ui.components.DropDownMenu
 import dev.paulee.ui.components.FileDialog
 import dev.paulee.ui.components.TableView
-import java.nio.file.Files
+import java.nio.file.Path
 import kotlin.io.path.*
 
 class TextExplorerUI(private val pluginService: IPluginService, private val dataService: IDataService) {
@@ -34,12 +34,18 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
 
     private val pluginsDir = appDir.resolve("plugins")
 
+    private val dataDir = appDir.resolve("data")
+
     init {
-        Files.createDirectories(pluginsDir)
+        if (!pluginsDir.exists()) pluginsDir.createDirectories()
 
         this.pluginService.loadFromDirectory(pluginsDir)
 
         this.pluginService.initAll()
+
+        val size = this.dataService.loadDataPools(dataDir)
+
+        println("Loaded $size data pools")
     }
 
     @Composable
@@ -67,26 +73,19 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
             Box(modifier = Modifier.fillMaxSize()) {
 
                 DropDownMenu(
-                    modifier = Modifier.align(Alignment.TopEnd),
-                    items = listOf("Load Plugin"),
-                    clicked = {
+                    modifier = Modifier.align(Alignment.TopEnd), items = listOf("Load Plugin"), clicked = {
                         when (it) {
                             "Load Plugin" -> isOpened = true
                         }
-                    }
-                )
+                    })
 
                 if (isOpened) {
                     FileDialog { paths ->
                         isOpened = false
 
                         paths.filter { it.extension == "jar" }.forEach {
-                            val path = pluginsDir.resolve(it.name)
-
-                            if (path.exists()) return@forEach
-
-                            it.copyTo(path)
-                            pluginService.loadPlugin(path, true)
+                            if (loadPlugin(it)) println("Loaded plugin ${it.name}")
+                            else println("Failed to load plugin ${it.name}")
                         }
                     }
                 }
@@ -121,8 +120,7 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
                                 }) {
                                     Icon(Icons.Default.Close, contentDescription = "Close")
                                 }
-                            }
-                        )
+                            })
 
                         IconButton(
                             onClick = { showTable = true },
@@ -163,5 +161,25 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
         }) {
             content()
         }
+    }
+
+    private fun loadPlugin(path: Path): Boolean {
+        val pluginPath = pluginsDir.resolve(path.name)
+
+        if (pluginPath.exists()) return true
+
+        path.copyTo(pluginPath)
+
+        val plugin = pluginService.loadPlugin(pluginPath, true)
+
+        if (plugin == null) return false
+
+        this.pluginService.getDataInfo(plugin)?.let {
+            if (it.sources.isEmpty()) return@let
+
+            if (this.dataService.createDataPool(it, dataDir)) println("Created data pool for ${it.name}")
+            else println("Failed to create data pool for ${it.name}")
+        }
+        return true
     }
 }
