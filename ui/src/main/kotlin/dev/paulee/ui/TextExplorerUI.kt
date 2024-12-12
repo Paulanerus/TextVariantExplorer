@@ -19,19 +19,16 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import dev.paulee.api.data.IDataService
 import dev.paulee.api.plugin.IPluginService
 import dev.paulee.ui.components.DiffViewerWindow
 import dev.paulee.ui.components.DropDownMenu
 import dev.paulee.ui.components.FileDialog
 import dev.paulee.ui.components.TableView
 import java.nio.file.Files
-import kotlin.io.path.Path
-import kotlin.io.path.copyTo
-import kotlin.io.path.exists
-import kotlin.io.path.extension
-import kotlin.io.path.name
+import kotlin.io.path.*
 
-class TextExplorerUI(private val pluginService: IPluginService) {
+class TextExplorerUI(private val pluginService: IPluginService, private val dataService: IDataService) {
 
     private val appDir = Path(System.getProperty("user.home")).resolve(".textexplorer")
 
@@ -156,11 +153,14 @@ class TextExplorerUI(private val pluginService: IPluginService) {
         }
     }
 
-    fun start() = application {
+    fun start() = application(exitProcessOnExit = true) {
         val windowState =
             rememberWindowState(position = WindowPosition.Aligned(Alignment.Center), size = DpSize(1600.dp, 900.dp))
 
-        Window(title = "TextExplorer", state = windowState, onCloseRequest = ::exitApplication) {
+        Window(title = "TextExplorer", state = windowState, onCloseRequest = {
+            dataService.close()
+            exitApplication()
+        }) {
             content()
         }
     }
