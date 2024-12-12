@@ -57,5 +57,25 @@ internal class SQLiteProvider : IStorageProvider {
         return db.selectAll(tableName, entries, offset = offset, limit = limit)
     }
 
+    override fun count(
+        name: String,
+        ids: Set<Long>,
+        whereClause: List<String>
+    ): Long {
+        val sourceName = name.substringBefore(".")
+        val tableName = name.substringAfter(".")
+
+        val db = dataSources[sourceName] ?: return 0
+
+        var entries = whereClause.filter { it.contains(":") }.groupBy { it.substringBefore(":") }
+            .mapValues { it.value.map { it.substringAfter(":") } }.toMutableMap()
+
+        val primaryKey = db.primaryKeyOf(tableName) ?: return 0
+
+        if (ids.isNotEmpty()) entries += primaryKey to ids.map { it.toString() }.toList()
+
+        return db.count(tableName, entries)
+    }
+
     override fun close() = dataSources.values.forEach { it.close() }
 }

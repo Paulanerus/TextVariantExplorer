@@ -8,4 +8,6 @@ interface IDataService : Closeable {
     fun createDataPool(dataInfo: RequiresData, path: Path): Boolean
 
     fun getPage(query: String, pageCount: Int = -1): List<Map<String, String>>
+
+    fun getPageCount(query: String): Long
 }

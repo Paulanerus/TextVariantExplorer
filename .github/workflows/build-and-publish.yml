@@ -27,6 +27,35 @@ jobs:
       - name: Create Release
         run: gh release create v${{ steps.extract_version.outputs.ver }} --generate-notes
 
+  build-api:
+    needs: create-release
+
+    runs-on: ubuntu-latest
+
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ needs.create-release.outputs.version }}
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4.5.0
+        with:
+          java-version: '21'
+          distribution: 'corretto'
+          cache: 'gradle'
+
+      - name: Extract API Version
+        run: echo "API_VERSION=$(grep 'api.version=' gradle.properties | cut -d '=' -f2)" >> $GITHUB_ENV
+
+      - name: Build API
+        run: ./gradlew :api:build
+
+      - name: Upload API
+        run: gh release upload v${{ env.VERSION }} api/build/libs/api-${{ API_VERSION }}.jar --clobber
+
   build:
     needs: create-release
 

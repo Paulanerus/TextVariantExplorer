@@ -3,10 +3,7 @@ package dev.paulee.ui.components
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material.Button
-import androidx.compose.material.Icon
-import androidx.compose.material.IconButton
-import androidx.compose.material.Text
+import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.runtime.Composable
@@ -17,12 +14,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import kotlin.collections.isNotEmpty
 
 @Composable
-fun TableView(columns: List<String>, data: List<List<String>>, onRowSelect: (Set<List<String>>) -> Unit, clicked: () -> Unit = {}) {
+fun TableView(
+    columns: List<String>,
+    data: List<List<String>>,
+    onRowSelect: (Set<List<String>>) -> Unit,
+    clicked: () -> Unit = {}
+) {
     val selectedRows = remember { mutableStateOf(setOf<Int>()) }
     val scrollState = rememberScrollState()
+    val hiddenColumns = remember { mutableStateOf(setOf<Int>()) }
 
     Column(modifier = Modifier.fillMaxSize()) {
         Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth()) {
@@ -35,6 +37,20 @@ fun TableView(columns: List<String>, data: List<List<String>>, onRowSelect: (Set
                 enabled = selectedRows.value.isNotEmpty()
             ) {
                 Icon(Icons.Default.Delete, contentDescription = "Delete")
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.align(Alignment.Center)) {
+                columns.forEachIndexed { index, column ->
+                    Button(onClick = {
+                        if (hiddenColumns.value.contains(index))
+                            hiddenColumns.value = hiddenColumns.value - index
+                        else
+                            hiddenColumns.value = hiddenColumns.value + index
+
+                    }, colors = ButtonDefaults.buttonColors(backgroundColor = Color.LightGray)) {
+                        Text(column)
+                    }
+                }
             }
 
             Button(
@@ -54,7 +70,7 @@ fun TableView(columns: List<String>, data: List<List<String>>, onRowSelect: (Set
             modifier = Modifier.fillMaxWidth().horizontalScroll(scrollState).background(Color.Gray)
                 .padding(vertical = 8.dp)
         ) {
-            columns.forEach {
+            columns.filter { !hiddenColumns.value.contains(columns.indexOf(it)) }.forEach {
                 Text(
                     text = it,
                     fontWeight = FontWeight.Bold,
@@ -86,7 +102,9 @@ fun TableView(columns: List<String>, data: List<List<String>>, onRowSelect: (Set
                             }.background(if (selectedRows.value.contains(index)) Color.LightGray else Color.Transparent)
                                 .padding(vertical = 8.dp),
                         ) {
-                            row.forEach { cell ->
+                            row.forEachIndexed { index, cell ->
+                                if (hiddenColumns.value.contains(index)) return@forEachIndexed
+
                                 Text(
                                     text = cell, modifier = Modifier.width(175.dp).padding(horizontal = 4.dp)
                                 )

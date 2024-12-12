@@ -1,11 +1,12 @@
 package dev.paulee.ui
 
-import androidx.compose.animation.*
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -18,11 +19,31 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import dev.paulee.api.plugin.IPluginService
 import dev.paulee.ui.components.DiffViewerWindow
 import dev.paulee.ui.components.DropDownMenu
+import dev.paulee.ui.components.FileDialog
 import dev.paulee.ui.components.TableView
+import java.nio.file.Files
+import kotlin.io.path.Path
+import kotlin.io.path.copyTo
+import kotlin.io.path.exists
+import kotlin.io.path.extension
+import kotlin.io.path.name
 
-class TextExplorerUI {
+class TextExplorerUI(private val pluginService: IPluginService) {
+
+    private val appDir = Path(System.getProperty("user.home")).resolve(".textexplorer")
+
+    private val pluginsDir = appDir.resolve("plugins")
+
+    init {
+        Files.createDirectories(pluginsDir)
+
+        this.pluginService.loadFromDirectory(pluginsDir)
+
+        this.pluginService.initAll()
+    }
 
     @Composable
     private fun content() {
@@ -30,6 +51,7 @@ class TextExplorerUI {
         var selectedRows by remember { mutableStateOf(setOf<List<String>>()) }
         var displayDiffWindow by remember { mutableStateOf(false) }
         var showTable by remember { mutableStateOf(false) }
+        var isOpened by remember { mutableStateOf(false) }
 
         val header = listOf(
             "Column 1",
@@ -49,9 +71,28 @@ class TextExplorerUI {
 
                 DropDownMenu(
                     modifier = Modifier.align(Alignment.TopEnd),
-                    items = listOf("Item 1", "Item 2", "Item 3"),
-                    clicked = { println(it) }
+                    items = listOf("Load Plugin"),
+                    clicked = {
+                        when (it) {
+                            "Load Plugin" -> isOpened = true
+                        }
+                    }
                 )
+
+                if (isOpened) {
+                    FileDialog { paths ->
+                        isOpened = false
+
+                        paths.filter { it.extension == "jar" }.forEach {
+                            val path = pluginsDir.resolve(it.name)
+
+                            if (path.exists()) return@forEach
+
+                            it.copyTo(path)
+                            pluginService.loadPlugin(path, true)
+                        }
+                    }
+                }
 
                 Column(
                     modifier = Modifier.fillMaxSize().padding(16.dp),
@@ -75,7 +116,15 @@ class TextExplorerUI {
                                 backgroundColor = Color.Transparent,
                                 focusedIndicatorColor = Color.Transparent,
                                 unfocusedIndicatorColor = Color.Transparent
-                            )
+                            ),
+                            trailingIcon = {
+                                IconButton(onClick = {
+                                    text = ""
+                                    showTable = false
+                                }) {
+                                    Icon(Icons.Default.Close, contentDescription = "Close")
+                                }
+                            }
                         )
 
                         IconButton(
@@ -89,11 +138,7 @@ class TextExplorerUI {
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    AnimatedVisibility(
-                        visible = showTable,
-                        enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
-                        exit = fadeOut() + slideOutVertically(targetOffsetY = { it })
-                    ) {
+                    AnimatedVisibility(visible = showTable) {
                         Box(
                             modifier = Modifier.fillMaxWidth().padding(8.dp)
                         ) {
