@@ -41,7 +41,7 @@ internal class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
     private val operator = mapOf("(?i)\\bor\\b" to "OR", "(?i)\\band\\b" to "AND", "(?i)\\bnot\\b" to "NOT")
 
     init {
-        //See https://lucene.apache.org/core/5_2_0/core/org/apache/lucene/store/NIOFSDirectory.html
+        //See https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/store/NIOFSDirectory.html
         this.directory = if (this.isWindows()) FSDirectory.open(path) else NIOFSDirectory.open(path)
 
         sources.forEach {
@@ -62,16 +62,16 @@ internal class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
                         ?.also { unique -> this.idFields.add("$name.$paramName") }
                 }
 
-            idFields.add("${name}_ag_id")
+            this.idFields.add("${name}_ag_id")
         }
 
-        val fieldAnalyzer = PerFieldAnalyzerWrapper(LangAnalyzer.new(Language.ENGLISH), mappedAnalyzer)
+        val fieldAnalyzer = PerFieldAnalyzerWrapper(LangAnalyzer.new(Language.ENGLISH), this.mappedAnalyzer)
 
         val config = IndexWriterConfig(fieldAnalyzer).apply {
             openMode = IndexWriterConfig.OpenMode.CREATE_OR_APPEND
         }
 
-        writer = IndexWriter(directory, config)
+        writer = IndexWriter(this.directory, config)
     }
 
     fun indexEntries(name: String, entries: List<Map<String, String>>) {
@@ -86,7 +86,7 @@ internal class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
     }
 
     fun searchFieldIndex(field: String, query: String): List<Document> {
-        val queryParser = StandardQueryParser(mappedAnalyzer[field] ?: EnglishAnalyzer())
+        val queryParser = StandardQueryParser(this.mappedAnalyzer[field] ?: EnglishAnalyzer())
 
         queryParser.defaultOperator = StandardQueryConfigHandler.Operator.AND
         queryParser.allowLeadingWildcard = true

@@ -12,9 +12,13 @@ import dev.paulee.core.data.search.IndexSearchServiceImpl
 import java.nio.file.Path
 import kotlin.io.path.createDirectories
 import kotlin.io.path.exists
+import kotlin.io.path.isDirectory
+import kotlin.io.path.listDirectoryEntries
 import kotlin.math.ceil
 import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.primaryConstructor
+
+private class DataPool
 
 class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataService {
 
@@ -29,6 +33,8 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
             return size > 3
         }
     }
+
+    private val dataPools = mutableMapOf<Path, DataPool>()
 
     override fun createDataPool(dataInfo: RequiresData, path: Path): Boolean {
         val initStatus = this.storageProvider.init(dataInfo, path)
@@ -84,7 +90,13 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
     override fun loadDataPools(path: Path): Int {
         if (!path.exists()) path.createDirectories()
 
-        return 0
+        path.listDirectoryEntries()
+            .filter { it.isDirectory() && !dataPools.containsKey(it) }
+            .forEach {
+                dataPools[it] = DataPool()
+            }
+
+        return dataPools.size
     }
 
     override fun getPage(query: String, pageCount: Int): List<Map<String, String>> {
