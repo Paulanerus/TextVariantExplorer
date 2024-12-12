@@ -54,7 +54,7 @@ jobs:
         run: ./gradlew :api:build
 
       - name: Upload API
-        run: gh release upload v${{ env.VERSION }} api/build/libs/api-${{ API_VERSION }}.jar --clobber
+        run: gh release upload v${{ env.VERSION }} api/build/libs/api-${{ env.API_VERSION }}.jar --clobber
 
   build:
     needs: create-release
