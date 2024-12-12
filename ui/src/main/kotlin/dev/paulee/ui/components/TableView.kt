@@ -3,6 +3,7 @@ package dev.paulee.ui.components
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
@@ -24,6 +25,7 @@ fun TableView(
 ) {
     val selectedRows = remember { mutableStateOf(setOf<Int>()) }
     val scrollState = rememberScrollState()
+    val verticalScrollState = rememberLazyListState()
     val hiddenColumns = remember { mutableStateOf(setOf<Int>()) }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -85,7 +87,7 @@ fun TableView(
             Box(
                 modifier = Modifier.horizontalScroll(scrollState)
             ) {
-                LazyColumn {
+                LazyColumn(state = verticalScrollState) {
                     items(data.size) { index ->
                         val row = data[index]
                         Row(
@@ -113,6 +115,11 @@ fun TableView(
                     }
                 }
             }
+
+            VerticalScrollbar(
+                adapter = rememberScrollbarAdapter(verticalScrollState),
+                modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight().padding(end = 4.dp)
+            )
 
             HorizontalScrollbar(
                 adapter = rememberScrollbarAdapter(scrollState), modifier = Modifier.align(Alignment.BottomCenter)
