@@ -4,6 +4,7 @@ import dev.paulee.api.data.DataSource
 import dev.paulee.api.data.Index
 import dev.paulee.api.data.Language
 import dev.paulee.api.data.Unique
+import dev.paulee.core.normalizeDataSource
 import org.apache.lucene.analysis.Analyzer
 import org.apache.lucene.analysis.en.EnglishAnalyzer
 import org.apache.lucene.analysis.miscellaneous.PerFieldAnalyzerWrapper
@@ -47,6 +48,8 @@ internal class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
         sources.forEach {
             val name = it.findAnnotation<DataSource>()?.file ?: return@forEach
 
+            val normalized = normalizeDataSource(name)
+
             it.primaryConstructor
                 ?.parameters
                 .orEmpty()
@@ -55,14 +58,14 @@ internal class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
                     val paramName = param.name ?: return@forEach
 
                     param.findAnnotation<Index>()?.also { index ->
-                        this.mappedAnalyzer["$name.$paramName"] = LangAnalyzer.new(index.lang)
+                        this.mappedAnalyzer["$normalized.$paramName"] = LangAnalyzer.new(index.lang)
                     }
 
                     param.findAnnotation<Unique>()?.takeIf { param.type.classifier == Long::class && it.identify }
-                        ?.also { unique -> this.idFields.add("$name.$paramName") }
+                        ?.also { unique -> this.idFields.add("$normalized.$paramName") }
                 }
 
-            this.idFields.add("${name}_ag_id")
+            this.idFields.add("${normalized}_ag_id")
         }
 
         val fieldAnalyzer = PerFieldAnalyzerWrapper(LangAnalyzer.new(Language.ENGLISH), this.mappedAnalyzer)

@@ -22,3 +22,5 @@ fun splitStr(str: String, delimiter: Char, quoteCharacters: Array<Char> = arrayO
 
     return tokens
 }
+
+fun normalizeDataSource(dataSource: String): String = dataSource.substringBeforeLast(".").replace(" ", "_")

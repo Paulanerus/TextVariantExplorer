@@ -6,6 +6,7 @@ import dev.paulee.api.plugin.IPlugin
 import dev.paulee.api.plugin.IPluginService
 import dev.paulee.api.plugin.PluginMetadata
 import dev.paulee.api.plugin.PluginOrder
+import dev.paulee.core.normalizeDataSource
 import java.net.URLClassLoader
 import java.nio.file.Path
 import java.util.jar.JarFile
@@ -71,7 +72,7 @@ class PluginServiceImpl : IPluginService {
             .map { it.sources }
             .forEach {
                 it.forEach { clazz ->
-                    clazz.findAnnotation<DataSource>()?.file?.let { dataSources.add(it) }
+                    clazz.findAnnotation<DataSource>()?.file?.let { dataSources.add(normalizeDataSource(it)) }
                 }
             }
 

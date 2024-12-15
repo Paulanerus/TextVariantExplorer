@@ -7,6 +7,7 @@ import dev.paulee.api.data.Unique
 import dev.paulee.api.data.search.IndexSearchResult
 import dev.paulee.api.data.search.IndexSearchService
 import dev.paulee.core.data.analysis.Indexer
+import dev.paulee.core.normalizeDataSource
 import dev.paulee.core.splitStr
 import kotlin.io.path.Path
 import kotlin.reflect.full.findAnnotation
@@ -34,25 +35,27 @@ class IndexSearchServiceImpl : IndexSearchService {
             dataInfo.sources.forEach { clazz ->
                 val file = clazz.findAnnotation<DataSource>()?.file ?: return@forEach
 
+                val normalized = normalizeDataSource(file)
+
                 clazz.primaryConstructor?.parameters.orEmpty().forEach { param ->
                     val name = param.name ?: return@forEach
 
-                    val key = "$file.$name"
+                    val key = "$normalized.$name"
                     fields[key] = false
 
                     param.findAnnotation<Index>()?.let { index ->
                         fields[key] = true
 
-                        identifier.putIfAbsent(file, "${file}_ag_id")
+                        identifier.putIfAbsent(normalized, "${normalized}_ag_id")
 
                         if (index.default && defaultIndexField.isNullOrEmpty()) {
-                            defaultIndexField = "$file.$name"
-                            defaultClass = file
+                            defaultIndexField = "$normalized.$name"
+                            defaultClass = normalized
                         }
                     }
 
                     param.findAnnotation<Unique>()?.identify?.let {
-                        if (it && param.type.classifier == Long::class) identifier[file] = "$file.$name"
+                        if (it && param.type.classifier == Long::class) identifier[normalized] = "$normalized.$name"
                     }
                 }
             }
