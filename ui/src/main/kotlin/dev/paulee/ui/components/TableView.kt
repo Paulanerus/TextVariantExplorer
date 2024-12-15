@@ -1,6 +1,7 @@
 package dev.paulee.ui.components
 
 import androidx.compose.foundation.*
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -12,21 +13,31 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import java.awt.Cursor
 
 @Composable
 fun TableView(
     columns: List<String>,
     data: List<List<String>>,
     onRowSelect: (Set<List<String>>) -> Unit,
-    clicked: () -> Unit = {}
+    clicked: () -> Unit = {},
 ) {
     val selectedRows = remember { mutableStateOf(setOf<Int>()) }
     val scrollState = rememberScrollState()
     val verticalScrollState = rememberLazyListState()
     val hiddenColumns = remember { mutableStateOf(setOf<Int>()) }
+
+    val columnWidths = remember {
+        columns.map { mutableStateOf(175.dp) }
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth()) {
@@ -34,9 +45,7 @@ fun TableView(
                 onClick = {
                     selectedRows.value = emptySet()
                     onRowSelect(emptySet())
-                },
-                modifier = Modifier.align(Alignment.CenterStart),
-                enabled = selectedRows.value.isNotEmpty()
+                }, modifier = Modifier.align(Alignment.CenterStart), enabled = selectedRows.value.isNotEmpty()
             ) {
                 Icon(Icons.Default.Delete, contentDescription = "Delete")
             }
@@ -68,16 +77,42 @@ fun TableView(
         Spacer(modifier = Modifier.height(16.dp))
 
         Row(
-            horizontalArrangement = Arrangement.spacedBy(22.dp),
             modifier = Modifier.fillMaxWidth().horizontalScroll(scrollState).background(Color.Gray)
-                .padding(vertical = 8.dp)
         ) {
-            columns.filter { !hiddenColumns.value.contains(columns.indexOf(it)) }.forEach {
-                Text(
-                    text = it,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.width(175.dp).padding(horizontal = 4.dp)
-                )
+            columns.forEachIndexed { index, columnName ->
+                if (hiddenColumns.value.contains(index)) return@forEachIndexed
+
+                Box(
+                    modifier = Modifier.height(IntrinsicSize.Min).width(columnWidths[index].value).drawBehind {
+                        val strokeWidth = 2.dp.toPx()
+                        val halfStrokeWidth = strokeWidth / 2
+                        drawLine(
+                            color = Color.DarkGray,
+                            start = Offset(size.width - halfStrokeWidth, 0f),
+                            end = Offset(size.width - halfStrokeWidth, size.height),
+                            strokeWidth = strokeWidth
+                        )
+                    }
+                ) {
+                    Text(
+                        text = columnName,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
+                    )
+
+                    Box(
+                        modifier = Modifier.align(Alignment.CenterEnd).width(4.dp)
+                            .fillMaxHeight()
+                            .pointerHoverIcon(PointerIcon(Cursor(Cursor.E_RESIZE_CURSOR)))
+                            .pointerInput(Unit) {
+                                detectDragGestures { change, dragAmount ->
+                                    change.consume()
+                                    val newWidth =
+                                        (columnWidths[index].value + dragAmount.x.dp).coerceAtLeast(50.dp)
+                                    columnWidths[index].value = newWidth
+                                }
+                            })
+                }
             }
         }
 
@@ -88,27 +123,27 @@ fun TableView(
                 modifier = Modifier.horizontalScroll(scrollState)
             ) {
                 LazyColumn(state = verticalScrollState) {
-                    items(data.size) { index ->
-                        val row = data[index]
+                    items(data.size) { rowIndex ->
+                        val row = data[rowIndex]
                         Row(
-                            horizontalArrangement = Arrangement.spacedBy(22.dp),
                             modifier = Modifier.fillMaxWidth().clickable {
-                                val selected = if (selectedRows.value.contains(index)) {
-                                    selectedRows.value - index
+                                val selected = if (selectedRows.value.contains(rowIndex)) {
+                                    selectedRows.value - rowIndex
                                 } else {
-                                    selectedRows.value + index
+                                    selectedRows.value + rowIndex
                                 }
-
                                 selectedRows.value = selected
                                 onRowSelect(selected.map { data[it] }.toSet())
-                            }.background(if (selectedRows.value.contains(index)) Color.LightGray else Color.Transparent)
+                            }
+                                .background(if (selectedRows.value.contains(rowIndex)) Color.LightGray else Color.Transparent)
                                 .padding(vertical = 8.dp),
                         ) {
-                            row.forEachIndexed { index, cell ->
-                                if (hiddenColumns.value.contains(index)) return@forEachIndexed
+                            row.forEachIndexed { colIndex, cell ->
+                                if (hiddenColumns.value.contains(colIndex)) return@forEachIndexed
 
                                 Text(
-                                    text = cell, modifier = Modifier.width(175.dp).padding(horizontal = 4.dp)
+                                    text = cell,
+                                    modifier = Modifier.width(columnWidths[colIndex].value).padding(horizontal = 4.dp)
                                 )
                             }
                         }
