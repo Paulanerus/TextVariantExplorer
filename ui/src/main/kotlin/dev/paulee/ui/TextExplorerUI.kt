@@ -36,6 +36,8 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
 
     private val dataDir = appDir.resolve("data")
 
+    private val versionStrings = listOf("api", "core", "ui")
+
     init {
         if (!pluginsDir.exists()) pluginsDir.createDirectories()
 
@@ -145,6 +147,21 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
                         }
                     }
                 }
+
+                Text(
+                    "v${System.getProperty("app.version")} ${
+                        versionStrings.joinToString(
+                            prefix = "(",
+                            postfix = ")",
+                            separator = ", "
+                        ){ 
+                            "${it.uppercase()} - ${System.getProperty("${it}.version")}"
+                        }
+                    }",
+                    modifier = Modifier.align(Alignment.BottomCenter),
+                    fontSize = 10.sp,
+                    color = Color.LightGray
+                )
 
                 if (displayDiffWindow) DiffViewerWindow(selectedRows) { displayDiffWindow = false }
             }
