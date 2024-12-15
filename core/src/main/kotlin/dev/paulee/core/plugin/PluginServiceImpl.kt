@@ -1,5 +1,6 @@
 package dev.paulee.core.plugin
 
+import dev.paulee.api.data.DataSource
 import dev.paulee.api.data.RequiresData
 import dev.paulee.api.plugin.IPlugin
 import dev.paulee.api.plugin.IPluginService
@@ -59,6 +60,23 @@ class PluginServiceImpl : IPluginService {
     }
 
     override fun getPlugins(): List<IPlugin> = this.plugins.toList()
+
+    override fun getAllDataInfos(): Set<String> = this.plugins.mapNotNull { this.getDataInfo(it)?.name }.toSet()
+
+    override fun getDataSources(datInfo: String): Set<String> {
+        val dataSources = mutableSetOf<String>()
+
+        this.plugins.mapNotNull { this.getDataInfo(it) }
+            .filter { it.name == datInfo }
+            .map { it.sources }
+            .forEach {
+                it.forEach { clazz ->
+                    clazz.findAnnotation<DataSource>()?.file?.let { dataSources.add(it) }
+                }
+            }
+
+        return dataSources
+    }
 
     private fun getPluginEntryPoint(path: Path): String? =
         JarFile(path.toFile()).use { return it.manifest.mainAttributes.getValue("Main-Class") }
