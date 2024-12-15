@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.runtime.*
@@ -36,7 +38,13 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
 
     private val dataDir = appDir.resolve("data")
 
-    private val versionStrings = listOf("api", "core", "ui")
+    private val versionString = "v${System.getProperty("app.version")} ${
+        listOf("api", "core", "ui").joinToString(
+            prefix = "(", postfix = ")", separator = ", "
+        ) {
+            "${it.uppercase()} - ${System.getProperty("${it}.version")}"
+        }
+    }"
 
     init {
         if (!pluginsDir.exists()) pluginsDir.createDirectories()
@@ -57,6 +65,9 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
         var displayDiffWindow by remember { mutableStateOf(false) }
         var showTable by remember { mutableStateOf(false) }
         var isOpened by remember { mutableStateOf(false) }
+        var totalPages by remember { mutableStateOf(0L) }
+        var currentPage by remember { mutableStateOf(0) }
+        var currentData by remember { mutableStateOf(listOf<List<String>>()) }
 
         val header = listOf(
             "Column 1",
@@ -125,7 +136,11 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
                             })
 
                         IconButton(
-                            onClick = { showTable = true },
+                            onClick = {
+                                currentPage = 0
+                                totalPages = 10L
+                                showTable = true
+                            },
                             modifier = Modifier.height(70.dp).padding(horizontal = 10.dp),
                             enabled = text.isNotEmpty() && text.isNotBlank()
                         ) {
@@ -136,28 +151,51 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
                     Spacer(modifier = Modifier.height(16.dp))
 
                     AnimatedVisibility(visible = showTable) {
-                        Box(
-                            modifier = Modifier.fillMaxWidth().padding(8.dp)
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(8.dp),
                         ) {
                             TableView(
+                                modifier = Modifier.weight(1f),
                                 columns = header,
                                 data = data,
                                 onRowSelect = { selectedRows = it },
                                 clicked = { displayDiffWindow = true })
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                IconButton(
+                                    onClick = {
+                                        if (currentPage > 0) {
+                                            currentPage--
+                                        }
+                                    }, enabled = currentPage > 0
+                                ) {
+                                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Left")
+                                }
+
+                                Text("Page ${currentPage + 1} of $totalPages")
+
+                                IconButton(
+                                    onClick = {
+                                        if (currentPage < totalPages - 1) {
+                                            currentPage++
+                                        }
+                                    }, enabled = currentPage < totalPages - 1
+                                ) {
+                                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Right")
+                                }
+                            }
                         }
                     }
                 }
 
                 Text(
-                    "v${System.getProperty("app.version")} ${
-                        versionStrings.joinToString(
-                            prefix = "(",
-                            postfix = ")",
-                            separator = ", "
-                        ){ 
-                            "${it.uppercase()} - ${System.getProperty("${it}.version")}"
-                        }
-                    }",
+                    versionString,
                     modifier = Modifier.align(Alignment.BottomCenter),
                     fontSize = 10.sp,
                     color = Color.LightGray
