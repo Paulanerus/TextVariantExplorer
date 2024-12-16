@@ -169,6 +169,7 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
         }
 
         dataPools[dataInfo.name] = dataPool
+        this.storageProvider.init(dataInfo, poolPath)
 
         return true
     }
@@ -181,21 +182,31 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
 
             dataPools[it.name] =
                 DataPool(indexer = Indexer(it.resolve("index"), dataInfo.sources), dataInfo = dataInfo)
+
+            this.storageProvider.init(dataInfo, it)
         }
 
         return dataPools.size
+    }
+
+    override fun selectDataPool() {
+        TODO("Not yet implemented")
     }
 
     override fun getPage(query: String, pageCount: Int): List<Map<String, String>> {
 
         pageCache[pageCount]?.let { return it }
 
-        val dataPool = this.dataPools[""] ?: return emptyList()
+        val dataPool = this.dataPools["demo"] ?: return emptyList()
 
         val indexResult = dataPool.search(query)
 
         val entries = storageProvider.get(
-            "", indexResult.ids, indexResult.tokens, offset = this.currentPage * this.pageSize, limit = pageSize
+            "demo.verses",
+            indexResult.ids,
+            indexResult.tokens,
+            offset = this.currentPage * this.pageSize,
+            limit = pageSize
         )
 
         pageCache[this.currentPage] = entries
@@ -206,11 +217,11 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
     }
 
     override fun getPageCount(query: String): Long {
-        val dataPool = this.dataPools[""] ?: return -1
+        val dataPool = this.dataPools["demo"] ?: return -1
 
         val indexResult = dataPool.search(query)
 
-        val count = this.storageProvider.count("", indexResult.ids, indexResult.tokens)
+        val count = this.storageProvider.count("demo.verses", indexResult.ids, indexResult.tokens)
 
         return ceil(count / pageSize.toDouble()).toLong()
     }
