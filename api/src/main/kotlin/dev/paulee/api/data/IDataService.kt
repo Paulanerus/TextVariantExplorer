@@ -7,7 +7,7 @@ interface IDataService : Closeable {
 
     fun createDataPool(dataInfo: RequiresData, path: Path): Boolean
 
-    fun loadDataPools(path: Path): Int
+    fun loadDataPools(path: Path, dataInfo: Set<RequiresData>): Int
 
     fun getPage(query: String, pageCount: Int = -1): List<Map<String, String>>
 

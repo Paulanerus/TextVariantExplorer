@@ -53,7 +53,7 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
 
         this.pluginService.initAll()
 
-        val size = this.dataService.loadDataPools(dataDir)
+        val size = this.dataService.loadDataPools(dataDir, this.pluginService.getAllDataInfos())
 
         println("Loaded $size data pools")
     }

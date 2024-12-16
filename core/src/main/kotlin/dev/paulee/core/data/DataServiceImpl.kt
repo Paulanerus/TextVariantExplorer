@@ -7,6 +7,7 @@ import dev.paulee.api.data.Unique
 import dev.paulee.api.data.provider.IStorageProvider
 import dev.paulee.core.data.analysis.Indexer
 import dev.paulee.core.data.io.BufferedCSVReader
+import dev.paulee.core.data.search.QueryHandler
 import java.nio.file.Path
 import kotlin.io.path.createDirectories
 import kotlin.io.path.exists
@@ -19,6 +20,8 @@ import kotlin.reflect.full.primaryConstructor
 private class DataPool
 
 class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataService {
+
+    private val queryHandler = QueryHandler()
 
     private val pageSize = 50
 
@@ -33,14 +36,16 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
     private val dataPools = mutableMapOf<Path, DataPool>()
 
     override fun createDataPool(dataInfo: RequiresData, path: Path): Boolean {
-        val initStatus = this.storageProvider.init(dataInfo, path)
+        val poolPath = path.resolve(dataInfo.name)
+
+        val initStatus = this.storageProvider.init(dataInfo, poolPath)
 
         if (initStatus < 1) return initStatus == 0
 
         val indexer =
             runCatching {
                 Indexer(
-                    path.resolve("index"),
+                    poolPath.resolve("index"),
                     dataInfo.sources
                 )
             }.getOrElse { exception ->
@@ -83,12 +88,16 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
         return true
     }
 
-    override fun loadDataPools(path: Path): Int {
+    override fun loadDataPools(path: Path, dataInfo: Set<RequiresData>): Int {
         if (!path.exists()) path.createDirectories()
 
         path.listDirectoryEntries()
             .filter { it.isDirectory() && !dataPools.containsKey(it) }
             .forEach {
+                val name = dataInfo.find { info -> info.name == it.fileName.toString() }?.name ?: return@forEach
+
+                println(name)
+
                 dataPools[it] = DataPool()
             }
 
@@ -99,12 +108,12 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
 
         pageCache[pageCount]?.let { return it }
 
-        //val indexResult = this.searchService.search("", query)
+        val queryResult = this.queryHandler.search(query)
 
         val entries = storageProvider.get(
             "",
-            emptySet(),
-            emptyList(),
+            queryResult.ids,
+            queryResult.tokens,
             offset = this.currentPage * this.pageSize,
             limit = pageSize
         )
@@ -117,14 +126,15 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
     }
 
     override fun getPageCount(query: String): Long {
-        //val indexResult = this.searchService.search("", query)
+        val queryResult = this.queryHandler.search(query)
 
-        val count = this.storageProvider.count("", emptySet(), emptyList())
+        val count = this.storageProvider.count("", queryResult.ids, queryResult.tokens)
 
         return ceil(count / pageSize.toDouble()).toLong()
     }
 
     override fun close() {
         this.storageProvider.close()
+        this.queryHandler.close()
     }
 }
