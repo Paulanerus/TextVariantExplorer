@@ -25,7 +25,7 @@ class QueryHandler {
 
     var defaultClass: String? = null
 
-    lateinit var indexer: Indexer
+    private var indexer: Indexer? = null
 
     fun init(dataInfo: RequiresData, path: Path) {
         this.indexer = Indexer(path.resolve("index"), dataInfo.sources)
@@ -62,6 +62,8 @@ class QueryHandler {
     }
 
     fun search(query: String): IndexSearchResult {
+        if (indexer == null) return IndexSearchResult(emptySet(), emptyList())
+
         val ids = mutableSetOf<Long>()
 
         val token = mutableListOf<String>()
@@ -87,7 +89,7 @@ class QueryHandler {
                     val value = str.substring(colon + 1).trim('"')
                     val fieldClass = field.substringBefore('.')
 
-                    indexer.searchFieldIndex(field, value)
+                    indexer!!.searchFieldIndex(field, value)
                         .mapTo(ids) { doc -> doc.getField(identifier[fieldClass]).numericValue().toLong() }
 
                 } else token.add(str)
@@ -95,18 +97,18 @@ class QueryHandler {
 
             defaultIndexField?.let { defaultField ->
                 queryToken.takeIf { it.isNotEmpty() }?.let {
-                    indexer.searchFieldIndex(defaultField, it.joinToString(" ")).mapTo(ids) { doc ->
+                    indexer!!.searchFieldIndex(defaultField, it.joinToString(" ")).mapTo(ids) { doc ->
                         doc.getField(identifier[defaultClass]).numericValue().toLong()
                     }
                 }
             }
         } else {
-            defaultIndexField?.let { indexer.searchFieldIndex(it, query) }
+            defaultIndexField?.let { indexer!!.searchFieldIndex(it, query) }
                 ?.mapTo(ids) { doc -> doc.getField(identifier[defaultClass]).numericValue().toLong() }
         }
 
         return IndexSearchResult(ids, token)
     }
 
-    fun close() = indexer.close()
+    fun close() = indexer?.close()
 }
