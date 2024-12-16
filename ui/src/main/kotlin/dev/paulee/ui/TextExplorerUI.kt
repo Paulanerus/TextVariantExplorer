@@ -129,8 +129,8 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
                                 currentPage = 0
                                 totalPages = dataService.getPageCount(text)
 
-                                if (totalPages > 1) {
-                                    dataService.getPage(text).let {
+                                if (totalPages > 0) {
+                                    dataService.getPage(text, currentPage).let {
 
                                         val first = runCatching { it.first() }.getOrNull() ?: return@let
 
@@ -184,6 +184,15 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
                                     onClick = {
                                         if (currentPage > 0) {
                                             currentPage--
+
+                                            dataService.getPage(text, currentPage).let {
+
+                                                val first = runCatching { it.first() }.getOrNull() ?: return@let
+
+                                                header = first.keys.toList()
+
+                                                data = it.map { it.values.toList() }
+                                            }
                                         }
                                     }, enabled = currentPage > 0
                                 ) {
@@ -196,6 +205,15 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
                                     onClick = {
                                         if (currentPage < totalPages - 1) {
                                             currentPage++
+
+                                            dataService.getPage(text, currentPage).let {
+
+                                                val first = runCatching { it.first() }.getOrNull() ?: return@let
+
+                                                header = first.keys.toList()
+
+                                                data = it.map { it.values.toList() }
+                                            }
                                         }
                                     }, enabled = currentPage < totalPages - 1
                                 ) {
