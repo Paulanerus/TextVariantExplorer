@@ -12,7 +12,9 @@ import kotlin.math.ceil
 import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.primaryConstructor
 
-private data class IndexSearchResult(val ids: Set<Long>, val tokens: List<String>)
+private data class IndexSearchResult(val ids: Set<Long>, val tokens: List<String>){
+    fun isEmpty(): Boolean = ids.isEmpty() && tokens.isEmpty()
+}
 
 private class DataPool(val indexer: Indexer, dataInfo: RequiresData) {
     var fields = mutableMapOf<String, Boolean>()
@@ -201,6 +203,8 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
 
         val indexResult = dataPool.search(query)
 
+        if(indexResult.isEmpty()) return emptyList()
+
         val entries = storageProvider.get(
             "demo.verses",
             indexResult.ids,
@@ -220,6 +224,8 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
         val dataPool = this.dataPools["demo"] ?: return -1
 
         val indexResult = dataPool.search(query)
+
+        if(indexResult.isEmpty()) return 0
 
         val count = this.storageProvider.count("demo.verses", indexResult.ids, indexResult.tokens)
 
