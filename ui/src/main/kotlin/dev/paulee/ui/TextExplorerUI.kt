@@ -132,7 +132,7 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
                                 if (totalPages > 0) {
                                     dataService.getPage(text, currentPage).let {
 
-                                        val first = runCatching { it.first() }.getOrNull() ?: return@let
+                                        val first = it.firstOrNull() ?: return@let
 
                                         header = first.keys.toList()
 
@@ -186,11 +186,6 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
                                             currentPage--
 
                                             dataService.getPage(text, currentPage).let {
-
-                                                val first = runCatching { it.first() }.getOrNull() ?: return@let
-
-                                                header = first.keys.toList()
-
                                                 data = it.map { it.values.toList() }
                                             }
                                         }
@@ -207,11 +202,6 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
                                             currentPage++
 
                                             dataService.getPage(text, currentPage).let {
-
-                                                val first = runCatching { it.first() }.getOrNull() ?: return@let
-
-                                                header = first.keys.toList()
-
                                                 data = it.map { it.values.toList() }
                                             }
                                         }
