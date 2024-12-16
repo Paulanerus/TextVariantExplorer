@@ -3,6 +3,7 @@ package dev.paulee.core.data.sql
 import dev.paulee.api.data.DataSource
 import dev.paulee.api.data.Unique
 import dev.paulee.core.normalizeDataSource
+import dev.paulee.core.toSnakeCase
 import org.jetbrains.annotations.Nullable
 import java.io.Closeable
 import java.nio.file.Path
@@ -67,7 +68,7 @@ private class Table(val name: String, columns: List<Column>) {
             var size = columns.size
             entries.forEachIndexed { index, map ->
                 columns.forEachIndexed { idx, column ->
-                    val value = map[column.name] ?: return@forEachIndexed
+                    val value = map[column.name] ?: map[column.name.toSnakeCase()] ?: return@forEachIndexed
 
                     it.setString((size * index) + idx + 1, value)
                 }

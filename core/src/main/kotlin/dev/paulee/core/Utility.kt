@@ -1,5 +1,7 @@
 package dev.paulee.core
 
+import javax.xml.stream.events.Characters
+
 fun splitStr(str: String, delimiter: Char, quoteCharacters: Array<Char> = arrayOf('"')): List<String> {
     var tokens = mutableListOf<String>()
 
@@ -24,3 +26,6 @@ fun splitStr(str: String, delimiter: Char, quoteCharacters: Array<Char> = arrayO
 }
 
 fun normalizeDataSource(dataSource: String): String = dataSource.substringBeforeLast(".").replace(" ", "_")
+
+fun String.toSnakeCase(): String =
+    this.fold(StringBuilder()) { acc, c -> acc.append(if (c.isUpperCase()) "_${c.lowercaseChar()}" else c) }.toString()
