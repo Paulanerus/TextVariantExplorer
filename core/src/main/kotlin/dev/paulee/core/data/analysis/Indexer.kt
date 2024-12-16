@@ -29,11 +29,13 @@ import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.hasAnnotation
 import kotlin.reflect.full.primaryConstructor
 
-internal class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
+class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
 
     private val directory: BaseDirectory
 
     private val writer: IndexWriter
+
+    private var reader: DirectoryReader? = null
 
     private val mappedAnalyzer = mutableMapOf<String, Analyzer>()
 
@@ -50,11 +52,8 @@ internal class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
 
             val normalized = normalizeDataSource(name)
 
-            it.primaryConstructor
-                ?.parameters
-                .orEmpty()
-                .filter { it.hasAnnotation<Index>() || it.hasAnnotation<Unique>() }
-                .forEach { param ->
+            it.primaryConstructor?.parameters.orEmpty()
+                .filter { it.hasAnnotation<Index>() || it.hasAnnotation<Unique>() }.forEach { param ->
                     val paramName = param.name ?: return@forEach
 
                     param.findAnnotation<Index>()?.also { index ->
@@ -74,7 +73,7 @@ internal class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
             openMode = IndexWriterConfig.OpenMode.CREATE_OR_APPEND
         }
 
-        writer = IndexWriter(this.directory, config)
+        this.writer = IndexWriter(this.directory, config)
     }
 
     fun indexEntries(name: String, entries: List<Map<String, String>>) {
@@ -89,23 +88,36 @@ internal class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
     }
 
     fun searchFieldIndex(field: String, query: String): List<Document> {
+
+        //Open by IndexWriter would be better, but it is still experimental as of 16.12.2024.
+        // See https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/index/DirectoryReader.html#open(org.apache.lucene.index.IndexWriter)
+        if (this.reader == null)
+            this.reader = runCatching { DirectoryReader.open(this.directory) }.getOrNull() ?: return emptyList()
+
         val queryParser = StandardQueryParser(this.mappedAnalyzer[field] ?: EnglishAnalyzer())
 
         queryParser.defaultOperator = StandardQueryConfigHandler.Operator.AND
         queryParser.allowLeadingWildcard = true
 
-        return DirectoryReader.open(this.directory).use { reader ->
-            val searcher = IndexSearcher(reader)
+        DirectoryReader.openIfChanged(this.reader)?.let {
+            this.reader?.close()
 
-            val topDocs = searcher.search(queryParser.parse(this.normalizeOperator(query), field), Int.MAX_VALUE)
-
-            val storedFields = searcher.storedFields()
-
-            topDocs.scoreDocs.map { storedFields.document(it.doc) }
+            this.reader = it
         }
+
+        val searcher = IndexSearcher(this.reader)
+
+        val topDocs = searcher.search(queryParser.parse(this.normalizeOperator(query), field), Int.MAX_VALUE)
+
+        val storedFields = searcher.storedFields()
+
+        return topDocs.scoreDocs.map { storedFields.document(it.doc) }
     }
 
-    override fun close() = this.writer.close()
+    override fun close() {
+        this.writer.close()
+        this.reader?.close()
+    }
 
     private fun normalizeOperator(query: String) =
         operator.entries.fold(query) { acc, entry -> acc.replace(entry.key.toRegex(), entry.value) }
