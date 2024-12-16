@@ -12,7 +12,7 @@ import kotlin.math.ceil
 import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.primaryConstructor
 
-private data class IndexSearchResult(val ids: Set<Long>, val tokens: List<String>){
+private data class IndexSearchResult(val ids: Set<Long>, val tokens: List<String>) {
     fun isEmpty(): Boolean = ids.isEmpty() && tokens.isEmpty()
 }
 
@@ -116,10 +116,8 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
 
     private val pageSize = 50
 
-    private var currentPage = 0
-
-    private val pageCache = object : LinkedHashMap<Int, List<Map<String, String>>>(3, 0.75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Int, List<Map<String, String>>>?): Boolean {
+    private val pageCache = object : LinkedHashMap<Pair<Int, String>, List<Map<String, String>>>(3, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Pair<Int, String>, List<Map<String, String>>>?): Boolean {
             return size > 3
         }
     }
@@ -197,25 +195,25 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
 
     override fun getPage(query: String, pageCount: Int): List<Map<String, String>> {
 
-        pageCache[pageCount]?.let { return it }
+        val key = Pair(pageCount, query)
+
+        pageCache[key]?.let { return it }
 
         val dataPool = this.dataPools["demo"] ?: return emptyList()
 
         val indexResult = dataPool.search(query)
 
-        if(indexResult.isEmpty()) return emptyList()
+        if (indexResult.isEmpty()) return emptyList()
 
         val entries = storageProvider.get(
             "demo.verses",
             indexResult.ids,
             indexResult.tokens,
-            offset = this.currentPage * this.pageSize,
+            offset = pageCount * this.pageSize,
             limit = pageSize
         )
 
-        pageCache[this.currentPage] = entries
-
-        this.currentPage++
+        pageCache[key] = entries
 
         return entries
     }
@@ -225,7 +223,7 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
 
         val indexResult = dataPool.search(query)
 
-        if(indexResult.isEmpty()) return 0
+        if (indexResult.isEmpty()) return 0
 
         val count = this.storageProvider.count("demo.verses", indexResult.ids, indexResult.tokens)
 
