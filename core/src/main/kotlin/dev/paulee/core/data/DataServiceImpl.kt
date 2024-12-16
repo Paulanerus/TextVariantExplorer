@@ -5,10 +5,8 @@ import dev.paulee.api.data.IDataService
 import dev.paulee.api.data.RequiresData
 import dev.paulee.api.data.Unique
 import dev.paulee.api.data.provider.IStorageProvider
-import dev.paulee.api.data.search.IndexSearchService
 import dev.paulee.core.data.analysis.Indexer
 import dev.paulee.core.data.io.BufferedCSVReader
-import dev.paulee.core.data.search.IndexSearchServiceImpl
 import java.nio.file.Path
 import kotlin.io.path.createDirectories
 import kotlin.io.path.exists
@@ -21,8 +19,6 @@ import kotlin.reflect.full.primaryConstructor
 private class DataPool
 
 class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataService {
-
-    private val searchService: IndexSearchService = IndexSearchServiceImpl()
 
     private val pageSize = 50
 
@@ -44,7 +40,7 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
         val indexer =
             runCatching {
                 Indexer(
-                    path.resolve("index/${dataInfo.name}"),
+                    path.resolve("index"),
                     dataInfo.sources
                 )
             }.getOrElse { exception ->
@@ -103,12 +99,12 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
 
         pageCache[pageCount]?.let { return it }
 
-        val indexResult = this.searchService.search("", query)
+        //val indexResult = this.searchService.search("", query)
 
         val entries = storageProvider.get(
             "",
-            indexResult.ids,
-            indexResult.tokens,
+            emptySet(),
+            emptyList(),
             offset = this.currentPage * this.pageSize,
             limit = pageSize
         )
@@ -121,15 +117,14 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
     }
 
     override fun getPageCount(query: String): Long {
-        val indexResult = this.searchService.search("", query)
+        //val indexResult = this.searchService.search("", query)
 
-        val count = this.storageProvider.count("", indexResult.ids, indexResult.tokens)
+        val count = this.storageProvider.count("", emptySet(), emptyList())
 
         return ceil(count / pageSize.toDouble()).toLong()
     }
 
     override fun close() {
-        this.searchService.close()
         this.storageProvider.close()
     }
 }
