@@ -1,27 +1,116 @@
 package dev.paulee.core.data
 
-import dev.paulee.api.data.DataSource
-import dev.paulee.api.data.IDataService
-import dev.paulee.api.data.RequiresData
-import dev.paulee.api.data.Unique
+import dev.paulee.api.data.*
 import dev.paulee.api.data.provider.IStorageProvider
 import dev.paulee.core.data.analysis.Indexer
 import dev.paulee.core.data.io.BufferedCSVReader
-import dev.paulee.core.data.search.QueryHandler
+import dev.paulee.core.normalizeDataSource
+import dev.paulee.core.splitStr
 import java.nio.file.Path
-import kotlin.io.path.createDirectories
-import kotlin.io.path.exists
-import kotlin.io.path.isDirectory
-import kotlin.io.path.listDirectoryEntries
+import kotlin.io.path.*
 import kotlin.math.ceil
 import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.primaryConstructor
 
-private class DataPool
+private data class IndexSearchResult(val ids: Set<Long>, val tokens: List<String>)
+
+private class DataPool(val indexer: Indexer, dataInfo: RequiresData) {
+    var fields = mutableMapOf<String, Boolean>()
+
+    var identifier = mutableMapOf<String, String>()
+
+    var defaultIndexField: String? = null
+
+    var defaultClass: String? = null
+
+    var hasIdentifier = false
+
+    private val keyValueRgx = "\\w+:\\w+|\\w+:\"[^\"]*\"".toRegex()
+
+    init {
+        dataInfo.sources.forEach { clazz ->
+            val file = clazz.findAnnotation<DataSource>()?.file ?: return@forEach
+
+            val normalized = normalizeDataSource(file)
+
+            clazz.primaryConstructor?.parameters.orEmpty().forEach { param ->
+                val name = param.name ?: return@forEach
+
+                val key = "$normalized.$name"
+                fields[key] = false
+
+                param.findAnnotation<Index>()?.let { index ->
+                    fields[key] = true
+
+                    identifier.putIfAbsent(normalized, "${normalized}_ag_id")
+
+                    if (index.default && defaultIndexField.isNullOrEmpty()) {
+                        defaultIndexField = "$normalized.$name"
+                        defaultClass = normalized
+                    }
+                }
+
+                param.findAnnotation<Unique>()?.identify?.let {
+                    if (it && param.type.classifier == Long::class) {
+                        hasIdentifier = true
+                        identifier[normalized] = "$normalized.$name"
+                    }
+                }
+            }
+        }
+
+        if (defaultIndexField.isNullOrEmpty()) println("${dataInfo.name} has no default index field")
+    }
+
+    fun search(query: String): IndexSearchResult {
+        val ids = mutableSetOf<Long>()
+
+        val token = mutableListOf<String>()
+        if (keyValueRgx.containsMatchIn(query)) {
+
+            val queryToken = mutableListOf<String>()
+
+            splitStr(query, delimiter = ' ').forEach { str ->
+
+                val colon = str.indexOf(':')
+
+                if (colon == -1) {
+                    queryToken.add(str)
+                    return@forEach
+                }
+
+                val field = str.substring(0, colon).let {
+                    if (it.contains(".")) it
+                    else "${defaultClass ?: return IndexSearchResult(emptySet(), emptyList())}.$it"
+                }
+
+                if (fields[field] == true) {
+                    val value = str.substring(colon + 1).trim('"')
+                    val fieldClass = field.substringBefore('.')
+
+                    indexer.searchFieldIndex(field, value)
+                        .mapTo(ids) { doc -> doc.getField(identifier[fieldClass]).numericValue().toLong() }
+
+                } else token.add(str)
+            }
+
+            defaultIndexField?.let { defaultField ->
+                queryToken.takeIf { it.isNotEmpty() }?.let {
+                    indexer.searchFieldIndex(defaultField, it.joinToString(" ")).mapTo(ids) { doc ->
+                        doc.getField(identifier[defaultClass]).numericValue().toLong()
+                    }
+                }
+            }
+        } else {
+            defaultIndexField?.let { indexer.searchFieldIndex(it, query) }
+                ?.mapTo(ids) { doc -> doc.getField(identifier[defaultClass]).numericValue().toLong() }
+        }
+
+        return IndexSearchResult(ids, token)
+    }
+}
 
 class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataService {
-
-    private val queryHandler = QueryHandler()
 
     private val pageSize = 50
 
@@ -42,16 +131,17 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
 
         if (initStatus < 1) return initStatus == 0
 
-        val indexer =
+        val dataPool =
             runCatching {
-                Indexer(
-                    poolPath.resolve("index"),
-                    dataInfo.sources
+                DataPool(
+                    indexer = Indexer(poolPath.resolve("index"), dataInfo.sources),
+                    dataInfo = dataInfo
                 )
-            }.getOrElse { exception ->
-                println("Failed to create index for ${dataInfo.name}")
-                return false
             }
+                .getOrElse {
+                    println("Failed to create index for ${dataInfo.name}")
+                    return false
+                }
 
         dataInfo.sources.forEach { clazz ->
             val file = clazz.findAnnotation<DataSource>()?.file
@@ -68,22 +158,22 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
                 return@forEach
             }
 
-            val hasIdentifier =
-                clazz.primaryConstructor?.parameters.orEmpty().any { it.findAnnotation<Unique>()?.identify == true }
+            val normalized = normalizeDataSource(file)
 
             val idGenerator = generateSequence(1L) { it + 1 }.iterator()
 
             BufferedCSVReader(sourcePath).readLines { lines ->
                 val entries = lines.map { line ->
-                    if (hasIdentifier) line
+                    if (dataPool.hasIdentifier) line
                     else line + ("${file}_ag_id" to idGenerator.next().toString())
                 }
 
-                indexer.indexEntries(file, entries)
+                dataPool.indexer.indexEntries(file, entries)
                 this.storageProvider.insert("${dataInfo.name}.$file", entries)
             }
         }
-        indexer.close()
+
+        dataPools[poolPath] = dataPool
 
         return true
     }
@@ -94,11 +184,9 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
         path.listDirectoryEntries()
             .filter { it.isDirectory() && !dataPools.containsKey(it) }
             .forEach {
-                val name = dataInfo.find { info -> info.name == it.fileName.toString() }?.name ?: return@forEach
+                val dataInfo = dataInfo.find { info -> info.name == it.name } ?: return@forEach
 
-                println(name)
-
-                dataPools[it] = DataPool()
+                dataPools[it] = DataPool(indexer = Indexer(it.resolve("index"), dataInfo.sources), dataInfo = dataInfo)
             }
 
         return dataPools.size
@@ -108,12 +196,12 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
 
         pageCache[pageCount]?.let { return it }
 
-        val queryResult = this.queryHandler.search(query)
+        //val queryResult = this.queryHandler.search(query)
 
         val entries = storageProvider.get(
             "",
-            queryResult.ids,
-            queryResult.tokens,
+            emptySet(),
+            emptyList(),
             offset = this.currentPage * this.pageSize,
             limit = pageSize
         )
@@ -126,15 +214,16 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
     }
 
     override fun getPageCount(query: String): Long {
-        val queryResult = this.queryHandler.search(query)
+        //val queryResult = this.queryHandler.search(query)
 
-        val count = this.storageProvider.count("", queryResult.ids, queryResult.tokens)
+        val count = this.storageProvider.count("", emptySet(), emptyList())
 
         return ceil(count / pageSize.toDouble()).toLong()
     }
 
     override fun close() {
         this.storageProvider.close()
-        this.queryHandler.close()
+
+        this.dataPools.values.forEach { it.indexer.close() }
     }
 }
