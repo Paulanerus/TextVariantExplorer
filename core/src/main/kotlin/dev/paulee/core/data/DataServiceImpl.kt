@@ -122,7 +122,7 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
         }
     }
 
-    private val dataPools = mutableMapOf<Path, DataPool>()
+    private val dataPools = mutableMapOf<String, DataPool>()
 
     override fun createDataPool(dataInfo: RequiresData, path: Path): Boolean {
         val poolPath = path.resolve(dataInfo.name)
@@ -131,17 +131,14 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
 
         if (initStatus < 1) return initStatus == 0
 
-        val dataPool =
-            runCatching {
-                DataPool(
-                    indexer = Indexer(poolPath.resolve("index"), dataInfo.sources),
-                    dataInfo = dataInfo
-                )
-            }
-                .getOrElse {
-                    println("Failed to create index for ${dataInfo.name}")
-                    return false
-                }
+        val dataPool = runCatching {
+            DataPool(
+                indexer = Indexer(poolPath.resolve("index"), dataInfo.sources), dataInfo = dataInfo
+            )
+        }.getOrElse {
+            println("Failed to create index for ${dataInfo.name}")
+            return false
+        }
 
         dataInfo.sources.forEach { clazz ->
             val file = clazz.findAnnotation<DataSource>()?.file
@@ -171,7 +168,7 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
             }
         }
 
-        dataPools[poolPath] = dataPool
+        dataPools[dataInfo.name] = dataPool
 
         return true
     }
@@ -179,13 +176,12 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
     override fun loadDataPools(path: Path, dataInfo: Set<RequiresData>): Int {
         if (!path.exists()) path.createDirectories()
 
-        path.listDirectoryEntries()
-            .filter { it.isDirectory() && !dataPools.containsKey(it) }
-            .forEach {
-                val dataInfo = dataInfo.find { info -> info.name == it.name } ?: return@forEach
+        path.listDirectoryEntries().filter { it.isDirectory() && !dataPools.containsKey(it.name) }.forEach {
+            val dataInfo = dataInfo.find { info -> info.name == it.name } ?: return@forEach
 
-                dataPools[it] = DataPool(indexer = Indexer(it.resolve("index"), dataInfo.sources), dataInfo = dataInfo)
-            }
+            dataPools[it.name] =
+                DataPool(indexer = Indexer(it.resolve("index"), dataInfo.sources), dataInfo = dataInfo)
+        }
 
         return dataPools.size
     }
@@ -194,14 +190,12 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
 
         pageCache[pageCount]?.let { return it }
 
-        //val queryResult = this.queryHandler.search(query)
+        val dataPool = this.dataPools[""] ?: return emptyList()
+
+        val indexResult = dataPool.search(query)
 
         val entries = storageProvider.get(
-            "",
-            emptySet(),
-            emptyList(),
-            offset = this.currentPage * this.pageSize,
-            limit = pageSize
+            "", indexResult.ids, indexResult.tokens, offset = this.currentPage * this.pageSize, limit = pageSize
         )
 
         pageCache[this.currentPage] = entries
@@ -212,9 +206,11 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
     }
 
     override fun getPageCount(query: String): Long {
-        //val queryResult = this.queryHandler.search(query)
+        val dataPool = this.dataPools[""] ?: return -1
 
-        val count = this.storageProvider.count("", emptySet(), emptyList())
+        val indexResult = dataPool.search(query)
+
+        val count = this.storageProvider.count("", indexResult.ids, indexResult.tokens)
 
         return ceil(count / pageSize.toDouble()).toLong()
     }
