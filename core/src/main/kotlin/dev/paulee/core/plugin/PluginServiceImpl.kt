@@ -62,7 +62,7 @@ class PluginServiceImpl : IPluginService {
 
     override fun getPlugins(): List<IPlugin> = this.plugins.toList()
 
-    override fun getAllDataInfos(): Set<String> = this.plugins.mapNotNull { this.getDataInfo(it)?.name }.toSet()
+    override fun getAllDataInfos(): Set<RequiresData> = this.plugins.mapNotNull { this.getDataInfo(it) }.toSet()
 
     override fun getDataSources(datInfo: String): Set<String> {
         val dataSources = mutableSetOf<String>()

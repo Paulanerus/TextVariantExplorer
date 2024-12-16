@@ -17,7 +17,7 @@ interface IPluginService {
 
     fun getPlugins(): List<IPlugin>
 
-    fun getAllDataInfos(): Set<String>
+    fun getAllDataInfos(): Set<RequiresData>
 
     fun getDataSources(dataInfo: String): Set<String>
 }
