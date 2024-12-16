@@ -67,24 +67,13 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
         var isOpened by remember { mutableStateOf(false) }
         var totalPages by remember { mutableStateOf(0L) }
         var currentPage by remember { mutableStateOf(0) }
-        var currentData by remember { mutableStateOf(listOf<List<String>>()) }
 
-        val header = listOf(
-            "Column 1",
-            "Column 2",
-            "Column 3",
-            "Column 4",
-            "Column 5",
-            "Column 6",
-        )
+        var header by remember { mutableStateOf(listOf<String>()) }
+        var data by remember { mutableStateOf(listOf<List<String>>()) }
 
-        val data = List(150) { row ->
-            List(header.size) { col -> "${header[col]} - $row" }
-        }
 
         MaterialTheme {
             Box(modifier = Modifier.fillMaxSize()) {
-
                 DropDownMenu(
                     modifier = Modifier.align(Alignment.TopEnd), items = listOf("Load Plugin"), clicked = {
                         when (it) {
@@ -138,7 +127,19 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
                         IconButton(
                             onClick = {
                                 currentPage = 0
-                                totalPages = 10L
+                                totalPages = dataService.getPageCount(text)
+
+                                if (totalPages > 1) {
+                                    dataService.getPage(text).let {
+
+                                        val first = runCatching { it.first() }.getOrNull() ?: return@let
+
+                                        header = first.keys.toList()
+
+                                        data = it.map { it.values.toList() }
+                                    }
+                                }
+
                                 showTable = true
                             },
                             modifier = Modifier.height(70.dp).padding(horizontal = 10.dp),
@@ -154,12 +155,23 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
                         Column(
                             modifier = Modifier.fillMaxWidth().padding(8.dp),
                         ) {
+                            if (totalPages == 0L) {
+                                Text(
+                                    "No results were found.",
+                                    fontSize = 24.sp,
+                                    modifier = Modifier.align(Alignment.CenterHorizontally).padding(16.dp)
+                                )
+                                return@Column
+                            }
+
                             TableView(
                                 modifier = Modifier.weight(1f),
                                 columns = header,
                                 data = data,
                                 onRowSelect = { selectedRows = it },
                                 clicked = { displayDiffWindow = true })
+
+                            if (totalPages < 2) return@Column
 
                             Spacer(modifier = Modifier.height(8.dp))
 
