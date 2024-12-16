@@ -158,8 +158,6 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
                 return@forEach
             }
 
-            val normalized = normalizeDataSource(file)
-
             val idGenerator = generateSequence(1L) { it + 1 }.iterator()
 
             BufferedCSVReader(sourcePath).readLines { lines ->
