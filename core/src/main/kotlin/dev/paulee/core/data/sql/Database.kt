@@ -68,7 +68,7 @@ private class Table(val name: String, columns: List<Column>) {
             var size = columns.size
             entries.forEachIndexed { index, map ->
                 columns.forEachIndexed { idx, column ->
-                    val value = map[column.name] ?: map[column.name.toSnakeCase()] ?: return@forEachIndexed
+                    val value = map[column.name] ?: return@forEachIndexed
 
                     it.setString((size * index) + idx + 1, value)
                 }
