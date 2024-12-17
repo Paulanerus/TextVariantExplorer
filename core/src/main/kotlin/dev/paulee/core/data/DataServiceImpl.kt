@@ -27,6 +27,8 @@ private class DataPool(val indexer: Indexer, dataInfo: RequiresData) {
 
     var hasIdentifier = false
 
+    val links = mutableMapOf<String, String>()
+
     private val keyValueRgx = "\\w+:\\w+|\\w+:\"[^\"]*\"".toRegex()
 
     init {
@@ -40,6 +42,13 @@ private class DataPool(val indexer: Indexer, dataInfo: RequiresData) {
 
                 val key = "$normalized.$name"
                 fields[key] = false
+
+                param.findAnnotation<Link>()?.let { link ->
+                    link.clazz.findAnnotation<DataSource>()?.file?.let { linkFile ->
+
+                        links[key] = if (link.field.isNotEmpty()) "$linkFile.${link.field}" else "$linkFile.$name"
+                    }
+                }
 
                 param.findAnnotation<Index>()?.let { index ->
                     fields[key] = true
@@ -180,8 +189,7 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
         path.listDirectoryEntries().filter { it.isDirectory() && !dataPools.containsKey(it.name) }.forEach {
             val dataInfo = dataInfo.find { info -> info.name == it.name } ?: return@forEach
 
-            dataPools[it.name] =
-                DataPool(indexer = Indexer(it.resolve("index"), dataInfo.sources), dataInfo = dataInfo)
+            dataPools[it.name] = DataPool(indexer = Indexer(it.resolve("index"), dataInfo.sources), dataInfo = dataInfo)
 
             this.storageProvider.init(dataInfo, it)
         }
@@ -205,13 +213,25 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
 
         if (indexResult.isEmpty()) return emptyList()
 
-        val entries = storageProvider.get(
-            "demo.verses",
-            indexResult.ids,
-            indexResult.tokens,
-            offset = pageCount * this.pageSize,
-            limit = pageSize
+        val entries = this.storageProvider.get(
+            "demo.verses", indexResult.ids, indexResult.tokens, offset = pageCount * this.pageSize, limit = pageSize
         )
+
+        val links = mutableListOf<Map<String, String>>()
+        dataPool.links.forEach { key, value ->
+            val keyField = key.substringAfter('.')
+
+            val (valSource, valField) = value.split('.', limit = 2)
+
+            val fields = entries.asSequence()
+                .mapNotNull { it[keyField] }
+                .toSet()
+
+            if (fields.isEmpty()) return@forEach
+
+            this.storageProvider.get("demo.$valSource", whereClause = fields.map { "$valField:$it" }.toList())
+                .toCollection(links)
+        }
 
         pageCache[key] = entries
 

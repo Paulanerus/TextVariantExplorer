@@ -12,7 +12,7 @@ interface IDataService : Closeable {
 
     fun selectDataPool()
 
-    fun getPage(query: String, pageCount: Int = -1): List<Map<String, String>>
+    fun getPage(query: String, pageCount: Int): List<Map<String, String>>
 
     fun getPageCount(query: String): Long
 }
