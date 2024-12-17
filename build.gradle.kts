@@ -41,9 +41,17 @@ compose.desktop {
             isEnabled = false
         }
 
+        jvmArgs += listOf(
+            "-Dapi.version=${property("api.version")}",
+            "-Dcore.version=${property("core.version")}",
+            "-Dui.version=${property("ui.version")}",
+            "-Dapp.version=${property("app.version")}"
+        )
+
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "TextExplorer"
+
         }
     }
 }

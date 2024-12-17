@@ -4,6 +4,7 @@ import dev.paulee.api.data.DataSource
 import dev.paulee.api.data.Index
 import dev.paulee.api.data.Language
 import dev.paulee.api.data.Unique
+import dev.paulee.core.normalizeDataSource
 import org.apache.lucene.analysis.Analyzer
 import org.apache.lucene.analysis.en.EnglishAnalyzer
 import org.apache.lucene.analysis.miscellaneous.PerFieldAnalyzerWrapper
@@ -28,11 +29,13 @@ import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.hasAnnotation
 import kotlin.reflect.full.primaryConstructor
 
-internal class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
+class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
 
     private val directory: BaseDirectory
 
     private val writer: IndexWriter
+
+    private var reader: DirectoryReader? = null
 
     private val mappedAnalyzer = mutableMapOf<String, Analyzer>()
 
@@ -41,37 +44,36 @@ internal class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
     private val operator = mapOf("(?i)\\bor\\b" to "OR", "(?i)\\band\\b" to "AND", "(?i)\\bnot\\b" to "NOT")
 
     init {
-        //See https://lucene.apache.org/core/5_2_0/core/org/apache/lucene/store/NIOFSDirectory.html
+        //See https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/store/NIOFSDirectory.html
         this.directory = if (this.isWindows()) FSDirectory.open(path) else NIOFSDirectory.open(path)
 
         sources.forEach {
             val name = it.findAnnotation<DataSource>()?.file ?: return@forEach
 
-            it.primaryConstructor
-                ?.parameters
-                .orEmpty()
-                .filter { it.hasAnnotation<Index>() || it.hasAnnotation<Unique>() }
-                .forEach { param ->
+            val normalized = normalizeDataSource(name)
+
+            it.primaryConstructor?.parameters.orEmpty()
+                .filter { it.hasAnnotation<Index>() || it.hasAnnotation<Unique>() }.forEach { param ->
                     val paramName = param.name ?: return@forEach
 
                     param.findAnnotation<Index>()?.also { index ->
-                        this.mappedAnalyzer["$name.$paramName"] = LangAnalyzer.new(index.lang)
+                        this.mappedAnalyzer["$normalized.$paramName"] = LangAnalyzer.new(index.lang)
                     }
 
                     param.findAnnotation<Unique>()?.takeIf { param.type.classifier == Long::class && it.identify }
-                        ?.also { unique -> this.idFields.add("$name.$paramName") }
+                        ?.also { unique -> this.idFields.add("$normalized.$paramName") }
                 }
 
-            idFields.add("${name}_ag_id")
+            this.idFields.add("${normalized}_ag_id")
         }
 
-        val fieldAnalyzer = PerFieldAnalyzerWrapper(LangAnalyzer.new(Language.ENGLISH), mappedAnalyzer)
+        val fieldAnalyzer = PerFieldAnalyzerWrapper(LangAnalyzer.new(Language.ENGLISH), this.mappedAnalyzer)
 
         val config = IndexWriterConfig(fieldAnalyzer).apply {
             openMode = IndexWriterConfig.OpenMode.CREATE_OR_APPEND
         }
 
-        writer = IndexWriter(directory, config)
+        this.writer = IndexWriter(this.directory, config)
     }
 
     fun indexEntries(name: String, entries: List<Map<String, String>>) {
@@ -86,23 +88,36 @@ internal class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
     }
 
     fun searchFieldIndex(field: String, query: String): List<Document> {
-        val queryParser = StandardQueryParser(mappedAnalyzer[field] ?: EnglishAnalyzer())
+
+        //Open by IndexWriter would be better, but it is still experimental as of 16.12.2024.
+        // See https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/index/DirectoryReader.html#open(org.apache.lucene.index.IndexWriter)
+        if (this.reader == null)
+            this.reader = runCatching { DirectoryReader.open(this.directory) }.getOrNull() ?: return emptyList()
+
+        val queryParser = StandardQueryParser(this.mappedAnalyzer[field] ?: EnglishAnalyzer())
 
         queryParser.defaultOperator = StandardQueryConfigHandler.Operator.AND
         queryParser.allowLeadingWildcard = true
 
-        return DirectoryReader.open(this.directory).use { reader ->
-            val searcher = IndexSearcher(reader)
+        DirectoryReader.openIfChanged(this.reader)?.let {
+            this.reader?.close()
 
-            val topDocs = searcher.search(queryParser.parse(this.normalizeOperator(query), field), Int.MAX_VALUE)
-
-            val storedFields = searcher.storedFields()
-
-            topDocs.scoreDocs.map { storedFields.document(it.doc) }
+            this.reader = it
         }
+
+        val searcher = IndexSearcher(this.reader)
+
+        val topDocs = searcher.search(queryParser.parse(this.normalizeOperator(query), field), Int.MAX_VALUE)
+
+        val storedFields = searcher.storedFields()
+
+        return topDocs.scoreDocs.map { storedFields.document(it.doc) }
     }
 
-    override fun close() = this.writer.close()
+    override fun close() {
+        this.writer.close()
+        this.reader?.close()
+    }
 
     private fun normalizeOperator(query: String) =
         operator.entries.fold(query) { acc, entry -> acc.replace(entry.key.toRegex(), entry.value) }

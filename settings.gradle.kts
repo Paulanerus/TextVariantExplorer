@@ -18,3 +18,4 @@ rootProject.name = "TextExplorer"
 include("api")
 include("core")
 include("ui")
+include("plugins:demo")

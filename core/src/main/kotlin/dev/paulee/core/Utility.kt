@@ -22,3 +22,10 @@ fun splitStr(str: String, delimiter: Char, quoteCharacters: Array<Char> = arrayO
 
     return tokens
 }
+
+fun normalizeDataSource(dataSource: String): String = dataSource.substringBeforeLast(".").replace(" ", "_")
+
+fun String.toSnakeCase(): String =
+    this.fold(StringBuilder()) { acc, c -> acc.append(if (c.isUpperCase()) "_${c.lowercaseChar()}" else c) }.toString()
+
+fun String.toCamelCase(): String = splitStr(this, '_').joinToString("") { it.replaceFirstChar(Char::uppercaseChar) }

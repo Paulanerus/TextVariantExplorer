@@ -1,9 +1,12 @@
 package dev.paulee.core.plugin
 
+import dev.paulee.api.data.DataSource
+import dev.paulee.api.data.RequiresData
 import dev.paulee.api.plugin.IPlugin
 import dev.paulee.api.plugin.IPluginService
 import dev.paulee.api.plugin.PluginMetadata
 import dev.paulee.api.plugin.PluginOrder
+import dev.paulee.core.normalizeDataSource
 import java.net.URLClassLoader
 import java.nio.file.Path
 import java.util.jar.JarFile
@@ -21,11 +24,11 @@ class PluginServiceImpl : IPluginService {
     override fun loadFromDirectory(path: Path): Int {
         if (!path.isDirectory()) return -1
 
-        return path.walk().filter { it.extension == "jar" }.mapNotNull { if (this.loadPlugin(it)) it else null }.count()
+        return path.walk().filter { it.extension == "jar" }.mapNotNull { this.loadPlugin(it) }.count()
     }
 
-    override fun loadPlugin(path: Path, init: Boolean): Boolean {
-        if (path.extension != "jar") return false
+    override fun loadPlugin(path: Path, init: Boolean): IPlugin? {
+        if (path.extension != "jar") return null
 
         return URLClassLoader(arrayOf(path.toUri().toURL()), this.javaClass.classLoader).use { classLoader ->
             val entryPoint = this.getPluginEntryPoint(path)
@@ -41,11 +44,15 @@ class PluginServiceImpl : IPluginService {
                 if (init) plugin.init()
 
                 this.plugins.add(plugin)
-            } == true
+
+                return plugin
+            }
         }
     }
 
     override fun getPluginMetadata(plugin: IPlugin): PluginMetadata? = plugin::class.findAnnotation<PluginMetadata>()
+
+    override fun getDataInfo(plugin: IPlugin): RequiresData? = plugin::class.findAnnotation<RequiresData>()
 
     override fun initAll() {
         this.plugins.sortBy { it::class.findAnnotation<PluginOrder>()?.order ?: 0 }
@@ -54,6 +61,23 @@ class PluginServiceImpl : IPluginService {
     }
 
     override fun getPlugins(): List<IPlugin> = this.plugins.toList()
+
+    override fun getAllDataInfos(): Set<RequiresData> = this.plugins.mapNotNull { this.getDataInfo(it) }.toSet()
+
+    override fun getDataSources(datInfo: String): Set<String> {
+        val dataSources = mutableSetOf<String>()
+
+        this.plugins.mapNotNull { this.getDataInfo(it) }
+            .filter { it.name == datInfo }
+            .map { it.sources }
+            .forEach {
+                it.forEach { clazz ->
+                    clazz.findAnnotation<DataSource>()?.file?.let { dataSources.add(normalizeDataSource(it)) }
+                }
+            }
+
+        return dataSources
+    }
 
     private fun getPluginEntryPoint(path: Path): String? =
         JarFile(path.toFile()).use { return it.manifest.mainAttributes.getValue("Main-Class") }

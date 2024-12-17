@@ -2,6 +2,8 @@ package dev.paulee.core.data.sql
 
 import dev.paulee.api.data.DataSource
 import dev.paulee.api.data.Unique
+import dev.paulee.core.normalizeDataSource
+import dev.paulee.core.toSnakeCase
 import org.jetbrains.annotations.Nullable
 import java.io.Closeable
 import java.nio.file.Path
@@ -203,7 +205,7 @@ internal class Database(path: Path) : Closeable {
             Column(name, typeToColumnType(type), isPrimary, isNullable)
         }
 
-        val table = Table(tableName.substringBeforeLast("."), columns)
+        val table = Table(normalizeDataSource(tableName), columns)
 
         transaction {
             table.createIfNotExists(this)
