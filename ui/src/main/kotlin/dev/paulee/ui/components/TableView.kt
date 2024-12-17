@@ -1,7 +1,6 @@
 package dev.paulee.ui.components
 
 import androidx.compose.foundation.*
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -16,12 +15,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.PointerIcon
-import androidx.compose.ui.input.pointer.pointerHoverIcon
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
-import java.awt.Cursor
 
 @Composable
 fun TableView(
@@ -36,8 +34,32 @@ fun TableView(
     val verticalScrollState = rememberLazyListState()
     val hiddenColumns = remember { mutableStateOf(setOf<Int>()) }
 
-    val columnWidths = remember {
-        columns.map { mutableStateOf(175.dp) }
+    val textMeasurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+
+    val headerTextStyle = LocalTextStyle.current.copy(fontWeight = FontWeight.Bold)
+    val cellTextStyle = LocalTextStyle.current
+
+    val columnWidths = remember(columns, data) {
+        columns.mapIndexed { colIndex, colName ->
+            val headerWidthPx = textMeasurer.measure(
+                text = AnnotatedString(colName),
+                style = headerTextStyle
+            ).size.width
+
+            val headerWidth = with(density) { headerWidthPx.toDp() }
+
+            val maxDataWidthPx = data.map { it[colIndex] }.maxOf { text ->
+                textMeasurer.measure(
+                    text = AnnotatedString(text),
+                    style = cellTextStyle
+                ).size.width
+            }
+
+            val maxDataWidth = with(density) { maxDataWidthPx.toDp() }
+
+            minOf(maxOf(headerWidth, maxDataWidth) + 16.dp, 700.dp)
+        }
     }
 
     Box(modifier = modifier) {
@@ -85,7 +107,9 @@ fun TableView(
                     if (hiddenColumns.value.contains(index)) return@forEachIndexed
 
                     Box(
-                        modifier = Modifier.height(IntrinsicSize.Min).width(columnWidths[index].value).drawBehind {
+                        modifier = Modifier.height(IntrinsicSize.Min).width(columnWidths[index]).drawBehind {
+                            if (columns.lastIndex == index) return@drawBehind
+
                             val strokeWidth = 2.dp.toPx()
                             val halfStrokeWidth = strokeWidth / 2
                             drawLine(
@@ -101,19 +125,6 @@ fun TableView(
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
                         )
-
-                        Box(
-                            modifier = Modifier.align(Alignment.CenterEnd).width(4.dp)
-                                .fillMaxHeight()
-                                .pointerHoverIcon(PointerIcon(Cursor(Cursor.E_RESIZE_CURSOR)))
-                                .pointerInput(Unit) {
-                                    detectDragGestures { change, dragAmount ->
-                                        change.consume()
-                                        val newWidth =
-                                            (columnWidths[index].value + dragAmount.x.dp).coerceAtLeast(50.dp)
-                                        columnWidths[index].value = newWidth
-                                    }
-                                })
                     }
                 }
             }
@@ -145,7 +156,7 @@ fun TableView(
 
                                     Text(
                                         text = cell,
-                                        modifier = Modifier.width(columnWidths[colIndex].value)
+                                        modifier = Modifier.width(columnWidths[colIndex])
                                             .padding(horizontal = 4.dp)
                                     )
                                 }
