@@ -35,7 +35,7 @@ class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
 
     private val writer: IndexWriter
 
-    private var reader: DirectoryReader? = null
+    private var reader: DirectoryReader
 
     private val mappedAnalyzer = mutableMapOf<String, Analyzer>()
 
@@ -74,6 +74,8 @@ class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
         }
 
         this.writer = IndexWriter(this.directory, config)
+
+        this.reader = DirectoryReader.open(this.writer)
     }
 
     fun indexEntries(name: String, entries: List<Map<String, String>>) {
@@ -88,19 +90,13 @@ class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
     }
 
     fun searchFieldIndex(field: String, query: String): List<Document> {
-
-        //Open by IndexWriter would be better, but it is still experimental as of 16.12.2024.
-        // See https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/index/DirectoryReader.html#open(org.apache.lucene.index.IndexWriter)
-        if (this.reader == null)
-            this.reader = runCatching { DirectoryReader.open(this.directory) }.getOrNull() ?: return emptyList()
-
         val queryParser = StandardQueryParser(this.mappedAnalyzer[field] ?: EnglishAnalyzer())
 
         queryParser.defaultOperator = StandardQueryConfigHandler.Operator.AND
         queryParser.allowLeadingWildcard = true
 
         DirectoryReader.openIfChanged(this.reader)?.let {
-            this.reader?.close()
+            this.reader.close()
 
             this.reader = it
         }
@@ -116,7 +112,7 @@ class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
 
     override fun close() {
         this.writer.close()
-        this.reader?.close()
+        this.reader.close()
     }
 
     private fun normalizeOperator(query: String) =
