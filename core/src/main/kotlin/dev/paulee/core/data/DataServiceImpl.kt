@@ -7,7 +7,9 @@ import dev.paulee.core.data.io.BufferedCSVReader
 import dev.paulee.core.normalizeDataSource
 import dev.paulee.core.splitStr
 import java.nio.file.Path
-import kotlin.io.path.*
+import kotlin.io.path.createDirectories
+import kotlin.io.path.exists
+import kotlin.io.path.isDirectory
 import kotlin.math.ceil
 import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.primaryConstructor
@@ -178,7 +180,6 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
         }
 
         dataPools[dataInfo.name] = dataPool
-        this.storageProvider.init(dataInfo, poolPath)
 
         return true
     }
@@ -186,12 +187,17 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
     override fun loadDataPools(path: Path, dataInfo: Set<RequiresData>): Int {
         if (!path.exists()) path.createDirectories()
 
-        path.listDirectoryEntries().filter { it.isDirectory() && !dataPools.containsKey(it.name) }.forEach {
-            val dataInfo = dataInfo.find { info -> info.name == it.name } ?: return@forEach
+        dataInfo.forEach {
+            val poolPath = path.resolve(it.name)
 
-            dataPools[it.name] = DataPool(indexer = Indexer(it.resolve("index"), dataInfo.sources), dataInfo = dataInfo)
+            if (poolPath.exists() && poolPath.isDirectory()) {
+                dataPools[it.name] = DataPool(indexer = Indexer(poolPath.resolve("index"), it.sources), dataInfo = it)
 
-            this.storageProvider.init(dataInfo, it)
+                this.storageProvider.init(it, poolPath)
+            } else {
+                if (this.createDataPool(it, path))
+                    println("Created data pool ${it.name}")
+            }
         }
 
         return dataPools.size
