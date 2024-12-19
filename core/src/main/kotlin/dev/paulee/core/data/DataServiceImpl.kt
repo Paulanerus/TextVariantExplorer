@@ -244,16 +244,16 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
         return entries
     }
 
-    override fun getPageCount(query: String): Long {
-        val dataPool = this.dataPools["demo"] ?: return -1
+    override fun getPageCount(query: String): Pair<Long, List<String>> {
+        val dataPool = this.dataPools["demo"] ?: return Pair(-1, emptyList())
 
         val indexResult = dataPool.search(query)
 
-        if (indexResult.isEmpty()) return 0
+        if (indexResult.isEmpty()) return return Pair(0, emptyList())
 
         val count = this.storageProvider.count("demo.verses", indexResult.ids, indexResult.tokens)
 
-        return ceil(count / pageSize.toDouble()).toLong()
+        return Pair(ceil(count / pageSize.toDouble()).toLong(), indexResult.tokens)
     }
 
     override fun close() {

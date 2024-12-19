@@ -69,6 +69,7 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
         var currentPage by remember { mutableStateOf(0) }
 
         var header by remember { mutableStateOf(listOf<String>()) }
+        var tokenizedQuery by remember { mutableStateOf(listOf<String>()) }
         var data by remember { mutableStateOf(listOf<List<String>>()) }
 
 
@@ -127,7 +128,11 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
                         IconButton(
                             onClick = {
                                 currentPage = 0
-                                totalPages = dataService.getPageCount(text)
+                                val (pages, tokens) = dataService.getPageCount(text)
+
+                                totalPages = pages
+
+                                tokenizedQuery = tokens + tokens.fold(text) { acc, str -> acc.replace(str, "") }
 
                                 if (totalPages > 0) {
                                     dataService.getPage(text, currentPage).let {
