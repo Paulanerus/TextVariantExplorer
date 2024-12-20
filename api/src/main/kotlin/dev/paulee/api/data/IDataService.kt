@@ -13,5 +13,5 @@ interface IDataService : Closeable {
 
     fun getPage(query: String, pageCount: Int): List<Map<String, String>>
 
-    fun getPageCount(query: String): Pair<Long, List<String>>
+    fun getPageCount(query: String): Pair<Long, Set<String>>
 }

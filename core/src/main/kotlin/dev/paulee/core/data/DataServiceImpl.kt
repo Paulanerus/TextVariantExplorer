@@ -14,7 +14,11 @@ import kotlin.math.ceil
 import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.primaryConstructor
 
-private data class IndexSearchResult(val ids: Set<Long>, val tokens: List<String>) {
+private data class IndexSearchResult(
+    val ids: Set<Long> = emptySet<Long>(),
+    val tokens: List<String> = emptyList<String>(),
+    val indexedValues: Set<String> = emptySet<String>(),
+) {
     fun isEmpty(): Boolean = ids.isEmpty() && tokens.isEmpty()
 }
 
@@ -78,6 +82,8 @@ private class DataPool(val indexer: Indexer, dataInfo: RequiresData) {
     fun search(query: String): IndexSearchResult {
         val ids = mutableSetOf<Long>()
 
+        val indexedValues = mutableSetOf<String>()
+
         val token = mutableListOf<String>()
         if (keyValueRgx.containsMatchIn(query)) {
 
@@ -94,12 +100,14 @@ private class DataPool(val indexer: Indexer, dataInfo: RequiresData) {
 
                 val field = str.substring(0, colon).let {
                     if (it.contains(".")) it
-                    else "${defaultClass ?: return IndexSearchResult(emptySet(), emptyList())}.$it"
+                    else "${defaultClass ?: return IndexSearchResult()}.$it"
                 }
 
                 if (fields[field] == true) {
                     val value = str.substring(colon + 1).trim('"')
                     val fieldClass = field.substringBefore('.')
+
+                    indexedValues.add(value)
 
                     indexer.searchFieldIndex(field, value)
                         .mapTo(ids) { doc -> doc.getField(identifier[fieldClass]).numericValue().toLong() }
@@ -107,9 +115,13 @@ private class DataPool(val indexer: Indexer, dataInfo: RequiresData) {
                 } else token.add(str)
             }
 
-            defaultIndexField?.let { defaultField ->
-                queryToken.takeIf { it.isNotEmpty() }?.let {
-                    indexer.searchFieldIndex(defaultField, it.joinToString(" ")).mapTo(ids) { doc ->
+            if (queryToken.isNotEmpty()) {
+                val joined = queryToken.joinToString(" ")
+
+                indexedValues.add(joined)
+
+                defaultIndexField?.let { defaultField ->
+                    indexer.searchFieldIndex(defaultField, joined).mapTo(ids) { doc ->
                         doc.getField(identifier[defaultClass]).numericValue().toLong()
                     }
                 }
@@ -117,9 +129,11 @@ private class DataPool(val indexer: Indexer, dataInfo: RequiresData) {
         } else {
             defaultIndexField?.let { indexer.searchFieldIndex(it, query) }
                 ?.mapTo(ids) { doc -> doc.getField(identifier[defaultClass]).numericValue().toLong() }
+
+            indexedValues.add(query)
         }
 
-        return IndexSearchResult(ids, token)
+        return IndexSearchResult(ids, token, indexedValues)
     }
 }
 
@@ -244,16 +258,16 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
         return entries
     }
 
-    override fun getPageCount(query: String): Pair<Long, List<String>> {
-        val dataPool = this.dataPools["demo"] ?: return Pair(-1, emptyList())
+    override fun getPageCount(query: String): Pair<Long, Set<String>> {
+        val dataPool = this.dataPools["demo"] ?: return Pair(-1, emptySet())
 
         val indexResult = dataPool.search(query)
 
-        if (indexResult.isEmpty()) return return Pair(0, emptyList())
+        if (indexResult.isEmpty()) return return Pair(0, emptySet())
 
         val count = this.storageProvider.count("demo.verses", indexResult.ids, indexResult.tokens)
 
-        return Pair(ceil(count / pageSize.toDouble()).toLong(), indexResult.tokens)
+        return Pair(ceil(count / pageSize.toDouble()).toLong(), indexResult.indexedValues)
     }
 
     override fun close() {
