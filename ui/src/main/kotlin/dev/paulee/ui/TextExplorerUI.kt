@@ -69,9 +69,8 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
         var currentPage by remember { mutableStateOf(0) }
 
         var header by remember { mutableStateOf(listOf<String>()) }
-        var tokenizedQuery by remember { mutableStateOf(listOf<String>()) }
+        var indexStrings by remember { mutableStateOf(emptySet<String>()) }
         var data by remember { mutableStateOf(listOf<List<String>>()) }
-
 
         MaterialTheme {
             Box(modifier = Modifier.fillMaxSize()) {
@@ -128,11 +127,11 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
                         IconButton(
                             onClick = {
                                 currentPage = 0
-                                val (pages, tokens) = dataService.getPageCount(text)
+                                val (pages, indexed) = dataService.getPageCount(text)
 
                                 totalPages = pages
 
-                                tokenizedQuery = tokens + tokens.fold(text) { acc, str -> acc.replace(str, "") }
+                                indexStrings = indexed
 
                                 if (totalPages > 0) {
                                     dataService.getPage(text, currentPage).let {
@@ -171,6 +170,7 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
 
                             TableView(
                                 modifier = Modifier.weight(1f),
+                                indexStrings = indexStrings,
                                 columns = header,
                                 data = data,
                                 onRowSelect = { selectedRows = it },
