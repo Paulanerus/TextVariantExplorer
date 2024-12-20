@@ -25,7 +25,7 @@ import dev.paulee.ui.MarkedText
 @Composable
 fun TableView(
     modifier: Modifier = Modifier,
-    indexStrings: List<String> = emptyList<String>(),
+    indexStrings: Set<String> = emptySet<String>(),
     columns: List<String>,
     data: List<List<String>>,
     onRowSelect: (Set<List<String>>) -> Unit,

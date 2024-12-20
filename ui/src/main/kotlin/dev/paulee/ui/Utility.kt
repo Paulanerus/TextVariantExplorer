@@ -12,7 +12,7 @@ import androidx.compose.ui.text.withStyle
 fun MarkedText(
     modifier: Modifier = Modifier,
     text: String,
-    highlights: List<String>,
+    highlights: Set<String>,
     color: Color = Color.Blue,
 ) {
     val annotatedString = buildAnnotatedString {
