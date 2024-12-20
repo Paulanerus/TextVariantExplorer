@@ -20,10 +20,12 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
+import dev.paulee.ui.MarkedText
 
 @Composable
 fun TableView(
     modifier: Modifier = Modifier,
+    indexStrings: List<String> = emptyList<String>(),
     columns: List<String>,
     data: List<List<String>>,
     onRowSelect: (Set<List<String>>) -> Unit,
@@ -154,10 +156,12 @@ fun TableView(
                                 row.forEachIndexed { colIndex, cell ->
                                     if (hiddenColumns.value.contains(colIndex)) return@forEachIndexed
 
-                                    Text(
-                                        text = cell,
+                                    MarkedText(
                                         modifier = Modifier.width(columnWidths[colIndex])
-                                            .padding(horizontal = 4.dp)
+                                            .padding(horizontal = 4.dp),
+                                        text = cell,
+                                        highlights = indexStrings,
+                                        color = Color.Green
                                     )
                                 }
                             }
