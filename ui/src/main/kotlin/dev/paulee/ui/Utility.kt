@@ -6,11 +6,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 
 @Composable
 fun MarkedText(
     modifier: Modifier = Modifier,
+    textDecoration: TextDecoration = TextDecoration.None,
     text: String,
     highlights: Set<String>,
     color: Color = Color.Blue,
@@ -34,5 +36,5 @@ fun MarkedText(
 
         if (currentIndex < text.length) append(text.substring(currentIndex))
     }
-    Text(annotatedString, modifier = modifier)
+    Text(annotatedString, modifier = modifier, textDecoration = textDecoration)
 }
