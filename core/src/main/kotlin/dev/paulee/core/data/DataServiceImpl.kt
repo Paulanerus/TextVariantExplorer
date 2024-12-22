@@ -14,6 +14,8 @@ import kotlin.math.ceil
 import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.primaryConstructor
 
+typealias PageResult = Pair<List<Map<String, String>>, Map<String, List<Map<String, String>>>>
+
 private data class IndexSearchResult(
     val ids: Set<Long> = emptySet<Long>(),
     val tokens: List<String> = emptyList<String>(),
@@ -52,7 +54,8 @@ private class DataPool(val indexer: Indexer, dataInfo: RequiresData) {
                 param.findAnnotation<Link>()?.let { link ->
                     link.clazz.findAnnotation<DataSource>()?.file?.let { linkFile ->
 
-                        links[key] = if (link.field.isNotEmpty()) "$linkFile.${link.field}" else "$linkFile.$name"
+                        if (dataInfo.sources.contains(link.clazz)) links[key] = "$linkFile.$name"
+                        else println("Link '$linkFile' was not specified in the plugin main and will be ignored.")
                     }
                 }
 
@@ -141,8 +144,8 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
 
     private val pageSize = 50
 
-    private val pageCache = object : LinkedHashMap<Pair<Int, String>, List<Map<String, String>>>(3, 0.75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Pair<Int, String>, List<Map<String, String>>>?): Boolean {
+    private val pageCache = object : LinkedHashMap<Pair<Int, String>, PageResult>(3, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Pair<Int, String>, PageResult>?): Boolean {
             return size > 3
         }
     }
@@ -209,8 +212,7 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
 
                 this.storageProvider.init(it, poolPath)
             } else {
-                if (this.createDataPool(it, path))
-                    println("Created data pool ${it.name}")
+                if (this.createDataPool(it, path)) println("Created data pool ${it.name}")
             }
         }
 
@@ -221,41 +223,41 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
         TODO("Not yet implemented")
     }
 
-    override fun getPage(query: String, pageCount: Int): List<Map<String, String>> {
+    override fun getPage(query: String, pageCount: Int): PageResult {
 
         val key = Pair(pageCount, query)
 
         pageCache[key]?.let { return it }
 
-        val dataPool = this.dataPools["demo"] ?: return emptyList()
+        val dataPool = this.dataPools["demo"] ?: return Pair(emptyList(), emptyMap())
 
         val indexResult = dataPool.search(query)
 
-        if (indexResult.isEmpty()) return emptyList()
+        if (indexResult.isEmpty()) return Pair(emptyList(), emptyMap())
 
         val entries = this.storageProvider.get(
             "demo.verses", indexResult.ids, indexResult.tokens, offset = pageCount * this.pageSize, limit = pageSize
         )
 
-        val links = mutableListOf<Map<String, String>>()
+        val links = mutableMapOf<String, List<Map<String, String>>>()
         dataPool.links.forEach { key, value ->
             val keyField = key.substringAfter('.')
 
             val (valSource, valField) = value.split('.', limit = 2)
 
-            val fields = entries.asSequence()
-                .mapNotNull { it[keyField] }
-                .toSet()
+            val fields = entries.asSequence().mapNotNull { it[keyField] }.toSet()
 
             if (fields.isEmpty()) return@forEach
 
-            this.storageProvider.get("demo.$valSource", whereClause = fields.map { "$valField:$it" }.toList())
-                .toCollection(links)
+            links[keyField] =
+                this.storageProvider.get("demo.$valSource", whereClause = fields.map { "$valField:$it" }.toList())
         }
 
-        pageCache[key] = entries
+        val result = PageResult(entries, links)
 
-        return entries
+        pageCache[key] = result
+
+        return result
     }
 
     override fun getPageCount(query: String): Pair<Long, Set<String>> {

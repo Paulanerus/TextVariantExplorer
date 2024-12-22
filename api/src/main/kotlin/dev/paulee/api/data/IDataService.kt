@@ -11,7 +11,7 @@ interface IDataService : Closeable {
 
     fun selectDataPool()
 
-    fun getPage(query: String, pageCount: Int): List<Map<String, String>>
+    fun getPage(query: String, pageCount: Int): Pair<List<Map<String, String>>, Map<String, List<Map<String, String>>>>
 
     fun getPageCount(query: String): Pair<Long, Set<String>>
 }
