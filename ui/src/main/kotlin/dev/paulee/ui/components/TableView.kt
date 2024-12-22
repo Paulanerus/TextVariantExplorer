@@ -19,6 +19,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import dev.paulee.ui.MarkedText
 
@@ -28,6 +29,7 @@ fun TableView(
     indexStrings: Set<String> = emptySet<String>(),
     columns: List<String>,
     data: List<List<String>>,
+    links: Map<String, List<Map<String, String>>>,
     onRowSelect: (Set<List<String>>) -> Unit,
     clicked: () -> Unit = {},
 ) {
@@ -156,9 +158,14 @@ fun TableView(
                                 row.forEachIndexed { colIndex, cell ->
                                     if (hiddenColumns.value.contains(colIndex)) return@forEachIndexed
 
+                                    val col = columns[colIndex]
+
+                                    val link = links[col]?.find { it[col] != null }
+
                                     MarkedText(
                                         modifier = Modifier.width(columnWidths[colIndex])
                                             .padding(horizontal = 4.dp),
+                                        textDecoration = if (link == null) TextDecoration.None else TextDecoration.Underline,
                                         text = cell,
                                         highlights = indexStrings,
                                         color = Color.Green

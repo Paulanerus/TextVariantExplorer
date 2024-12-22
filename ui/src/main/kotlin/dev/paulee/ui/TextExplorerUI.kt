@@ -71,6 +71,7 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
         var header by remember { mutableStateOf(listOf<String>()) }
         var indexStrings by remember { mutableStateOf(emptySet<String>()) }
         var data by remember { mutableStateOf(listOf<List<String>>()) }
+        var links by remember { mutableStateOf(mapOf<String, List<Map<String, String>>>()) }
 
         MaterialTheme {
             Box(modifier = Modifier.fillMaxSize()) {
@@ -136,11 +137,13 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
                                 if (totalPages > 0) {
                                     dataService.getPage(text, currentPage).let {
 
-                                        val first = it.firstOrNull() ?: return@let
+                                        val first = it.first.firstOrNull() ?: return@let
 
                                         header = first.keys.toList()
 
-                                        data = it.map { it.values.toList() }
+                                        data = it.first.map { it.values.toList() }
+
+                                        links = it.second
                                     }
                                 }
 
@@ -173,6 +176,7 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
                                 indexStrings = indexStrings,
                                 columns = header,
                                 data = data,
+                                links = links,
                                 onRowSelect = { selectedRows = it },
                                 clicked = { displayDiffWindow = true })
 
@@ -191,7 +195,9 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
                                             currentPage--
 
                                             dataService.getPage(text, currentPage).let {
-                                                data = it.map { it.values.toList() }
+                                                data = it.first.map { it.values.toList() }
+
+                                                links = it.second
                                             }
                                         }
                                     }, enabled = currentPage > 0
@@ -207,7 +213,9 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
                                             currentPage++
 
                                             dataService.getPage(text, currentPage).let {
-                                                data = it.map { it.values.toList() }
+                                                data = it.first.map { it.values.toList() }
+
+                                                links = it.second
                                             }
                                         }
                                     }, enabled = currentPage < totalPages - 1
