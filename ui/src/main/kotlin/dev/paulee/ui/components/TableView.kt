@@ -4,12 +4,11 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -23,6 +22,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import dev.paulee.ui.MarkedText
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TableView(
     modifier: Modifier = Modifier,
@@ -33,10 +33,11 @@ fun TableView(
     onRowSelect: (Set<List<String>>) -> Unit,
     clicked: () -> Unit = {},
 ) {
-    val selectedRows = remember { mutableStateOf(setOf<Int>()) }
     val scrollState = rememberScrollState()
     val verticalScrollState = rememberLazyListState()
-    val hiddenColumns = remember { mutableStateOf(setOf<Int>()) }
+
+    var selectedRows by remember { mutableStateOf(setOf<Int>()) }
+    var hiddenColumns by remember { mutableStateOf(setOf<Int>()) }
 
     val textMeasurer = rememberTextMeasurer()
     val density = LocalDensity.current
@@ -71,9 +72,9 @@ fun TableView(
             Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth()) {
                 IconButton(
                     onClick = {
-                        selectedRows.value = emptySet()
+                        selectedRows = emptySet()
                         onRowSelect(emptySet())
-                    }, modifier = Modifier.align(Alignment.CenterStart), enabled = selectedRows.value.isNotEmpty()
+                    }, modifier = Modifier.align(Alignment.CenterStart), enabled = selectedRows.isNotEmpty()
                 ) {
                     Icon(Icons.Default.Delete, contentDescription = "Delete")
                 }
@@ -81,10 +82,10 @@ fun TableView(
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.align(Alignment.Center)) {
                     columns.forEachIndexed { index, column ->
                         Button(onClick = {
-                            if (hiddenColumns.value.contains(index))
-                                hiddenColumns.value = hiddenColumns.value - index
+                            hiddenColumns = if (hiddenColumns.contains(index))
+                                hiddenColumns - index
                             else
-                                hiddenColumns.value = hiddenColumns.value + index
+                                hiddenColumns + index
 
                         }, colors = ButtonDefaults.buttonColors(backgroundColor = Color.LightGray)) {
                             Text(column)
@@ -94,10 +95,10 @@ fun TableView(
 
                 Button(
                     onClick = clicked,
-                    enabled = selectedRows.value.isNotEmpty(),
+                    enabled = selectedRows.isNotEmpty(),
                     modifier = Modifier.width(120.dp).align(Alignment.CenterEnd)
                 ) {
-                    if (selectedRows.value.size <= 1) Text("View")
+                    if (selectedRows.size <= 1) Text("View")
                     else Text("View Diff")
                 }
             }
@@ -108,7 +109,7 @@ fun TableView(
                 modifier = Modifier.fillMaxWidth().horizontalScroll(scrollState).background(Color.Gray)
             ) {
                 columns.forEachIndexed { index, columnName ->
-                    if (hiddenColumns.value.contains(index)) return@forEachIndexed
+                    if (hiddenColumns.contains(index)) return@forEachIndexed
 
                     Box(
                         modifier = Modifier.height(IntrinsicSize.Min).width(columnWidths[index]).drawBehind {
@@ -144,32 +145,48 @@ fun TableView(
                             val row = data[rowIndex]
                             Row(
                                 modifier = Modifier.fillMaxWidth().clickable {
-                                    val selected = if (selectedRows.value.contains(rowIndex)) {
-                                        selectedRows.value - rowIndex
+                                    val selected = if (selectedRows.contains(rowIndex)) {
+                                        selectedRows - rowIndex
                                     } else {
-                                        selectedRows.value + rowIndex
+                                        selectedRows + rowIndex
                                     }
-                                    selectedRows.value = selected
+                                    selectedRows = selected
                                     onRowSelect(selected.map { data[it] }.toSet())
                                 }
-                                    .background(if (selectedRows.value.contains(rowIndex)) Color.LightGray else Color.Transparent)
+                                    .background(if (selectedRows.contains(rowIndex)) Color.LightGray else Color.Transparent)
                                     .padding(vertical = 8.dp),
                             ) {
                                 row.forEachIndexed { colIndex, cell ->
-                                    if (hiddenColumns.value.contains(colIndex)) return@forEachIndexed
+                                    if (hiddenColumns.contains(colIndex)) return@forEachIndexed
 
                                     val col = columns[colIndex]
 
                                     val link = links[col]?.find { it[col] != null }
 
-                                    MarkedText(
-                                        modifier = Modifier.width(columnWidths[colIndex])
-                                            .padding(horizontal = 4.dp),
-                                        textDecoration = if (link == null) TextDecoration.None else TextDecoration.Underline,
-                                        text = cell,
-                                        highlights = indexStrings,
-                                        color = Color.Green
-                                    )
+                                    TooltipArea(
+                                        tooltip = {
+                                            if (link == null) return@TooltipArea
+
+                                            Surface(
+                                                color = Color.Gray,
+                                                shape = RoundedCornerShape(4.dp)
+                                            ) {
+                                                Text(
+                                                    text = link.toString(),
+                                                    modifier = Modifier.padding(10.dp)
+                                                )
+                                            }
+                                        }
+                                    ) {
+                                        MarkedText(
+                                            modifier = Modifier.width(columnWidths[colIndex])
+                                                .padding(horizontal = 4.dp),
+                                            textDecoration = if (link == null) TextDecoration.None else TextDecoration.Underline,
+                                            text = cell,
+                                            highlights = indexStrings,
+                                            color = Color.Green
+                                        )
+                                    }
                                 }
                             }
                         }
