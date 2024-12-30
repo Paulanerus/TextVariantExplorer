@@ -90,6 +90,10 @@ class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
     }
 
     fun searchFieldIndex(field: String, query: String): List<Document> {
+        val normalized = this.normalizeOperator(query)
+
+        if(normalized.isEmpty()) return emptyList()
+
         val queryParser = StandardQueryParser(this.mappedAnalyzer[field] ?: EnglishAnalyzer())
 
         queryParser.defaultOperator = StandardQueryConfigHandler.Operator.AND
@@ -103,7 +107,7 @@ class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
 
         val searcher = IndexSearcher(this.reader)
 
-        val topDocs = searcher.search(queryParser.parse(this.normalizeOperator(query), field), Int.MAX_VALUE)
+        val topDocs = searcher.search(queryParser.parse(normalized, field), Int.MAX_VALUE)
 
         val storedFields = searcher.storedFields()
 
