@@ -49,6 +49,9 @@ enum class Language {
 }
 
 @Target(AnnotationTarget.CLASS)
+annotation class Variant(val base: String, val variants: Array<String>)
+
+@Target(AnnotationTarget.CLASS)
 annotation class RequiresData(val name: String, val sources: Array<KClass<*>> = [])
 
 @Target(AnnotationTarget.CLASS)
