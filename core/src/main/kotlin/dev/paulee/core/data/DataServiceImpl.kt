@@ -33,8 +33,6 @@ private class DataPool(val indexer: Indexer, dataInfo: RequiresData) {
 
     var defaultClass: String? = null
 
-    var hasIdentifier = false
-
     val links = mutableMapOf<String, String>()
 
     val replacements = mutableMapOf<String, Any>()
@@ -75,10 +73,7 @@ private class DataPool(val indexer: Indexer, dataInfo: RequiresData) {
                 }
 
                 param.findAnnotation<Unique>()?.identify?.let {
-                    if (it && param.type.classifier == Long::class) {
-                        hasIdentifier = true
-                        identifier[normalized] = "$normalized.$name"
-                    }
+                    if (it && param.type.classifier == Long::class) identifier[normalized] = "$normalized.$name"
                 }
             }
         }
@@ -142,6 +137,10 @@ private class DataPool(val indexer: Indexer, dataInfo: RequiresData) {
 
         return IndexSearchResult(ids, token, indexedValues)
     }
+
+    fun hasIdentifier(name: String, entries: Map<String, String>): Boolean {
+        return entries[identifier[name]?.substringAfter(".")] != null
+    }
 }
 
 class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataService {
@@ -191,7 +190,7 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
 
             BufferedCSVReader(sourcePath).readLines { lines ->
                 val entries = lines.map { line ->
-                    if (dataPool.hasIdentifier) line
+                    if (dataPool.hasIdentifier(file, line)) line
                     else line + ("${file}_ag_id" to idGenerator.next().toString())
                 }
 
