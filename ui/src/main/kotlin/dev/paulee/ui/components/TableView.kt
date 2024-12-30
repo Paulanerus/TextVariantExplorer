@@ -161,7 +161,7 @@ fun TableView(
 
                                     val col = columns[colIndex]
 
-                                    val link = links[col]?.find { it[col] != null }
+                                    val link = links[col]?.find { it[col] == cell }
 
                                     TooltipArea(
                                         tooltip = {
