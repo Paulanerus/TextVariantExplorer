@@ -37,11 +37,15 @@ private class DataPool(val indexer: Indexer, dataInfo: RequiresData) {
 
     val links = mutableMapOf<String, String>()
 
+    val replacements = mutableMapOf<String, Any>()
+
     private val keyValueRgx = "\\w+:\\w+|\\w+:\"[^\"]*\"".toRegex()
 
     init {
         dataInfo.sources.forEach { clazz ->
             val file = clazz.findAnnotation<DataSource>()?.file ?: return@forEach
+
+            clazz.findAnnotation<Variant>()?.let { replacements[file] = it }
 
             val normalized = normalizeDataSource(file)
 
@@ -231,7 +235,7 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
 
         val dataPool = this.dataPools["demo"] ?: return Pair(emptyList(), emptyMap())
 
-        val indexResult = dataPool.search(query)
+        val indexResult = dataPool.search(this.handleReplacements(dataPool.replacements, query))
 
         if (indexResult.isEmpty()) return Pair(emptyList(), emptyMap())
 
@@ -263,7 +267,7 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
     override fun getPageCount(query: String): Pair<Long, Set<String>> {
         val dataPool = this.dataPools["demo"] ?: return Pair(-1, emptySet())
 
-        val indexResult = dataPool.search(query)
+        val indexResult = dataPool.search(this.handleReplacements(dataPool.replacements, query))
 
         if (indexResult.isEmpty()) return return Pair(0, emptySet())
 
@@ -276,5 +280,22 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
         this.storageProvider.close()
 
         this.dataPools.values.forEach { it.indexer.close() }
+    }
+
+    private fun handleReplacements(replacements: Map<String, Any>, query: String): String {
+        val pattern = Regex("@([^:]+):(\\S+)")
+
+        return pattern.replace(query) {
+            val key = it.groupValues[1]
+            val value = it.groupValues[2]
+
+            val transform = replacements[key] ?: return@replace it.value
+
+            if (transform is Variant) {
+                this.storageProvider.get("demo.$key", whereClause = listOf("${transform.base}:$value"))
+                    .flatMap { map -> transform.variants.mapNotNull { key -> map[key] } }.toSet()
+                    .joinToString(" or ", prefix = "(", postfix = ")")
+            } else ""
+        }
     }
 }
