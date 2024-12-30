@@ -52,8 +52,12 @@ class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
 
             val normalized = normalizeDataSource(name)
 
+            if (it.primaryConstructor?.parameters.orEmpty()
+                    .none { param -> param.hasAnnotation<Index>() }
+            ) return@forEach
+
             it.primaryConstructor?.parameters.orEmpty()
-                .filter { it.hasAnnotation<Index>() || it.hasAnnotation<Unique>() }.forEach { param ->
+                .forEach { param ->
                     val paramName = param.name ?: return@forEach
 
                     param.findAnnotation<Index>()?.also { index ->
@@ -92,7 +96,7 @@ class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
     fun searchFieldIndex(field: String, query: String): List<Document> {
         val normalized = this.normalizeOperator(query)
 
-        if(normalized.isEmpty()) return emptyList()
+        if (normalized.isEmpty()) return emptyList()
 
         val queryParser = StandardQueryParser(this.mappedAnalyzer[field] ?: EnglishAnalyzer())
 
@@ -126,7 +130,9 @@ class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
         map.forEach { key, value ->
             val id = "$name.$key"
 
-            if (idFields.contains(id) || idFields.contains(key)) add(LongField(id, value.toLong(), Field.Store.YES))
+            if (idFields.contains(id) || idFields.contains(key)) {
+                add(LongField(if (key.endsWith("_ag_id")) key else id, value.toLong(), Field.Store.YES))
+            }
 
             if (mappedAnalyzer.contains(id)) add(TextField(id, value, Field.Store.YES))
         }
