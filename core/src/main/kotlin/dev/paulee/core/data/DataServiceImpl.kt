@@ -7,12 +7,20 @@ import dev.paulee.core.data.io.BufferedCSVReader
 import dev.paulee.core.normalizeDataSource
 import dev.paulee.core.splitStr
 import java.nio.file.Path
-import kotlin.io.path.*
+import kotlin.io.path.createDirectories
+import kotlin.io.path.exists
+import kotlin.io.path.isDirectory
 import kotlin.math.ceil
 import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.primaryConstructor
 
-private data class IndexSearchResult(val ids: Set<Long>, val tokens: List<String>) {
+typealias PageResult = Pair<List<Map<String, String>>, Map<String, List<Map<String, String>>>>
+
+private data class IndexSearchResult(
+    val ids: Set<Long> = emptySet<Long>(),
+    val tokens: List<String> = emptyList<String>(),
+    val indexedValues: Set<String> = emptySet<String>(),
+) {
     fun isEmpty(): Boolean = ids.isEmpty() && tokens.isEmpty()
 }
 
@@ -25,15 +33,17 @@ private class DataPool(val indexer: Indexer, dataInfo: RequiresData) {
 
     var defaultClass: String? = null
 
-    var hasIdentifier = false
-
     val links = mutableMapOf<String, String>()
+
+    val replacements = mutableMapOf<String, Any>()
 
     private val keyValueRgx = "\\w+:\\w+|\\w+:\"[^\"]*\"".toRegex()
 
     init {
         dataInfo.sources.forEach { clazz ->
             val file = clazz.findAnnotation<DataSource>()?.file ?: return@forEach
+
+            clazz.findAnnotation<Variant>()?.let { replacements[file] = it }
 
             val normalized = normalizeDataSource(file)
 
@@ -46,7 +56,8 @@ private class DataPool(val indexer: Indexer, dataInfo: RequiresData) {
                 param.findAnnotation<Link>()?.let { link ->
                     link.clazz.findAnnotation<DataSource>()?.file?.let { linkFile ->
 
-                        links[key] = if (link.field.isNotEmpty()) "$linkFile.${link.field}" else "$linkFile.$name"
+                        if (dataInfo.sources.contains(link.clazz)) links[key] = "$linkFile.$name"
+                        else println("Link '$linkFile' was not specified in the plugin main and will be ignored.")
                     }
                 }
 
@@ -62,10 +73,7 @@ private class DataPool(val indexer: Indexer, dataInfo: RequiresData) {
                 }
 
                 param.findAnnotation<Unique>()?.identify?.let {
-                    if (it && param.type.classifier == Long::class) {
-                        hasIdentifier = true
-                        identifier[normalized] = "$normalized.$name"
-                    }
+                    if (it && param.type.classifier == Long::class) identifier[normalized] = "$normalized.$name"
                 }
             }
         }
@@ -75,6 +83,8 @@ private class DataPool(val indexer: Indexer, dataInfo: RequiresData) {
 
     fun search(query: String): IndexSearchResult {
         val ids = mutableSetOf<Long>()
+
+        val indexedValues = mutableSetOf<String>()
 
         val token = mutableListOf<String>()
         if (keyValueRgx.containsMatchIn(query)) {
@@ -92,12 +102,14 @@ private class DataPool(val indexer: Indexer, dataInfo: RequiresData) {
 
                 val field = str.substring(0, colon).let {
                     if (it.contains(".")) it
-                    else "${defaultClass ?: return IndexSearchResult(emptySet(), emptyList())}.$it"
+                    else "${defaultClass ?: return IndexSearchResult()}.$it"
                 }
 
                 if (fields[field] == true) {
                     val value = str.substring(colon + 1).trim('"')
                     val fieldClass = field.substringBefore('.')
+
+                    indexedValues.add(value)
 
                     indexer.searchFieldIndex(field, value)
                         .mapTo(ids) { doc -> doc.getField(identifier[fieldClass]).numericValue().toLong() }
@@ -105,9 +117,13 @@ private class DataPool(val indexer: Indexer, dataInfo: RequiresData) {
                 } else token.add(str)
             }
 
-            defaultIndexField?.let { defaultField ->
-                queryToken.takeIf { it.isNotEmpty() }?.let {
-                    indexer.searchFieldIndex(defaultField, it.joinToString(" ")).mapTo(ids) { doc ->
+            if (queryToken.isNotEmpty()) {
+                val joined = queryToken.joinToString(" ")
+
+                indexedValues.add(joined)
+
+                defaultIndexField?.let { defaultField ->
+                    indexer.searchFieldIndex(defaultField, joined).mapTo(ids) { doc ->
                         doc.getField(identifier[defaultClass]).numericValue().toLong()
                     }
                 }
@@ -115,18 +131,28 @@ private class DataPool(val indexer: Indexer, dataInfo: RequiresData) {
         } else {
             defaultIndexField?.let { indexer.searchFieldIndex(it, query) }
                 ?.mapTo(ids) { doc -> doc.getField(identifier[defaultClass]).numericValue().toLong() }
+
+            indexedValues.add(query)
         }
 
-        return IndexSearchResult(ids, token)
+        return IndexSearchResult(ids, token, indexedValues)
+    }
+
+    fun hasIdentifier(name: String, entries: Map<String, String>): Boolean {
+        return entries[identifier[name]?.substringAfter(".")] != null
     }
 }
 
 class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataService {
 
+    private var currentPool: String? = null
+
+    private var currentField: String? = null
+
     private val pageSize = 50
 
-    private val pageCache = object : LinkedHashMap<Pair<Int, String>, List<Map<String, String>>>(3, 0.75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Pair<Int, String>, List<Map<String, String>>>?): Boolean {
+    private val pageCache = object : LinkedHashMap<Pair<Int, String>, PageResult>(3, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Pair<Int, String>, PageResult>?): Boolean {
             return size > 3
         }
     }
@@ -168,7 +194,7 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
 
             BufferedCSVReader(sourcePath).readLines { lines ->
                 val entries = lines.map { line ->
-                    if (dataPool.hasIdentifier) line
+                    if (dataPool.hasIdentifier(file, line)) line
                     else line + ("${file}_ag_id" to idGenerator.next().toString())
                 }
 
@@ -178,7 +204,6 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
         }
 
         dataPools[dataInfo.name] = dataPool
-        this.storageProvider.init(dataInfo, poolPath)
 
         return true
     }
@@ -186,73 +211,120 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
     override fun loadDataPools(path: Path, dataInfo: Set<RequiresData>): Int {
         if (!path.exists()) path.createDirectories()
 
-        path.listDirectoryEntries().filter { it.isDirectory() && !dataPools.containsKey(it.name) }.forEach {
-            val dataInfo = dataInfo.find { info -> info.name == it.name } ?: return@forEach
+        dataInfo.forEach {
+            val poolPath = path.resolve(it.name)
 
-            dataPools[it.name] = DataPool(indexer = Indexer(it.resolve("index"), dataInfo.sources), dataInfo = dataInfo)
+            if (poolPath.exists() && poolPath.isDirectory()) {
+                dataPools[it.name] = DataPool(indexer = Indexer(poolPath.resolve("index"), it.sources), dataInfo = it)
 
-            this.storageProvider.init(dataInfo, it)
+                this.storageProvider.init(it, poolPath)
+            } else {
+                if (this.createDataPool(it, path)) println("Created data pool ${it.name}")
+            }
+        }
+
+        if (dataPools.size == 1) {
+            val pool = dataPools.entries.first()
+
+            this.currentPool = pool.key
+            this.currentField = pool.value.defaultClass
+
+            if (this.currentField == null) println("${this.currentPool} has no index field.")
         }
 
         return dataPools.size
     }
 
-    override fun selectDataPool() {
+    override fun selectDataPool(pool: String) {
         TODO("Not yet implemented")
     }
 
-    override fun getPage(query: String, pageCount: Int): List<Map<String, String>> {
+    override fun getSelectedPool(): String = "${this.currentPool}.${this.currentField}"
+
+    override fun getPage(query: String, pageCount: Int): PageResult {
+
+        if (this.currentPool == null || this.currentField == null) return Pair(emptyList(), emptyMap())
 
         val key = Pair(pageCount, query)
 
         pageCache[key]?.let { return it }
 
-        val dataPool = this.dataPools["demo"] ?: return emptyList()
+        val dataPool = this.dataPools[this.currentPool] ?: return Pair(emptyList(), emptyMap())
 
-        val indexResult = dataPool.search(query)
+        val indexResult = dataPool.search(this.handleReplacements(dataPool.replacements, query))
 
-        if (indexResult.isEmpty()) return emptyList()
+        if (indexResult.isEmpty()) return Pair(emptyList(), emptyMap())
 
         val entries = this.storageProvider.get(
-            "demo.verses", indexResult.ids, indexResult.tokens, offset = pageCount * this.pageSize, limit = pageSize
+            "${this.currentPool}.${this.currentField}",
+            indexResult.ids,
+            indexResult.tokens,
+            offset = pageCount * this.pageSize,
+            limit = pageSize
         )
 
-        val links = mutableListOf<Map<String, String>>()
+        val links = mutableMapOf<String, List<Map<String, String>>>()
         dataPool.links.forEach { key, value ->
             val keyField = key.substringAfter('.')
 
             val (valSource, valField) = value.split('.', limit = 2)
 
-            val fields = entries.asSequence()
-                .mapNotNull { it[keyField] }
-                .toSet()
+            val fields = entries.asSequence().mapNotNull { it[keyField] }.toSet()
 
             if (fields.isEmpty()) return@forEach
 
-            this.storageProvider.get("demo.$valSource", whereClause = fields.map { "$valField:$it" }.toList())
-                .toCollection(links)
+            links[keyField] =
+                this.storageProvider.get(
+                    "${this.currentPool}.$valSource",
+                    whereClause = fields.map { "$valField:$it" }.toList()
+                )
         }
 
-        pageCache[key] = entries
+        val result = PageResult(entries, links)
 
-        return entries
+        pageCache[key] = result
+
+        return result
     }
 
-    override fun getPageCount(query: String): Long {
-        val dataPool = this.dataPools["demo"] ?: return -1
+    override fun getPageCount(query: String): Pair<Long, Set<String>> {
 
-        val indexResult = dataPool.search(query)
+        if (this.currentPool == null || this.currentField == null) return Pair(-1, emptySet())
 
-        if (indexResult.isEmpty()) return 0
+        val dataPool = this.dataPools[this.currentPool] ?: return Pair(-1, emptySet())
 
-        val count = this.storageProvider.count("demo.verses", indexResult.ids, indexResult.tokens)
+        val indexResult = dataPool.search(this.handleReplacements(dataPool.replacements, query))
 
-        return ceil(count / pageSize.toDouble()).toLong()
+        if (indexResult.isEmpty()) return return Pair(0, emptySet())
+
+        val count =
+            this.storageProvider.count("${this.currentPool}.${this.currentField}", indexResult.ids, indexResult.tokens)
+
+        return Pair(ceil(count / pageSize.toDouble()).toLong(), indexResult.indexedValues)
     }
 
     override fun close() {
         this.storageProvider.close()
 
         this.dataPools.values.forEach { it.indexer.close() }
+    }
+
+    private fun handleReplacements(replacements: Map<String, Any>, query: String): String {
+        if (this.currentPool == null) return query
+
+        val pattern = Regex("@([^:]+):(\\S+)")
+
+        return pattern.replace(query) {
+            val key = it.groupValues[1]
+            val value = it.groupValues[2]
+
+            val transform = replacements[key] ?: return@replace it.value
+
+            if (transform is Variant) {
+                this.storageProvider.get("${this.currentPool}.$key", whereClause = listOf("${transform.base}:$value"))
+                    .flatMap { map -> transform.variants.mapNotNull { key -> map[key] } }.toSet()
+                    .joinToString(" or ", prefix = "(", postfix = ")")
+            } else ""
+        }
     }
 }

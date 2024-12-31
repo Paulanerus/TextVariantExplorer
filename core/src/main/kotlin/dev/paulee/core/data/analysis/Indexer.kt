@@ -35,7 +35,7 @@ class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
 
     private val writer: IndexWriter
 
-    private var reader: DirectoryReader? = null
+    private var reader: DirectoryReader
 
     private val mappedAnalyzer = mutableMapOf<String, Analyzer>()
 
@@ -52,8 +52,12 @@ class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
 
             val normalized = normalizeDataSource(name)
 
+            if (it.primaryConstructor?.parameters.orEmpty()
+                    .none { param -> param.hasAnnotation<Index>() }
+            ) return@forEach
+
             it.primaryConstructor?.parameters.orEmpty()
-                .filter { it.hasAnnotation<Index>() || it.hasAnnotation<Unique>() }.forEach { param ->
+                .forEach { param ->
                     val paramName = param.name ?: return@forEach
 
                     param.findAnnotation<Index>()?.also { index ->
@@ -74,6 +78,8 @@ class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
         }
 
         this.writer = IndexWriter(this.directory, config)
+
+        this.reader = DirectoryReader.open(this.writer)
     }
 
     fun indexEntries(name: String, entries: List<Map<String, String>>) {
@@ -88,11 +94,9 @@ class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
     }
 
     fun searchFieldIndex(field: String, query: String): List<Document> {
+        val normalized = this.normalizeOperator(query)
 
-        //Open by IndexWriter would be better, but it is still experimental as of 16.12.2024.
-        // See https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/index/DirectoryReader.html#open(org.apache.lucene.index.IndexWriter)
-        if (this.reader == null)
-            this.reader = runCatching { DirectoryReader.open(this.directory) }.getOrNull() ?: return emptyList()
+        if (normalized.isEmpty()) return emptyList()
 
         val queryParser = StandardQueryParser(this.mappedAnalyzer[field] ?: EnglishAnalyzer())
 
@@ -100,14 +104,14 @@ class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
         queryParser.allowLeadingWildcard = true
 
         DirectoryReader.openIfChanged(this.reader)?.let {
-            this.reader?.close()
+            this.reader.close()
 
             this.reader = it
         }
 
         val searcher = IndexSearcher(this.reader)
 
-        val topDocs = searcher.search(queryParser.parse(this.normalizeOperator(query), field), Int.MAX_VALUE)
+        val topDocs = searcher.search(queryParser.parse(normalized, field), Int.MAX_VALUE)
 
         val storedFields = searcher.storedFields()
 
@@ -116,7 +120,7 @@ class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
 
     override fun close() {
         this.writer.close()
-        this.reader?.close()
+        this.reader.close()
     }
 
     private fun normalizeOperator(query: String) =
@@ -126,7 +130,9 @@ class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
         map.forEach { key, value ->
             val id = "$name.$key"
 
-            if (idFields.contains(id) || idFields.contains(key)) add(LongField(id, value.toLong(), Field.Store.YES))
+            if (idFields.contains(id) || idFields.contains(key)) {
+                add(LongField(if (key.endsWith("_ag_id")) key else id, value.toLong(), Field.Store.YES))
+            }
 
             if (mappedAnalyzer.contains(id)) add(TextField(id, value, Field.Store.YES))
         }

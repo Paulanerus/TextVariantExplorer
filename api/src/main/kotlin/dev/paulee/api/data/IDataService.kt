@@ -1,6 +1,5 @@
 package dev.paulee.api.data
 
-import dev.paulee.api.data.provider.IStorageProvider
 import java.io.Closeable
 import java.nio.file.Path
 
@@ -10,9 +9,11 @@ interface IDataService : Closeable {
 
     fun loadDataPools(path: Path, dataInfo: Set<RequiresData>): Int
 
-    fun selectDataPool()
+    fun selectDataPool(pool: String)
 
-    fun getPage(query: String, pageCount: Int): List<Map<String, String>>
+    fun getSelectedPool(): String
 
-    fun getPageCount(query: String): Long
+    fun getPage(query: String, pageCount: Int): Pair<List<Map<String, String>>, Map<String, List<Map<String, String>>>>
+
+    fun getPageCount(query: String): Pair<Long, Set<String>>
 }
