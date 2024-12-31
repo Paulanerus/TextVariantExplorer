@@ -145,6 +145,10 @@ private class DataPool(val indexer: Indexer, dataInfo: RequiresData) {
 
 class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataService {
 
+    private var currentPool: String? = null
+
+    private var currentField: String? = null
+
     private val pageSize = 50
 
     private val pageCache = object : LinkedHashMap<Pair<Int, String>, PageResult>(3, 0.75f, true) {
@@ -219,27 +223,44 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
             }
         }
 
+        if (dataPools.size == 1) {
+            val pool = dataPools.entries.first()
+
+            this.currentPool = pool.key
+            this.currentField = pool.value.defaultClass
+
+            if (this.currentField == null) println("${this.currentPool} has no index field.")
+        }
+
         return dataPools.size
     }
 
-    override fun selectDataPool() {
+    override fun selectDataPool(pool: String) {
         TODO("Not yet implemented")
     }
 
+    override fun getSelectedPool(): String = "${this.currentPool}.${this.currentField}"
+
     override fun getPage(query: String, pageCount: Int): PageResult {
+
+        if (this.currentPool == null || this.currentField == null) return Pair(emptyList(), emptyMap())
 
         val key = Pair(pageCount, query)
 
         pageCache[key]?.let { return it }
 
-        val dataPool = this.dataPools["demo"] ?: return Pair(emptyList(), emptyMap())
+        val dataPool = this.dataPools[this.currentPool] ?: return Pair(emptyList(), emptyMap())
 
         val indexResult = dataPool.search(this.handleReplacements(dataPool.replacements, query))
 
         if (indexResult.isEmpty()) return Pair(emptyList(), emptyMap())
 
         val entries = this.storageProvider.get(
-            "demo.verses", indexResult.ids, indexResult.tokens, offset = pageCount * this.pageSize, limit = pageSize
+            "${this.currentPool}.${this.currentField}",
+            indexResult.ids,
+            indexResult.tokens,
+            offset = pageCount * this.pageSize,
+            limit = pageSize
         )
 
         val links = mutableMapOf<String, List<Map<String, String>>>()
@@ -253,7 +274,10 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
             if (fields.isEmpty()) return@forEach
 
             links[keyField] =
-                this.storageProvider.get("demo.$valSource", whereClause = fields.map { "$valField:$it" }.toList())
+                this.storageProvider.get(
+                    "${this.currentPool}.$valSource",
+                    whereClause = fields.map { "$valField:$it" }.toList()
+                )
         }
 
         val result = PageResult(entries, links)
@@ -264,13 +288,17 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
     }
 
     override fun getPageCount(query: String): Pair<Long, Set<String>> {
-        val dataPool = this.dataPools["demo"] ?: return Pair(-1, emptySet())
+
+        if (this.currentPool == null || this.currentField == null) return Pair(-1, emptySet())
+
+        val dataPool = this.dataPools[this.currentPool] ?: return Pair(-1, emptySet())
 
         val indexResult = dataPool.search(this.handleReplacements(dataPool.replacements, query))
 
         if (indexResult.isEmpty()) return return Pair(0, emptySet())
 
-        val count = this.storageProvider.count("demo.verses", indexResult.ids, indexResult.tokens)
+        val count =
+            this.storageProvider.count("${this.currentPool}.${this.currentField}", indexResult.ids, indexResult.tokens)
 
         return Pair(ceil(count / pageSize.toDouble()).toLong(), indexResult.indexedValues)
     }
@@ -282,6 +310,8 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
     }
 
     private fun handleReplacements(replacements: Map<String, Any>, query: String): String {
+        if (this.currentPool == null) return query
+
         val pattern = Regex("@([^:]+):(\\S+)")
 
         return pattern.replace(query) {
@@ -291,7 +321,7 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
             val transform = replacements[key] ?: return@replace it.value
 
             if (transform is Variant) {
-                this.storageProvider.get("demo.$key", whereClause = listOf("${transform.base}:$value"))
+                this.storageProvider.get("${this.currentPool}.$key", whereClause = listOf("${transform.base}:$value"))
                     .flatMap { map -> transform.variants.mapNotNull { key -> map[key] } }.toSet()
                     .joinToString(" or ", prefix = "(", postfix = ")")
             } else ""
