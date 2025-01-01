@@ -2,6 +2,7 @@ package dev.paulee.ui
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
@@ -64,6 +65,7 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
         var selectedRows by remember { mutableStateOf(setOf<List<String>>()) }
         var displayDiffWindow by remember { mutableStateOf(false) }
         var showTable by remember { mutableStateOf(false) }
+        var showPopup by remember { mutableStateOf(false) }
         var isOpened by remember { mutableStateOf(false) }
         var totalPages by remember { mutableStateOf(0L) }
         var currentPage by remember { mutableStateOf(0) }
@@ -75,6 +77,42 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
 
         MaterialTheme {
             Box(modifier = Modifier.fillMaxSize()) {
+
+                Box(modifier = Modifier.align(Alignment.TopStart).padding(25.dp)) {
+                    val (pool, field) = dataService.getSelectedPool().split(".", limit = 2)
+
+                    var selectedText by remember { mutableStateOf("$pool ($field)") }
+
+                    Text(selectedText, modifier = Modifier.padding(2.dp).clickable { showPopup = true })
+
+                    DropdownMenu(
+                        expanded = showPopup,
+                        onDismissRequest = { showPopup = false }
+                    ) {
+                        val menuItems = dataService.getAvailablePools().map {
+                            val (p, f) = it.split(".", limit = 2)
+                            Pair(it, "$p ($f)")
+                        }
+                        menuItems.forEach { item ->
+                            DropdownMenuItem(
+                                onClick = {
+                                    dataService.selectDataPool(item.first)
+
+                                    if (selectedText != item.second) {
+                                        text = ""
+                                        showTable = false
+                                    }
+
+                                    selectedText = item.second
+                                    showPopup = false
+                                }
+                            ) {
+                                Text(item.second)
+                            }
+                        }
+                    }
+                }
+
                 DropDownMenu(
                     modifier = Modifier.align(Alignment.TopEnd), items = listOf("Load Plugin"), clicked = {
                         when (it) {
