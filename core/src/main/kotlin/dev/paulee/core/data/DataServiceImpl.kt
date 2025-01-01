@@ -78,7 +78,21 @@ private class DataPool(val indexer: Indexer, dataInfo: RequiresData) {
             }
         }
 
-        if (defaultIndexField.isNullOrEmpty()) println("${dataInfo.name} has no default index field")
+        if (this.defaultIndexField.isNullOrEmpty()) {
+            println("${dataInfo.name} has no default index field.")
+
+            this.fields.filter { it.value }
+                .entries
+                .firstOrNull()?.key
+                .let {
+                    if (it == null) {
+                        println("${dataInfo.name} has no indexable fields.")
+                    } else {
+                        println("'$it' was chosen instead.")
+                        this.defaultIndexField = it
+                    }
+                }
+        }
     }
 
     fun search(query: String): IndexSearchResult {
@@ -235,11 +249,21 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
         return dataPools.size
     }
 
-    override fun selectDataPool(pool: String) {
-        TODO("Not yet implemented")
+    override fun selectDataPool(selection: String) {
+        if (!selection.contains(".")) return
+
+        val (pool, field) = selection.split(".", limit = 2)
+
+        this.currentPool = pool
+        this.currentField = field
     }
 
     override fun getSelectedPool(): String = "${this.currentPool}.${this.currentField}"
+
+    override fun getAvailablePools(): Set<String> = dataPools.filter { it.value.fields.any { it.value } }
+        .flatMap { entry ->
+            entry.value.fields.filter { it.value }.map { "${entry.key}.${it.key.substringBefore(".")}" }
+        }.toSet()
 
     override fun getPage(query: String, pageCount: Int): PageResult {
 
