@@ -215,11 +215,7 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
                                 columns = header,
                                 data = data,
                                 links = links,
-                                onRowSelect = {
-                                    val mask = arrayOf("")
-
-                                    selectedRows = it.map { it.filterKeys { it in mask } }
-                                },
+                                onRowSelect = { selectedRows = it },
                                 clicked = { displayDiffWindow = true })
 
                             if (totalPages < 2) return@Column
@@ -276,7 +272,7 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
                     color = Color.LightGray
                 )
 
-                if (displayDiffWindow) DiffViewerWindow(selectedRows) { displayDiffWindow = false }
+                if (displayDiffWindow) DiffViewerWindow(pluginService, selectedRows) { displayDiffWindow = false }
             }
         }
     }

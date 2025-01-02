@@ -11,9 +11,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
+import dev.paulee.api.plugin.IPluginService
 
 @Composable
-fun DiffViewerWindow(selectedRows: List<Map<String, String>>, onClose: () -> Unit) {
+fun DiffViewerWindow(pluginService: IPluginService, selectedRows: List<Map<String, String>>, onClose: () -> Unit) {
     Window(onCloseRequest = onClose, title = "DiffViewer") {
         MaterialTheme {
             Column(
