@@ -13,7 +13,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 
 @Composable
-fun DiffViewerWindow(selectedRows: Set<List<String>>, onClose: () -> Unit) {
+fun DiffViewerWindow(selectedRows: List<Map<String, String>>, onClose: () -> Unit) {
     Window(onCloseRequest = onClose, title = "DiffViewer") {
         MaterialTheme {
             Column(
@@ -22,7 +22,7 @@ fun DiffViewerWindow(selectedRows: Set<List<String>>, onClose: () -> Unit) {
                 verticalArrangement = Arrangement.Center
             ) {
                 selectedRows.forEach {
-                    Text(it.joinToString(" "))
+                    Text(it.entries.joinToString(" "))
                 }
             }
         }

@@ -62,7 +62,7 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
     @Composable
     private fun content() {
         var text by remember { mutableStateOf("") }
-        var selectedRows by remember { mutableStateOf(setOf<List<String>>()) }
+        var selectedRows by remember { mutableStateOf(listOf<Map<String, String>>()) }
         var displayDiffWindow by remember { mutableStateOf(false) }
         var showTable by remember { mutableStateOf(false) }
         var showPopup by remember { mutableStateOf(false) }
@@ -215,7 +215,11 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
                                 columns = header,
                                 data = data,
                                 links = links,
-                                onRowSelect = { selectedRows = it },
+                                onRowSelect = {
+                                    val mask = arrayOf("")
+
+                                    selectedRows = it.map { it.filterKeys { it in mask } }
+                                },
                                 clicked = { displayDiffWindow = true })
 
                             if (totalPages < 2) return@Column
