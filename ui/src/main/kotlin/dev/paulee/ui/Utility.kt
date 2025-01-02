@@ -9,6 +9,8 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 
+fun java.awt.Color.toComposeColor() = Color(red, green, blue, alpha)
+
 @Composable
 fun MarkedText(
     modifier: Modifier = Modifier,
