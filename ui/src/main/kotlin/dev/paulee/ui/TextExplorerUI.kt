@@ -83,7 +83,11 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
 
                     var selectedText by remember { mutableStateOf("$pool ($field)") }
 
-                    Text(selectedText, modifier = Modifier.padding(2.dp).clickable { showPopup = true })
+                    Text(
+                        selectedText, modifier = Modifier.padding(2.dp).then(
+                            if (dataService.getAvailablePools().size > 1) Modifier.clickable { showPopup = true }
+                            else Modifier
+                        ))
 
                     DropdownMenu(
                         expanded = showPopup,
