@@ -2,11 +2,10 @@ package dev.paulee.core.plugin
 
 import dev.paulee.api.data.DataSource
 import dev.paulee.api.data.RequiresData
-import dev.paulee.api.plugin.IPlugin
-import dev.paulee.api.plugin.IPluginService
-import dev.paulee.api.plugin.PluginMetadata
-import dev.paulee.api.plugin.PluginOrder
+import dev.paulee.api.data.ViewFilter
+import dev.paulee.api.plugin.*
 import dev.paulee.core.normalizeDataSource
+import java.awt.Color
 import java.net.URLClassLoader
 import java.nio.file.Path
 import java.util.jar.JarFile
@@ -15,6 +14,7 @@ import kotlin.io.path.extension
 import kotlin.io.path.isDirectory
 import kotlin.io.path.walk
 import kotlin.reflect.full.findAnnotation
+import kotlin.reflect.full.functions
 
 class PluginServiceImpl : IPluginService {
 
@@ -77,6 +77,17 @@ class PluginServiceImpl : IPluginService {
             }
 
         return dataSources
+    }
+
+    override fun tagFields(plugin: IPlugin, field: String, value: String): Map<String, Color> =
+        (plugin as? Taggable)?.tag(field, value) ?: emptyMap()
+
+    override fun getFilterMask(plugin: IPlugin): Array<String> {
+        val taggable = plugin as? Taggable ?: return emptyArray()
+
+        val func = taggable::class.functions.find { it.name == "tag" } ?: return emptyArray()
+
+        return func.findAnnotation<ViewFilter>()?.fields ?: emptyArray()
     }
 
     private fun getPluginEntryPoint(path: Path): String? =
