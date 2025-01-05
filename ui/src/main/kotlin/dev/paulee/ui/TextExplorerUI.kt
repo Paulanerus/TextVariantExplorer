@@ -28,6 +28,7 @@ import dev.paulee.ui.components.DiffViewerWindow
 import dev.paulee.ui.components.DropDownMenu
 import dev.paulee.ui.components.FileDialog
 import dev.paulee.ui.components.TableView
+import dev.paulee.ui.components.widthLimitWrapper
 import java.nio.file.Path
 import kotlin.io.path.*
 
@@ -50,8 +51,9 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
     init {
         if (!pluginsDir.exists()) pluginsDir.createDirectories()
 
-        this.pluginService.loadFromDirectory(pluginsDir)
+        Config.load(appDir)
 
+        this.pluginService.loadFromDirectory(pluginsDir)
         this.pluginService.initAll()
 
         val size = this.dataService.loadDataPools(dataDir, this.pluginService.getAllDataInfos())
@@ -118,9 +120,15 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
                 }
 
                 DropDownMenu(
-                    modifier = Modifier.align(Alignment.TopEnd), items = listOf("Load Plugin"), clicked = {
+                    modifier = Modifier.align(Alignment.TopEnd),
+                    items = listOf("Load Plugin", "Width Limit"),
+                    clicked = {
                         when (it) {
                             "Load Plugin" -> isOpened = true
+                            "Width Limit" -> {
+                                Config.noWidthRestriction = !Config.noWidthRestriction
+                                widthLimitWrapper = !widthLimitWrapper
+                            }
                         }
                     })
 
@@ -287,6 +295,7 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
 
         Window(title = "TextExplorer", state = windowState, onCloseRequest = {
             dataService.close()
+            Config.save()
             exitApplication()
         }) {
             content()

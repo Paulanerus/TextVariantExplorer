@@ -21,7 +21,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import dev.paulee.ui.Config
 import dev.paulee.ui.MarkedText
+
+var widthLimitWrapper by mutableStateOf(Config.noWidthRestriction)
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -46,7 +49,7 @@ fun TableView(
     val headerTextStyle = LocalTextStyle.current.copy(fontWeight = FontWeight.Bold)
     val cellTextStyle = LocalTextStyle.current
 
-    val columnWidths = remember(columns, data) {
+    val columnWidths = remember(columns, data, widthLimitWrapper) {
         columns.mapIndexed { colIndex, colName ->
             val headerWidthPx = textMeasurer.measure(
                 text = AnnotatedString(colName),
@@ -64,7 +67,8 @@ fun TableView(
 
             val maxDataWidth = with(density) { maxDataWidthPx.toDp() }
 
-            minOf(maxOf(headerWidth, maxDataWidth) + 16.dp, 700.dp)
+            if(Config.noWidthRestriction) maxOf(headerWidth, maxDataWidth) + 16.dp
+            else minOf(maxOf(headerWidth, maxDataWidth) + 16.dp, 700.dp)
         }
     }
 
