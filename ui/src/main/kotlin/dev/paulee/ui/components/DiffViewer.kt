@@ -1,9 +1,6 @@
 package dev.paulee.ui.components
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
@@ -14,16 +11,26 @@ import androidx.compose.ui.window.Window
 import dev.paulee.api.plugin.IPluginService
 
 @Composable
-fun DiffViewerWindow(pluginService: IPluginService, selectedRows: List<Map<String, String>>, onClose: () -> Unit) {
+fun DiffViewerWindow(
+    pluginService: IPluginService,
+    selected: String,
+    selectedRows: List<Map<String, String>>,
+    onClose: () -> Unit
+) {
     Window(onCloseRequest = onClose, title = "DiffViewer") {
         MaterialTheme {
-            Column(
-                modifier = Modifier.fillMaxSize().padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                selectedRows.forEach {
-                    Text(it.entries.joinToString(" "))
+            val associatedPlugins = pluginService.getPlugins()
+                .filter { pluginService.getDataInfo(it)?.name == selected.substringBefore(".") }
+
+            Box(modifier = Modifier.fillMaxSize()) {
+                Column(
+                    modifier = Modifier.padding(16.dp).align(Alignment.Center),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    selectedRows.forEach {
+                        Text(it.entries.joinToString(" "))
+                    }
                 }
             }
         }

@@ -286,7 +286,7 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
                     color = Color.LightGray
                 )
 
-                if (displayDiffWindow) DiffViewerWindow(pluginService, selectedRows) { displayDiffWindow = false }
+                if (displayDiffWindow) DiffViewerWindow(pluginService, dataService.getSelectedPool(), selectedRows) { displayDiffWindow = false }
             }
         }
     }
