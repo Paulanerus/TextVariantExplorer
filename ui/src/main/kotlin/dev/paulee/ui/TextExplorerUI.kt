@@ -24,11 +24,7 @@ import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import dev.paulee.api.data.IDataService
 import dev.paulee.api.plugin.IPluginService
-import dev.paulee.ui.components.DiffViewerWindow
-import dev.paulee.ui.components.DropDownMenu
-import dev.paulee.ui.components.FileDialog
-import dev.paulee.ui.components.TableView
-import dev.paulee.ui.components.widthLimitWrapper
+import dev.paulee.ui.components.*
 import java.nio.file.Path
 import kotlin.io.path.*
 
@@ -47,6 +43,8 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
             "${it.uppercase()} - ${System.getProperty("${it}.version")}"
         }
     }"
+
+    private var poolSelected by mutableStateOf(false)
 
     init {
         if (!pluginsDir.exists()) pluginsDir.createDirectories()
@@ -72,6 +70,13 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
         var totalPages by remember { mutableStateOf(0L) }
         var currentPage by remember { mutableStateOf(0) }
 
+        var selectedText = remember(this.poolSelected) {
+            val (pool, field) = dataService.getSelectedPool().split(".", limit = 2)
+
+            if (pool == "null") "No source available"
+            else "$pool ($field)"
+        }
+
         var header by remember { mutableStateOf(listOf<String>()) }
         var indexStrings by remember { mutableStateOf(emptySet<String>()) }
         var data by remember { mutableStateOf(listOf<List<String>>()) }
@@ -79,14 +84,10 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
 
         MaterialTheme {
             Box(modifier = Modifier.fillMaxSize()) {
-
                 Box(modifier = Modifier.align(Alignment.TopStart).padding(25.dp)) {
-                    val (pool, field) = dataService.getSelectedPool().split(".", limit = 2)
-
-                    var selectedText by remember { mutableStateOf("$pool ($field)") }
-
                     Text(
-                        selectedText, modifier = Modifier.padding(2.dp).then(
+                        selectedText,
+                        modifier = Modifier.padding(2.dp).then(
                             if (dataService.getAvailablePools().size > 1) Modifier.clickable { showPopup = true }
                             else Modifier
                         ))
@@ -103,6 +104,7 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
                             DropdownMenuItem(
                                 onClick = {
                                     dataService.selectDataPool(item.first)
+                                    poolSelected = !poolSelected
 
                                     if (selectedText != item.second) {
                                         text = ""
@@ -316,8 +318,19 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
         this.pluginService.getDataInfo(plugin)?.let {
             if (it.sources.isEmpty()) return@let
 
-            if (this.dataService.createDataPool(it, dataDir)) println("Created data pool for ${it.name}")
-            else println("Failed to create data pool for ${it.name}")
+            val poolsEmpty = this.dataService.getAvailablePools().isEmpty()
+
+            if (this.dataService.createDataPool(it, dataDir)) {
+                println("Created data pool for ${it.name}")
+
+                this.dataService.getAvailablePools().firstOrNull()?.let {
+                    if (!poolsEmpty) return@let
+
+                    this.dataService.selectDataPool(it)
+                    this.poolSelected = !this.poolSelected
+                }
+
+            } else println("Failed to create data pool for ${it.name}")
         }
         return true
     }
