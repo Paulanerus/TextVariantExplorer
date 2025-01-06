@@ -70,4 +70,4 @@ annotation class NullValue(val values: Array<String>)
 annotation class Link(val clazz: KClass<*>)
 
 @Target(AnnotationTarget.FUNCTION)
-annotation class ViewFilter(val fields: Array<String>)
+annotation class ViewFilter(val fields: Array<String>, val global: Boolean = true)
