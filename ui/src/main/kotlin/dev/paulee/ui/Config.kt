@@ -4,6 +4,7 @@ import java.nio.file.Path
 import kotlin.io.path.Path
 import kotlin.io.path.bufferedReader
 import kotlin.io.path.bufferedWriter
+import kotlin.io.path.notExists
 import kotlin.reflect.KMutableProperty
 import kotlin.reflect.KVisibility
 import kotlin.reflect.full.memberProperties
@@ -32,6 +33,8 @@ object Config {
 
     fun load(path: Path) {
         this.configPath = path.resolve(configFile)
+
+        if(this.configPath.notExists()) return
 
         this.configPath.bufferedReader().useLines { lines ->
             lines.filter { it.contains("=") }.forEach {
