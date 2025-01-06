@@ -82,12 +82,12 @@ class PluginServiceImpl : IPluginService {
     override fun tagFields(plugin: IPlugin, field: String, value: String): Map<String, Color> =
         (plugin as? Taggable)?.tag(field, value) ?: emptyMap()
 
-    override fun getFilterMask(plugin: IPlugin): Array<String> {
-        val taggable = plugin as? Taggable ?: return emptyArray()
+    override fun getViewFilter(plugin: IPlugin): ViewFilter? {
+        val taggable = plugin as? Taggable ?: return null
 
-        val func = taggable::class.functions.find { it.name == "tag" } ?: return emptyArray()
+        val func = taggable::class.functions.find { it.name == "tag" } ?: return null
 
-        return func.findAnnotation<ViewFilter>()?.fields ?: emptyArray()
+        return func.findAnnotation<ViewFilter>()
     }
 
     private fun getPluginEntryPoint(path: Path): String? =
