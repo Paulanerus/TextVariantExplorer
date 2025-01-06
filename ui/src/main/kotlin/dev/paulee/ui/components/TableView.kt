@@ -67,7 +67,7 @@ fun TableView(
 
             val maxDataWidth = with(density) { maxDataWidthPx.toDp() }
 
-            if(Config.noWidthRestriction) maxOf(headerWidth, maxDataWidth) + 16.dp
+            if (Config.noWidthRestriction) maxOf(headerWidth, maxDataWidth) + 16.dp
             else minOf(maxOf(headerWidth, maxDataWidth) + 16.dp, 700.dp)
         }
     }
@@ -189,8 +189,7 @@ fun TableView(
                                                     .padding(horizontal = 4.dp),
                                                 textDecoration = if (link == null) TextDecoration.None else TextDecoration.Underline,
                                                 text = cell,
-                                                highlights = indexStrings,
-                                                color = Color.Green
+                                                highlights = indexStrings.associate { it to Color.Green }
                                             )
                                         }
                                     }

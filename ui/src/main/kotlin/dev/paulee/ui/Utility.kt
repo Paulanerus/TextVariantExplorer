@@ -16,19 +16,18 @@ fun MarkedText(
     modifier: Modifier = Modifier,
     textDecoration: TextDecoration = TextDecoration.None,
     text: String,
-    highlights: Set<String>,
-    color: Color = Color.Blue,
+    highlights: Map<String, Color>,
 ) {
     val annotatedString = buildAnnotatedString {
         var currentIndex = 0
 
-        highlights.forEach { highlight ->
+        highlights.keys.forEach { highlight ->
             val startIndex = text.indexOf(highlight, currentIndex)
 
             if (startIndex != -1) {
                 append(text.substring(currentIndex, startIndex))
 
-                withStyle(style = SpanStyle(background = color.copy(alpha = 0.3f))) {
+                withStyle(style = SpanStyle(background = (highlights[highlight] ?: Color.Blue).copy(alpha = 0.3f))) {
                     append(highlight)
                 }
 
