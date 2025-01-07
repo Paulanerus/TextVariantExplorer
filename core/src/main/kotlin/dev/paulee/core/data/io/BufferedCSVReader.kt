@@ -6,7 +6,6 @@ import kotlin.io.path.bufferedReader
 
 internal class BufferedCSVReader(path: Path, private val delimiter: Char = ',') {
 
-    var lineCount: Long = 0
     var errorCount: Long = 0
 
     private var reader = path.bufferedReader()
@@ -30,9 +29,9 @@ internal class BufferedCSVReader(path: Path, private val delimiter: Char = ',') 
                 if (split.size == this.headSize) {
                     val headToValue = mutableMapOf<String, String>()
 
-                    split.forEachIndexed { index, entry -> headToValue[header[index]] = entry }
+                    split.forEachIndexed { index, entry -> headToValue[header[index]] = entry.trim('"') }
 
-                    batch.add(headToValue).also { lineCount++ }
+                    batch.add(headToValue)
                 } else errorCount++
 
                 if (batch.size == 100) callback(batch).also { batch.clear() }
