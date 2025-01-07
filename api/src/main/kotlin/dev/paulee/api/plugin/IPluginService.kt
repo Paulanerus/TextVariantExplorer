@@ -2,7 +2,6 @@ package dev.paulee.api.plugin
 
 import dev.paulee.api.data.RequiresData
 import dev.paulee.api.data.ViewFilter
-import java.awt.Color
 import java.nio.file.Path
 
 interface IPluginService {
@@ -23,7 +22,7 @@ interface IPluginService {
 
     fun getDataSources(dataInfo: String): Set<String>
 
-    fun tagFields(plugin: IPlugin, field: String, value: String): Map<String, Color>
+    fun tagFields(plugin: IPlugin, field: String, value: String): Map<String, Tag>
 
     fun getViewFilter(plugin: IPlugin): ViewFilter?
 }

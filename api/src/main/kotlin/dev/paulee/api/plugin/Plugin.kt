@@ -17,6 +17,8 @@ interface IPlugin {
     fun init()
 }
 
+data class Tag(val name: String, val color: Color)
+
 interface Taggable {
-    fun tag(field: String, value: String): Map<String, Color>
+    fun tag(field: String, value: String): Map<String, Tag>
 }

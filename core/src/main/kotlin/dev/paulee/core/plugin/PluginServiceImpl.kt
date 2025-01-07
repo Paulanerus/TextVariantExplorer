@@ -5,7 +5,6 @@ import dev.paulee.api.data.RequiresData
 import dev.paulee.api.data.ViewFilter
 import dev.paulee.api.plugin.*
 import dev.paulee.core.normalizeDataSource
-import java.awt.Color
 import java.net.URLClassLoader
 import java.nio.file.Path
 import java.util.jar.JarFile
@@ -79,7 +78,7 @@ class PluginServiceImpl : IPluginService {
         return dataSources
     }
 
-    override fun tagFields(plugin: IPlugin, field: String, value: String): Map<String, Color> =
+    override fun tagFields(plugin: IPlugin, field: String, value: String): Map<String, Tag> =
         (plugin as? Taggable)?.tag(field, value) ?: emptyMap()
 
     override fun getViewFilter(plugin: IPlugin): ViewFilter? {
