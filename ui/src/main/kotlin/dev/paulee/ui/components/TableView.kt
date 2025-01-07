@@ -21,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import dev.paulee.api.plugin.Tag
 import dev.paulee.ui.Config
 import dev.paulee.ui.MarkedText
 
@@ -189,7 +190,12 @@ fun TableView(
                                                     .padding(horizontal = 4.dp),
                                                 textDecoration = if (link == null) TextDecoration.None else TextDecoration.Underline,
                                                 text = cell,
-                                                highlights = indexStrings.associate { it to Color.Green }
+                                                highlights = indexStrings.associate {
+                                                    it to Tag(
+                                                        "",
+                                                        java.awt.Color.green
+                                                    )
+                                                }
                                             )
                                         }
                                     }
