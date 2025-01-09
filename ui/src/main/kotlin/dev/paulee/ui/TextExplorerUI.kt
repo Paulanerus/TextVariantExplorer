@@ -2,6 +2,7 @@ package dev.paulee.ui
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
@@ -21,16 +22,18 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import dev.paulee.api.data.DiffService
 import dev.paulee.api.data.IDataService
 import dev.paulee.api.plugin.IPluginService
-import dev.paulee.ui.components.DiffViewerWindow
-import dev.paulee.ui.components.DropDownMenu
-import dev.paulee.ui.components.FileDialog
-import dev.paulee.ui.components.TableView
+import dev.paulee.ui.components.*
 import java.nio.file.Path
 import kotlin.io.path.*
 
-class TextExplorerUI(private val pluginService: IPluginService, private val dataService: IDataService) {
+class TextExplorerUI(
+    private val pluginService: IPluginService,
+    private val dataService: IDataService,
+    private val diffService: DiffService
+) {
 
     private val appDir = Path(System.getProperty("user.home")).resolve(".textexplorer")
 
@@ -46,11 +49,14 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
         }
     }"
 
+    private var poolSelected by mutableStateOf(false)
+
     init {
         if (!pluginsDir.exists()) pluginsDir.createDirectories()
 
-        this.pluginService.loadFromDirectory(pluginsDir)
+        Config.load(appDir)
 
+        this.pluginService.loadFromDirectory(pluginsDir)
         this.pluginService.initAll()
 
         val size = this.dataService.loadDataPools(dataDir, this.pluginService.getAllDataInfos())
@@ -61,12 +67,20 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
     @Composable
     private fun content() {
         var text by remember { mutableStateOf("") }
-        var selectedRows by remember { mutableStateOf(setOf<List<String>>()) }
+        var selectedRows by remember { mutableStateOf(listOf<Map<String, String>>()) }
         var displayDiffWindow by remember { mutableStateOf(false) }
         var showTable by remember { mutableStateOf(false) }
+        var showPopup by remember { mutableStateOf(false) }
         var isOpened by remember { mutableStateOf(false) }
         var totalPages by remember { mutableStateOf(0L) }
         var currentPage by remember { mutableStateOf(0) }
+
+        var selectedText = remember(this.poolSelected) {
+            val (pool, field) = dataService.getSelectedPool().split(".", limit = 2)
+
+            if (pool == "null") "No source available"
+            else "$pool ($field)"
+        }
 
         var header by remember { mutableStateOf(listOf<String>()) }
         var indexStrings by remember { mutableStateOf(emptySet<String>()) }
@@ -75,10 +89,53 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
 
         MaterialTheme {
             Box(modifier = Modifier.fillMaxSize()) {
+                Box(modifier = Modifier.align(Alignment.TopStart).padding(25.dp)) {
+                    Text(
+                        selectedText,
+                        modifier = Modifier.padding(2.dp).then(
+                            if (dataService.getAvailablePools().size > 1) Modifier.clickable { showPopup = true }
+                            else Modifier
+                        ))
+
+                    DropdownMenu(
+                        expanded = showPopup,
+                        onDismissRequest = { showPopup = false }
+                    ) {
+                        val menuItems = dataService.getAvailablePools().map {
+                            val (p, f) = it.split(".", limit = 2)
+                            Pair(it, "$p ($f)")
+                        }
+                        menuItems.forEach { item ->
+                            DropdownMenuItem(
+                                onClick = {
+                                    dataService.selectDataPool(item.first)
+                                    poolSelected = !poolSelected
+
+                                    if (selectedText != item.second) {
+                                        text = ""
+                                        showTable = false
+                                    }
+
+                                    selectedText = item.second
+                                    showPopup = false
+                                }
+                            ) {
+                                Text(item.second)
+                            }
+                        }
+                    }
+                }
+
                 DropDownMenu(
-                    modifier = Modifier.align(Alignment.TopEnd), items = listOf("Load Plugin"), clicked = {
+                    modifier = Modifier.align(Alignment.TopEnd),
+                    items = listOf("Load Plugin", "Width Limit"),
+                    clicked = {
                         when (it) {
                             "Load Plugin" -> isOpened = true
+                            "Width Limit" -> {
+                                Config.noWidthRestriction = !Config.noWidthRestriction
+                                widthLimitWrapper = !widthLimitWrapper
+                            }
                         }
                     })
 
@@ -234,7 +291,12 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
                     color = Color.LightGray
                 )
 
-                if (displayDiffWindow) DiffViewerWindow(selectedRows) { displayDiffWindow = false }
+                if (displayDiffWindow) DiffViewerWindow(
+                    diffService,
+                    pluginService,
+                    dataService.getSelectedPool(),
+                    selectedRows
+                ) { displayDiffWindow = false }
             }
         }
     }
@@ -245,6 +307,7 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
 
         Window(title = "TextExplorer", state = windowState, onCloseRequest = {
             dataService.close()
+            Config.save()
             exitApplication()
         }) {
             content()
@@ -265,8 +328,19 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
         this.pluginService.getDataInfo(plugin)?.let {
             if (it.sources.isEmpty()) return@let
 
-            if (this.dataService.createDataPool(it, dataDir)) println("Created data pool for ${it.name}")
-            else println("Failed to create data pool for ${it.name}")
+            val poolsEmpty = this.dataService.getAvailablePools().isEmpty()
+
+            if (this.dataService.createDataPool(it, dataDir)) {
+                println("Created data pool for ${it.name}")
+
+                this.dataService.getAvailablePools().firstOrNull()?.let {
+                    if (!poolsEmpty) return@let
+
+                    this.dataService.selectDataPool(it)
+                    this.poolSelected = !this.poolSelected
+                }
+
+            } else println("Failed to create data pool for ${it.name}")
         }
         return true
     }

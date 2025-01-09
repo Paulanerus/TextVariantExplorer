@@ -16,6 +16,8 @@ dependencies {
 
     implementation("org.xerial:sqlite-jdbc:3.47.0.0")
 
+    implementation("io.github.java-diff-utils:java-diff-utils:4.15")
+
     implementation("org.apache.lucene:lucene-core:${rootProject.extra["lucene.version"]}")
     implementation("org.apache.lucene:lucene-analysis-common:${rootProject.extra["lucene.version"]}")
     implementation("org.apache.lucene:lucene-analysis-kuromoji:${rootProject.extra["lucene.version"]}")

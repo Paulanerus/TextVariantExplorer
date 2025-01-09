@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
@@ -20,7 +21,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import dev.paulee.api.plugin.Tag
+import dev.paulee.ui.Config
 import dev.paulee.ui.MarkedText
+
+var widthLimitWrapper by mutableStateOf(Config.noWidthRestriction)
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -29,8 +34,8 @@ fun TableView(
     indexStrings: Set<String> = emptySet<String>(),
     columns: List<String>,
     data: List<List<String>>,
-    links: Map<String, List<Map<String, String>>>,
-    onRowSelect: (Set<List<String>>) -> Unit,
+    links: Map<String, List<Map<String, String>>> = emptyMap(),
+    onRowSelect: (List<Map<String, String>>) -> Unit,
     clicked: () -> Unit = {},
 ) {
     val scrollState = rememberScrollState()
@@ -45,7 +50,7 @@ fun TableView(
     val headerTextStyle = LocalTextStyle.current.copy(fontWeight = FontWeight.Bold)
     val cellTextStyle = LocalTextStyle.current
 
-    val columnWidths = remember(columns, data) {
+    val columnWidths = remember(columns, data, widthLimitWrapper) {
         columns.mapIndexed { colIndex, colName ->
             val headerWidthPx = textMeasurer.measure(
                 text = AnnotatedString(colName),
@@ -63,7 +68,8 @@ fun TableView(
 
             val maxDataWidth = with(density) { maxDataWidthPx.toDp() }
 
-            minOf(maxOf(headerWidth, maxDataWidth) + 16.dp, 700.dp)
+            if (Config.noWidthRestriction) maxOf(headerWidth, maxDataWidth) + 16.dp
+            else minOf(maxOf(headerWidth, maxDataWidth) + 16.dp, 700.dp)
         }
     }
 
@@ -73,7 +79,7 @@ fun TableView(
                 IconButton(
                     onClick = {
                         selectedRows = emptySet()
-                        onRowSelect(emptySet())
+                        onRowSelect(emptyList())
                     }, modifier = Modifier.align(Alignment.CenterStart), enabled = selectedRows.isNotEmpty()
                 ) {
                     Icon(Icons.Default.Delete, contentDescription = "Delete")
@@ -143,49 +149,55 @@ fun TableView(
                     LazyColumn(state = verticalScrollState) {
                         items(data.size) { rowIndex ->
                             val row = data[rowIndex]
-                            Row(
-                                modifier = Modifier.fillMaxWidth().clickable {
-                                    val selected = if (selectedRows.contains(rowIndex)) {
-                                        selectedRows - rowIndex
-                                    } else {
-                                        selectedRows + rowIndex
-                                    }
-                                    selectedRows = selected
-                                    onRowSelect(selected.map { data[it] }.toSet())
-                                }
-                                    .background(if (selectedRows.contains(rowIndex)) Color.LightGray else Color.Transparent)
-                                    .padding(vertical = 8.dp),
-                            ) {
-                                row.forEachIndexed { colIndex, cell ->
-                                    if (hiddenColumns.contains(colIndex)) return@forEachIndexed
-
-                                    val col = columns[colIndex]
-
-                                    val link = links[col]?.find { it[col] == cell }
-
-                                    TooltipArea(
-                                        tooltip = {
-                                            if (link == null) return@TooltipArea
-
-                                            Surface(
-                                                color = Color.Gray,
-                                                shape = RoundedCornerShape(4.dp)
-                                            ) {
-                                                Text(
-                                                    text = link.toString(),
-                                                    modifier = Modifier.padding(10.dp)
-                                                )
-                                            }
+                            SelectionContainer {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().clickable {
+                                        val selected = if (selectedRows.contains(rowIndex)) {
+                                            selectedRows - rowIndex
+                                        } else {
+                                            selectedRows + rowIndex
                                         }
-                                    ) {
-                                        MarkedText(
-                                            modifier = Modifier.width(columnWidths[colIndex])
-                                                .padding(horizontal = 4.dp),
-                                            textDecoration = if (link == null) TextDecoration.None else TextDecoration.Underline,
-                                            text = cell,
-                                            highlights = indexStrings,
-                                            color = Color.Green
-                                        )
+                                        selectedRows = selected
+                                        onRowSelect(selected.map { rowIdx -> columns.zip(data[rowIdx]).toMap() })
+                                    }
+                                        .background(if (selectedRows.contains(rowIndex)) Color.LightGray else Color.Transparent)
+                                        .padding(vertical = 8.dp),
+                                ) {
+                                    row.forEachIndexed { colIndex, cell ->
+                                        if (hiddenColumns.contains(colIndex)) return@forEachIndexed
+
+                                        val col = columns[colIndex]
+
+                                        val link = links[col]?.find { it[col] == cell }
+
+                                        TooltipArea(
+                                            tooltip = {
+                                                if (link == null) return@TooltipArea
+
+                                                Surface(
+                                                    color = Color.Gray,
+                                                    shape = RoundedCornerShape(4.dp)
+                                                ) {
+                                                    Text(
+                                                        text = link.toString(),
+                                                        modifier = Modifier.padding(10.dp)
+                                                    )
+                                                }
+                                            }
+                                        ) {
+                                            MarkedText(
+                                                modifier = Modifier.width(columnWidths[colIndex])
+                                                    .padding(horizontal = 4.dp),
+                                                textDecoration = if (link == null) TextDecoration.None else TextDecoration.Underline,
+                                                text = cell,
+                                                highlights = indexStrings.associate {
+                                                    it to Tag(
+                                                        "",
+                                                        java.awt.Color.green
+                                                    )
+                                                }
+                                            )
+                                        }
                                     }
                                 }
                             }
