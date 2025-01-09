@@ -39,8 +39,7 @@ fun DiffViewerWindow(
 
     val (pool, select) = selected.split(".", limit = 2)
 
-    val associatedPlugins = pluginService.getPlugins()
-        .filter { pluginService.getDataInfo(it)?.name == pool }
+    val associatedPlugins = pluginService.getPlugins().filter { pluginService.getDataInfo(it)?.name == pool }
 
     val tagPlugins = associatedPlugins.mapNotNull { it as? Taggable }
     var selectedTagger = tagPlugins.firstOrNull()
@@ -55,7 +54,7 @@ fun DiffViewerWindow(
     var selected by remember { mutableStateOf(false) }
 
     val entries = remember(selected) {
-        if (selected) emptyList<Map<String, String>>() // TODO apply plugin specific view filter.
+        if (selected) selectedRows // TODO apply plugin specific view filter.
         else selectedRows.map { it.filterKeys { key -> key in viewFilter } }
     }
 
@@ -69,18 +68,15 @@ fun DiffViewerWindow(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             selectedText,
-                            modifier = Modifier.padding(2.dp).then(
-                                if (tagPlugins.size > 1) Modifier.clickable { showPopup = true }
-                                else Modifier
-                            ))
+                            modifier = Modifier.padding(2.dp)
+                                .then(if (tagPlugins.size > 1) Modifier.clickable { showPopup = true }
+                                else Modifier))
 
                         Checkbox(checked = selected, onCheckedChange = { selected = it })
                     }
 
                     DropdownMenu(
-                        expanded = showPopup,
-                        onDismissRequest = { showPopup = false }
-                    ) {
+                        expanded = showPopup, onDismissRequest = { showPopup = false }) {
                         val menuItems = tagPlugins.mapNotNull {
                             val name = getTagName(it) ?: return@mapNotNull null
 
@@ -92,8 +88,7 @@ fun DiffViewerWindow(
                                     selectedTagger = item.second
                                     selectedText = item.first
                                     showPopup = false
-                                }
-                            ) {
+                                }) {
                                 Text(item.first)
                             }
                         }
@@ -104,13 +99,20 @@ fun DiffViewerWindow(
                     modifier = Modifier.padding(16.dp).align(Alignment.Center),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    Text(entries.first().entries.joinToString(" ") { if (it.key in viewFilter) it.value else "" })
+
                     entries.forEachIndexed { index, entry ->
+                        if (index == 0) return@forEachIndexed
+
                         val text = entry.entries.joinToString(" ") { if (it.key in viewFilter) it.value else "" }
 
-                        val tags =
-                            selectedTagger?.tag(select, text).orEmpty()
+                        val tags = selectedTagger?.tag(select, text).orEmpty()
 
-                        MarkedText(text = text, highlights = if (selected) tags else heatmap[index])
+                        val colors = heatmap["text"] ?: emptyList()
+                        MarkedText(
+                            text = text,
+                            highlights = if (selected) tags else if (index - 1 < colors.size) colors[index - 1] else emptyMap()
+                        )
                     }
                 }
             }
@@ -118,9 +120,25 @@ fun DiffViewerWindow(
     }
 }
 
-private fun generateHeatMap(diffService: DiffService, entries: List<Map<String, String>>): List<Map<String, Tag>> {
+private fun generateHeatMap(
+    diffService: DiffService, entries: List<Map<String, String>>
+): Map<String, List<Map<String, Tag>>> {
 
-    //TODO Replace entries and color correctly.
+    val grouped: Map<String, List<String>> = entries.flatMap { it.entries }.groupBy({ it.key }, { it.value })
 
-    return emptyList()
+    val colors = mutableMapOf<String, List<Map<String, Tag>>>()
+    grouped.forEach { key, value ->
+
+        if (value.size <= 1) return@forEach
+
+        val changes = diffService.getDiff(value)
+
+        //TODO handle 3 cases (added, removed, updated)
+
+        changes.forEach {
+            println(it)
+        }
+    }
+
+    return colors
 }
