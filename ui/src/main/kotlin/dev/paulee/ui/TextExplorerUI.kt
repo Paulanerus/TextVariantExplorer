@@ -22,13 +22,18 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import dev.paulee.api.data.DiffService
 import dev.paulee.api.data.IDataService
 import dev.paulee.api.plugin.IPluginService
 import dev.paulee.ui.components.*
 import java.nio.file.Path
 import kotlin.io.path.*
 
-class TextExplorerUI(private val pluginService: IPluginService, private val dataService: IDataService) {
+class TextExplorerUI(
+    private val pluginService: IPluginService,
+    private val dataService: IDataService,
+    private val diffService: DiffService
+) {
 
     private val appDir = Path(System.getProperty("user.home")).resolve(".textexplorer")
 
@@ -287,6 +292,7 @@ class TextExplorerUI(private val pluginService: IPluginService, private val data
                 )
 
                 if (displayDiffWindow) DiffViewerWindow(
+                    diffService,
                     pluginService,
                     dataService.getSelectedPool(),
                     selectedRows

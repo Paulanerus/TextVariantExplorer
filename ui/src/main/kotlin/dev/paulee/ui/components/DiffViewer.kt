@@ -8,21 +8,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
+import dev.paulee.api.data.DiffService
 import dev.paulee.api.plugin.IPlugin
 import dev.paulee.api.plugin.IPluginService
 import dev.paulee.api.plugin.Tag
 import dev.paulee.api.plugin.Taggable
 import dev.paulee.ui.MarkedText
 
-fun generateHeatMap(selectedRows: List<Map<String, String>>): List<Map<String, Tag>> {
-
-    if (selectedRows.size <= 1) return emptyList()
-
-    return emptyList()
-}
-
 @Composable
 fun DiffViewerWindow(
+    diffService: DiffService,
     pluginService: IPluginService,
     selected: String,
     selectedRows: List<Map<String, String>>,
@@ -44,8 +39,6 @@ fun DiffViewerWindow(
 
     val (pool, select) = selected.split(".", limit = 2)
 
-    val heatmap = generateHeatMap(selectedRows)
-
     val associatedPlugins = pluginService.getPlugins()
         .filter { pluginService.getDataInfo(it)?.name == pool }
 
@@ -55,9 +48,16 @@ fun DiffViewerWindow(
     val viewFilter = associatedPlugins.mapNotNull { pluginService.getViewFilter(it) }.filter { it.global }
         .flatMap { it.fields.toList() }.toSet()
 
+    val heatmap = generateHeatMap(diffService, selectedRows.map { it.filterKeys { key -> key in viewFilter } })
+
     var selectedText by remember { mutableStateOf(getTagName(selectedTagger) ?: "") }
     var showPopup by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf(false) }
+
+    val entries = remember(selected) {
+        if (selected) emptyList<Map<String, String>>() // TODO apply plugin specific view filter.
+        else selectedRows.map { it.filterKeys { key -> key in viewFilter } }
+    }
 
     Window(onCloseRequest = onClose, title = "DiffViewer") {
         MaterialTheme {
@@ -104,16 +104,23 @@ fun DiffViewerWindow(
                     modifier = Modifier.padding(16.dp).align(Alignment.Center),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    selectedRows.forEach {
-                        val text = it.entries.joinToString(" ") { if (it.key in viewFilter) it.value else "" }
+                    entries.forEachIndexed { index, entry ->
+                        val text = entry.entries.joinToString(" ") { if (it.key in viewFilter) it.value else "" }
 
                         val tags =
                             selectedTagger?.tag(select, text).orEmpty()
 
-                        MarkedText(text = text, highlights = if (selected) tags else heatmap.first())
+                        MarkedText(text = text, highlights = if (selected) tags else heatmap[index])
                     }
                 }
             }
         }
     }
+}
+
+private fun generateHeatMap(diffService: DiffService, entries: List<Map<String, String>>): List<Map<String, Tag>> {
+
+    //TODO Replace entries and color correctly.
+
+    return emptyList()
 }
