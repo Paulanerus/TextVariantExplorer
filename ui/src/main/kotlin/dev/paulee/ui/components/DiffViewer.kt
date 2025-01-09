@@ -6,13 +6,16 @@ import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
 import dev.paulee.api.data.DiffService
 import dev.paulee.api.plugin.IPlugin
 import dev.paulee.api.plugin.IPluginService
-import dev.paulee.api.plugin.Tag
 import dev.paulee.api.plugin.Taggable
+import dev.paulee.ui.HeatmapText
 import dev.paulee.ui.MarkedText
 
 @Composable
@@ -47,14 +50,12 @@ fun DiffViewerWindow(
     val viewFilter = associatedPlugins.mapNotNull { pluginService.getViewFilter(it) }.filter { it.global }
         .flatMap { it.fields.toList() }.toSet()
 
-    val heatmap = generateHeatMap(diffService, selectedRows.map { it.filterKeys { key -> key in viewFilter } })
-
     var selectedText by remember { mutableStateOf(getTagName(selectedTagger) ?: "") }
     var showPopup by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf(false) }
 
     val entries = remember(selected) {
-        if (selected) selectedRows // TODO apply plugin specific view filter.
+        if (selected) selectedRows.map { it.filterKeys { key -> key in viewFilter } } // TODO apply plugin specific view filter.
         else selectedRows.map { it.filterKeys { key -> key in viewFilter } }
     }
 
@@ -65,10 +66,13 @@ fun DiffViewerWindow(
 
                     if (selectedTagger == null) return@Box
 
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Tagger:", fontWeight = FontWeight.Bold)
+
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 4.dp, top = 8.dp)) {
                         Text(
                             selectedText,
-                            modifier = Modifier.padding(2.dp)
+                            fontSize = 14.sp,
+                            modifier = Modifier
                                 .then(if (tagPlugins.size > 1) Modifier.clickable { showPopup = true }
                                 else Modifier))
 
@@ -95,50 +99,46 @@ fun DiffViewerWindow(
                     }
                 }
 
-                Column(
-                    modifier = Modifier.padding(16.dp).align(Alignment.Center),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(entries.first().entries.joinToString(" ") { if (it.key in viewFilter) it.value else "" })
+                Box(modifier = Modifier.fillMaxSize()) {
+                    if (selected) {
+                        Column(
+                            modifier = Modifier.align(Alignment.Center),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            entries.forEach { entry ->
 
-                    entries.forEachIndexed { index, entry ->
-                        if (index == 0) return@forEachIndexed
+                                val tags = selectedTagger?.tag("text", entry.values.first()).orEmpty()
 
-                        val text = entry.entries.joinToString(" ") { if (it.key in viewFilter) it.value else "" }
+                                MarkedText(text = entry.values.first(), highlights = tags, textAlign = TextAlign.Center)
+                            }
+                        }
+                    } else {
+                        val first = entries.first()
 
-                        val tags = selectedTagger?.tag(select, text).orEmpty()
+                        Column(modifier = Modifier.align(Alignment.Center)) {
+                            Text(
+                                first.entries.joinToString(" "),
+                                textAlign = TextAlign.Center,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.fillMaxWidth()
+                            )
 
-                        val colors = heatmap["text"] ?: emptyList()
-                        MarkedText(
-                            text = text,
-                            highlights = if (selected) tags else if (index - 1 < colors.size) colors[index - 1] else emptyMap()
-                        )
+                            Spacer(Modifier.height(24.dp))
+
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                entries.forEachIndexed { index, entry ->
+
+                                    if (index == 0) return@forEachIndexed
+
+                                    val change = diffService.getDiff(first.values.first(), entry.values.first())
+
+                                    HeatmapText(change, entry.values.first())
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
     }
-}
-
-private fun generateHeatMap(
-    diffService: DiffService, entries: List<Map<String, String>>
-): Map<String, List<Map<String, Tag>>> {
-
-    val grouped: Map<String, List<String>> = entries.flatMap { it.entries }.groupBy({ it.key }, { it.value })
-
-    val colors = mutableMapOf<String, List<Map<String, Tag>>>()
-    grouped.forEach { key, value ->
-
-        if (value.size <= 1) return@forEach
-
-        val changes = diffService.getDiff(value)
-
-        //TODO handle 3 cases (added, removed, updated)
-
-        changes.forEach {
-            println(it)
-        }
-    }
-
-    return colors
 }
