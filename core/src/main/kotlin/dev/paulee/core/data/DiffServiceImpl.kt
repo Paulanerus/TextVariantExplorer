@@ -25,6 +25,20 @@ class DiffServiceImpl : DiffService {
         }.toSet()
     }
 
+    override fun oldValue(change: Change): String = with(change) {
+        tokens.fold(str) { acc, token ->
+            if (token.first.startsWith("**")) acc.replace(token.first, "")
+            else acc.replace(token.first, token.first.trim('~'))
+        }
+    }
+
+    override fun newValue(change: Change): String = with(change) {
+        tokens.fold(str) { acc, token ->
+            if (token.first.startsWith("~~")) acc.replace(token.first, "")
+            else acc.replace(token.first, token.first.trim('*'))
+        }
+    }
+
     private fun extractToken(str: String): List<Pair<String, IntRange>> {
         val patternOld = Regex("~~([^~]*)~~")
         val patternNew = Regex("\\*\\*([^*]*)\\*\\*")
