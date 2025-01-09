@@ -145,7 +145,7 @@ fun DiffViewerWindow(
                                     val change = diffService.getDiff(first.values.first(), entry.values.first())
 
                                     SelectionContainer {
-                                        HeatmapText(change, entry.values.first())
+                                        HeatmapText(change, entry.values.first(), Modifier.fillMaxWidth())
                                     }
                                 }
                             }
