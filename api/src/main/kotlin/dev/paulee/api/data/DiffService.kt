@@ -6,6 +6,8 @@ interface DiffService {
 
     fun getDiff(strings: List<String>): Set<Change>
 
+    fun getDiff(original: String, str: String): Change?
+
     fun oldValue(change: Change): String
 
     fun newValue(change: Change): String

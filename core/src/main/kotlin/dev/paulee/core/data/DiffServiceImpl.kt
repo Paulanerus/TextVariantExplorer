@@ -25,6 +25,8 @@ class DiffServiceImpl : DiffService {
         }.toSet()
     }
 
+    override fun getDiff(original: String, str: String): Change? = this.getDiff(listOf(original, str)).firstOrNull()
+
     override fun oldValue(change: Change): String = with(change) {
         tokens.fold(str) { acc, token ->
             if (token.first.startsWith("**")) acc.replace(token.first, "")
