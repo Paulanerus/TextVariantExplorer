@@ -75,17 +75,34 @@ fun HeatmapText(
     val annotatedString = buildAnnotatedString {
         var currentIndex = 0
 
-        change?.tokens.orEmpty().forEach { (token, range) ->
-            val startIndex = text.indexOf(token, currentIndex)
+        val sortedTokens = change?.tokens.orEmpty().sortedBy { it.second.first }
 
-            val composeColor = if (token.startsWith("**")) Color.Green else Color.Red
+        sortedTokens.forEach { (token, _) ->
+            val startIndex = text.indexOf(token, currentIndex)
 
             if (startIndex != -1) {
                 append(text.substring(currentIndex, startIndex))
 
-                withStyle(style = SpanStyle(background = composeColor.copy(alpha = 0.3f))) {
-                    append(token)
+                val processedToken = when {
+                    token.startsWith("~~") && token.endsWith("~~") -> {
+                        withStyle(style = SpanStyle(background = Color.Red.copy(alpha = 0.3f))) {
+                            append(" ".repeat(token.trim('~').length))
+                        }
+                        ""
+                    }
+
+                    token.startsWith("**") && token.endsWith("**") -> {
+                        val trimmedToken = token.removeSurrounding("**")
+                        withStyle(style = SpanStyle(background = Color.Green.copy(alpha = 0.3f))) {
+                            append(trimmedToken)
+                        }
+                        ""
+                    }
+
+                    else -> token
                 }
+
+                if (processedToken.isNotEmpty()) append(processedToken)
 
                 currentIndex = startIndex + token.length
             }
