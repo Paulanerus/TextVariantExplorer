@@ -34,7 +34,7 @@ fun TableView(
     indexStrings: Set<String> = emptySet<String>(),
     columns: List<String>,
     data: List<List<String>>,
-    links: Map<String, List<Map<String, String>>>,
+    links: Map<String, List<Map<String, String>>> = emptyMap(),
     onRowSelect: (List<Map<String, String>>) -> Unit,
     clicked: () -> Unit = {},
 ) {
