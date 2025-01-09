@@ -2,6 +2,7 @@ package dev.paulee.ui.components
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -68,7 +69,10 @@ fun DiffViewerWindow(
 
                     Text("Tagger:", fontWeight = FontWeight.Bold)
 
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 4.dp, top = 8.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(start = 4.dp, top = 8.dp)
+                    ) {
                         Text(
                             selectedText,
                             fontSize = 14.sp,
@@ -109,19 +113,27 @@ fun DiffViewerWindow(
 
                                 val tags = selectedTagger?.tag("text", entry.values.first()).orEmpty()
 
-                                MarkedText(text = entry.values.first(), highlights = tags, textAlign = TextAlign.Center)
+                                SelectionContainer {
+                                    MarkedText(
+                                        text = entry.values.first(),
+                                        highlights = tags,
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
                             }
                         }
                     } else {
                         val first = entries.first()
 
                         Column(modifier = Modifier.align(Alignment.Center)) {
-                            Text(
-                                first.entries.joinToString(" "),
-                                textAlign = TextAlign.Center,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.fillMaxWidth()
-                            )
+                            SelectionContainer {
+                                Text(
+                                    first.entries.joinToString(" "),
+                                    textAlign = TextAlign.Center,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
 
                             Spacer(Modifier.height(24.dp))
 
@@ -132,7 +144,9 @@ fun DiffViewerWindow(
 
                                     val change = diffService.getDiff(first.values.first(), entry.values.first())
 
-                                    HeatmapText(change, entry.values.first())
+                                    SelectionContainer {
+                                        HeatmapText(change, entry.values.first())
+                                    }
                                 }
                             }
                         }
