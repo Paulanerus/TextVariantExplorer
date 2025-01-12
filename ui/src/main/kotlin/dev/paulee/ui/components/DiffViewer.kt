@@ -25,7 +25,6 @@ import dev.paulee.api.plugin.Taggable
 import dev.paulee.ui.HeatmapText
 import dev.paulee.ui.MarkedText
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun DiffView(
     diffService: DiffService,
