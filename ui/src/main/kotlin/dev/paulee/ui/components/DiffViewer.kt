@@ -1,13 +1,19 @@
 package dev.paulee.ui.components
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -18,6 +24,100 @@ import dev.paulee.api.plugin.IPluginService
 import dev.paulee.api.plugin.Taggable
 import dev.paulee.ui.HeatmapText
 import dev.paulee.ui.MarkedText
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun DiffView(
+    diffService: DiffService,
+    entries: List<Map<String, String>>,
+    modifier: Modifier = Modifier,
+) {
+    val horizontalScrollState = rememberScrollState()
+
+    val grouped = entries.flatMap { it.entries }
+        .groupBy({ it.key }, { it.value })
+        .filterValues { it.isNotEmpty() }
+
+    val greatestSize = grouped.values.maxOfOrNull { it.size } ?: 0
+
+    val columns = entries.flatMap { it.keys }.distinct()
+
+    var currentColumnIndex by remember { mutableStateOf(0) }
+
+    val textMeasurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+
+    val headerTextStyle = LocalTextStyle.current.copy(fontWeight = FontWeight.Bold)
+
+    val maxWidth = columns.maxOf {
+        val headerWidthPx =
+            textMeasurer.measure(text = AnnotatedString(it), style = headerTextStyle).size.width
+
+        with(density) { headerWidthPx.toDp() + 16.dp }
+    }
+
+    Box(modifier = modifier) {
+        Column {
+            Box(modifier = Modifier.padding(horizontal = 32.dp)) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    if (columns.isEmpty()) return@Column
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        IconButton(
+                            onClick = { if (currentColumnIndex > 0) currentColumnIndex-- },
+                            enabled = currentColumnIndex > 0
+                        ) {
+                            Icon(Icons.AutoMirrored.Default.ArrowBack, contentDescription = "Previous column")
+                        }
+
+                        Text(
+                            text = columns[currentColumnIndex],
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(start = 4.dp, top = 12.dp, end = 4.dp).width(maxWidth)
+                        )
+
+                        IconButton(
+                            onClick = { if (currentColumnIndex < columns.size - 1) currentColumnIndex++ },
+                            enabled = currentColumnIndex < columns.size - 1
+                        ) {
+                            Icon(Icons.AutoMirrored.Default.ArrowForward, contentDescription = "Next column")
+                        }
+                    }
+
+                    Column(modifier = Modifier.horizontalScroll(horizontalScrollState)) {
+                        (0 until greatestSize).forEach { index ->
+                            val columnName = columns.getOrNull(currentColumnIndex) ?: return@forEach
+
+                            val values = grouped[columnName] ?: return@forEach
+
+                            Row(modifier = Modifier.fillMaxWidth()) {
+                                val value = values.getOrNull(index) ?: ""
+
+                                val change = diffService.getDiff(values[0], value)
+
+                                SelectionContainer {
+                                    if (index == 0) {
+                                        Text(value)
+                                        Spacer(Modifier.height(40.dp))
+                                    } else {
+                                        if (value.isEmpty()) Text(value)
+                                        else HeatmapText(change, values[0], textAlign = TextAlign.Left)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            HorizontalScrollbar(
+                adapter = rememberScrollbarAdapter(horizontalScrollState), modifier = Modifier.padding(top = 10.dp)
+            )
+        }
+    }
+}
 
 @Composable
 fun DiffViewerWindow(
@@ -122,35 +222,7 @@ fun DiffViewerWindow(
                                 }
                             }
                         }
-                    } else {
-                        val first = entries.first()
-
-                        Column(modifier = Modifier.align(Alignment.Center)) {
-                            SelectionContainer {
-                                Text(
-                                    first.entries.joinToString(" "),
-                                    textAlign = TextAlign.Center,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                            }
-
-                            Spacer(Modifier.height(24.dp))
-
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                entries.forEachIndexed { index, entry ->
-
-                                    if (index == 0) return@forEachIndexed
-
-                                    val change = diffService.getDiff(first.values.first(), entry.values.first())
-
-                                    SelectionContainer {
-                                        HeatmapText(change, entry.values.first(), Modifier.fillMaxWidth())
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    } else DiffView(diffService, entries, Modifier.align(Alignment.Center))
                 }
             }
         }
