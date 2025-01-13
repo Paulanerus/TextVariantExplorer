@@ -62,6 +62,8 @@ class TextExplorerUI(
         val size = this.dataService.loadDataPools(dataDir, this.pluginService.getAllDataInfos())
 
         println("Loaded $size data pools")
+
+        if (Config.selectedPool.isNotEmpty()) this.dataService.selectDataPool(Config.selectedPool)
     }
 
     @Composable
@@ -109,6 +111,7 @@ class TextExplorerUI(
                             DropdownMenuItem(
                                 onClick = {
                                     dataService.selectDataPool(item.first)
+                                    Config.selectedPool = item.first
                                     poolSelected = !poolSelected
 
                                     if (selectedText != item.second) {
@@ -128,13 +131,17 @@ class TextExplorerUI(
 
                 DropDownMenu(
                     modifier = Modifier.align(Alignment.TopEnd),
-                    items = listOf("Load Plugin", "Width Limit"),
+                    items = listOf("Load Plugin", "Width Limit", "Plugin Info"),
                     clicked = {
                         when (it) {
                             "Load Plugin" -> isOpened = true
                             "Width Limit" -> {
                                 Config.noWidthRestriction = !Config.noWidthRestriction
                                 widthLimitWrapper = !widthLimitWrapper
+                            }
+
+                            "Plugin Info" -> {
+                                println("Show plugin info")
                             }
                         }
                     })

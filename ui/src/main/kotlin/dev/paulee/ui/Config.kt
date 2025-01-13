@@ -13,6 +13,8 @@ object Config {
 
     var noWidthRestriction = false
 
+    var selectedPool = ""
+
     private var configFile = "config"
 
     private var configPath = Path(configFile)
