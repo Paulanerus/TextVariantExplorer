@@ -31,6 +31,7 @@ var widthLimitWrapper by mutableStateOf(Config.noWidthRestriction)
 @Composable
 fun TableView(
     modifier: Modifier = Modifier,
+    pool: String,
     indexStrings: Set<String> = emptySet<String>(),
     columns: List<String>,
     data: List<List<String>>,
@@ -43,7 +44,7 @@ fun TableView(
     val verticalScrollState = rememberLazyListState()
 
     var selectedRows by remember { mutableStateOf(setOf<Int>()) }
-    var hiddenColumns by remember { mutableStateOf(setOf<Int>()) }
+    var hiddenColumns by remember { mutableStateOf(Config.getHidden(pool)) }
 
     val textMeasurer = rememberTextMeasurer()
     val density = LocalDensity.current
@@ -106,6 +107,7 @@ fun TableView(
                                 else
                                     hiddenColumns + index
 
+                                Config.setHidden(pool, hiddenColumns)
                             }, colors = ButtonDefaults.buttonColors(backgroundColor = Color.LightGray)) {
                                 Text(column)
                             }

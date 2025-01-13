@@ -237,6 +237,7 @@ class TextExplorerUI(
 
                             TableView(
                                 modifier = Modifier.weight(1f),
+                                dataService.getSelectedPool(),
                                 indexStrings = indexStrings,
                                 columns = header,
                                 data = data,
