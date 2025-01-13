@@ -62,8 +62,11 @@ fun DiffViewerWindow(
     var selected by remember { mutableStateOf(false) }
 
     val entries = remember(selected) {
-        if (selected) selectedRows.map { it.filterKeys { key -> key in viewFilter } } // TODO apply plugin specific view filter.
-        else selectedRows.map { it.filterKeys { key -> key in viewFilter } }
+        if (selected) {
+            val tagFilter = pluginService.getViewFilter(selectedTaggablePlugin as IPlugin)?.fields.orEmpty()
+
+            selectedRows.map { it.filterKeys { key -> tagFilter.isEmpty() || (key in tagFilter) } }
+        } else selectedRows.map { it.filterKeys { key -> viewFilter.isEmpty() || (key in viewFilter) } }
     }
 
     Window(onCloseRequest = onClose, title = "DiffViewer") {
@@ -82,9 +85,8 @@ fun DiffViewerWindow(
                         Text(
                             selectedText,
                             fontSize = 14.sp,
-                            modifier = Modifier
-                                .then(if (tagPlugins.size > 1) Modifier.clickable { showPopup = true }
-                                else Modifier))
+                            modifier = Modifier.then(if (tagPlugins.size > 1) Modifier.clickable { showPopup = true }
+                            else Modifier))
 
                         Checkbox(checked = selected, onCheckedChange = { selected = it })
                     }
@@ -120,12 +122,9 @@ fun DiffViewerWindow(
 
 @Composable
 private fun TagView(entries: List<Map<String, String>>, taggable: Taggable?, modifier: Modifier = Modifier) {
-
     val horizontalScrollState = rememberScrollState()
 
-    val grouped = entries.flatMap { it.entries }
-        .groupBy({ it.key }, { it.value })
-        .filterValues { it.isNotEmpty() }
+    val grouped = entries.flatMap { it.entries }.groupBy({ it.key }, { it.value }).filterValues { it.isNotEmpty() }
 
     val greatestSize = grouped.values.maxOfOrNull { it.size } ?: 0
 
@@ -139,8 +138,7 @@ private fun TagView(entries: List<Map<String, String>>, taggable: Taggable?, mod
     val headerTextStyle = LocalTextStyle.current.copy(fontWeight = FontWeight.Bold)
 
     val maxWidth = columns.maxOf {
-        val headerWidthPx =
-            textMeasurer.measure(text = AnnotatedString(it), style = headerTextStyle).size.width
+        val headerWidthPx = textMeasurer.measure(text = AnnotatedString(it), style = headerTextStyle).size.width
 
         with(density) { headerWidthPx.toDp() + 16.dp }
     }
@@ -213,9 +211,7 @@ private fun DiffView(
 ) {
     val horizontalScrollState = rememberScrollState()
 
-    val grouped = entries.flatMap { it.entries }
-        .groupBy({ it.key }, { it.value })
-        .filterValues { it.isNotEmpty() }
+    val grouped = entries.flatMap { it.entries }.groupBy({ it.key }, { it.value }).filterValues { it.isNotEmpty() }
 
     val greatestSize = grouped.values.maxOfOrNull { it.size } ?: 0
 
@@ -229,8 +225,7 @@ private fun DiffView(
     val headerTextStyle = LocalTextStyle.current.copy(fontWeight = FontWeight.Bold)
 
     val maxWidth = columns.maxOf {
-        val headerWidthPx =
-            textMeasurer.measure(text = AnnotatedString(it), style = headerTextStyle).size.width
+        val headerWidthPx = textMeasurer.measure(text = AnnotatedString(it), style = headerTextStyle).size.width
 
         with(density) { headerWidthPx.toDp() + 16.dp }
     }
