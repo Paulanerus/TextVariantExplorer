@@ -32,7 +32,7 @@ import kotlin.io.path.*
 class TextExplorerUI(
     private val pluginService: IPluginService,
     private val dataService: IDataService,
-    private val diffService: DiffService
+    private val diffService: DiffService,
 ) {
 
     private val appDir = Path(System.getProperty("user.home")).resolve(".textexplorer")
@@ -315,6 +315,8 @@ class TextExplorerUI(
     }
 
     private fun loadPlugin(path: Path): Boolean {
+        val parentPath = path.parent
+
         val pluginPath = pluginsDir.resolve(path.name)
 
         if (pluginPath.exists()) return true
@@ -325,13 +327,22 @@ class TextExplorerUI(
 
         if (plugin == null) return false
 
-        this.pluginService.getDataInfo(plugin)?.let {
-            if (it.sources.isEmpty()) return@let
+        this.pluginService.getDataInfo(plugin)?.let { dataInfo ->
+            if (dataInfo.sources.isEmpty()) return@let
+
+            this.pluginService.getDataSources(dataInfo.name).forEach {
+                val name = it.let { if (it.endsWith(".csv")) it else "$it.csv" }
+
+                val dataSourcePath = parentPath.resolve(name)
+
+                if (dataSourcePath.exists()) dataSourcePath.copyTo(this.dataDir.resolve(name), true)
+                else println("No source file for '$it' in plugin dir.")
+            }
 
             val poolsEmpty = this.dataService.getAvailablePools().isEmpty()
 
-            if (this.dataService.createDataPool(it, dataDir)) {
-                println("Created data pool for ${it.name}")
+            if (this.dataService.createDataPool(dataInfo, dataDir)) {
+                println("Created data pool for ${dataInfo.name}")
 
                 this.dataService.getAvailablePools().firstOrNull()?.let {
                     if (!poolsEmpty) return@let
@@ -340,7 +351,7 @@ class TextExplorerUI(
                     this.poolSelected = !this.poolSelected
                 }
 
-            } else println("Failed to create data pool for ${it.name}")
+            } else println("Failed to create data pool for ${dataInfo.name}")
         }
         return true
     }
