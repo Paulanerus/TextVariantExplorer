@@ -1,6 +1,6 @@
 package dev.paulee.ui.components
 
-import androidx.compose.foundation.*
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.*
@@ -55,7 +55,7 @@ fun DiffViewerWindow(
     var selectedTaggablePlugin = tagPlugins.firstOrNull()
 
     val viewFilter = associatedPlugins.mapNotNull { pluginService.getViewFilter(it) }.filter { it.global }
-        .flatMap { it.fields.toList() }.toSet()
+        .flatMap { it.fields.filter { it.isNotBlank() }.toList() }.toSet()
 
     var selectedText by remember { mutableStateOf(getTagName(selectedTaggablePlugin) ?: "") }
     var showPopup by remember { mutableStateOf(false) }
@@ -64,6 +64,7 @@ fun DiffViewerWindow(
     val entries = remember(selected) {
         if (selected) {
             val tagFilter = pluginService.getViewFilter(selectedTaggablePlugin as IPlugin)?.fields.orEmpty()
+                .filter { it.isNotBlank() }
 
             selectedRows.map { it.filterKeys { key -> tagFilter.isEmpty() || (key in tagFilter) } }
         } else selectedRows.map { it.filterKeys { key -> viewFilter.isEmpty() || (key in viewFilter) } }
@@ -112,8 +113,8 @@ fun DiffViewerWindow(
                 }
 
                 Box(modifier = Modifier.fillMaxSize()) {
-                    if (selected) TagView(entries, selectedTaggablePlugin, Modifier.align(Alignment.Center))
-                    else DiffView(diffService, entries, Modifier.align(Alignment.Center))
+                    if (selected) TagView(entries, selectedTaggablePlugin, Modifier.align(Alignment.CenterStart))
+                    else DiffView(diffService, entries, Modifier.align(Alignment.CenterStart))
                 }
             }
         }
@@ -122,8 +123,6 @@ fun DiffViewerWindow(
 
 @Composable
 private fun TagView(entries: List<Map<String, String>>, taggable: Taggable?, modifier: Modifier = Modifier) {
-    val horizontalScrollState = rememberScrollState()
-
     val grouped = entries.flatMap { it.entries }.groupBy({ it.key }, { it.value }).filterValues { it.isNotEmpty() }
 
     val greatestSize = grouped.values.maxOfOrNull { it.size } ?: 0
@@ -173,7 +172,7 @@ private fun TagView(entries: List<Map<String, String>>, taggable: Taggable?, mod
                         }
                     }
 
-                    Column(modifier = Modifier.horizontalScroll(horizontalScrollState)) {
+                    Column {
                         (0 until greatestSize).forEach { index ->
                             val columnName = columns.getOrNull(currentColumnIndex) ?: return@forEach
 
@@ -188,17 +187,12 @@ private fun TagView(entries: List<Map<String, String>>, taggable: Taggable?, mod
                                     text = value,
                                     highlights = tags,
                                     textAlign = TextAlign.Center,
-                                    modifier = Modifier.fillMaxWidth()
                                 )
                             }
                         }
                     }
                 }
             }
-
-            HorizontalScrollbar(
-                adapter = rememberScrollbarAdapter(horizontalScrollState), modifier = Modifier.padding(top = 10.dp)
-            )
         }
     }
 }
@@ -209,8 +203,6 @@ private fun DiffView(
     entries: List<Map<String, String>>,
     modifier: Modifier = Modifier,
 ) {
-    val horizontalScrollState = rememberScrollState()
-
     val grouped = entries.flatMap { it.entries }.groupBy({ it.key }, { it.value }).filterValues { it.isNotEmpty() }
 
     val greatestSize = grouped.values.maxOfOrNull { it.size } ?: 0
@@ -260,7 +252,7 @@ private fun DiffView(
                         }
                     }
 
-                    Column(modifier = Modifier.horizontalScroll(horizontalScrollState)) {
+                    Column {
                         (0 until greatestSize).forEach { index ->
                             val columnName = columns.getOrNull(currentColumnIndex) ?: return@forEach
 
@@ -272,7 +264,7 @@ private fun DiffView(
 
                             SelectionContainer {
                                 if (index == 0) {
-                                    Text(value, modifier = Modifier.fillMaxWidth())
+                                    Text(value)
                                     Spacer(Modifier.height(40.dp))
                                 } else {
                                     if (value.isEmpty()) Text(value)
@@ -280,7 +272,6 @@ private fun DiffView(
                                         change,
                                         values[0],
                                         textAlign = TextAlign.Left,
-                                        modifier = Modifier.fillMaxWidth()
                                     )
                                 }
                             }
@@ -288,10 +279,6 @@ private fun DiffView(
                     }
                 }
             }
-
-            HorizontalScrollbar(
-                adapter = rememberScrollbarAdapter(horizontalScrollState), modifier = Modifier.padding(top = 10.dp)
-            )
         }
     }
 }

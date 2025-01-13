@@ -207,7 +207,7 @@ class TextExplorerUI(
                                 showTable = true
                             },
                             modifier = Modifier.height(70.dp).padding(horizontal = 10.dp),
-                            enabled = text.isNotEmpty() && text.isNotBlank()
+                            enabled = text.isNotBlank() && dataService.hasSelectedPool()
                         ) {
                             Icon(Icons.Default.Search, contentDescription = "Search")
                         }
