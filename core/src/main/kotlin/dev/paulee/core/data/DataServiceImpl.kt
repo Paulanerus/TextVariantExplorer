@@ -260,6 +260,8 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
 
     override fun getSelectedPool(): String = "${this.currentPool}.${this.currentField}"
 
+    override fun hasSelectedPool(): Boolean = this.currentPool != null && this.currentField != null
+
     override fun getAvailablePools(): Set<String> = dataPools.filter { it.value.fields.any { it.value } }
         .flatMap { entry ->
             entry.value.fields.filter { it.value }.map { "${entry.key}.${it.key.substringBefore(".")}" }
