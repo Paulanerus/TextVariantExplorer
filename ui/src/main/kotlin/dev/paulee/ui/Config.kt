@@ -13,28 +13,35 @@ object Config {
 
     var noWidthRestriction = false
 
+    var selectedPool = ""
+
     private var configFile = "config"
 
     private var configPath = Path(configFile)
 
+    private val hiddenColumns = mutableMapOf<String, Set<Int>>()
+
     fun save() {
         this.configPath.bufferedWriter().use { writer ->
-
-            this::class.memberProperties
-                .filter { it.visibility == KVisibility.PUBLIC && it is KMutableProperty<*> }
+            this::class.memberProperties.filter { it.visibility == KVisibility.PUBLIC && it is KMutableProperty<*> }
                 .forEach {
                     val value = it.getter.call(this)
 
                     writer.write("${it.name} = $value\n")
                     writer.newLine()
                 }
+
+            this.hiddenColumns.forEach {
+                writer.write("${it.key} = ${it.value}\n")
+                writer.newLine()
+            }
         }
     }
 
     fun load(path: Path) {
         this.configPath = path.resolve(configFile)
 
-        if(this.configPath.notExists()) return
+        if (this.configPath.notExists()) return
 
         this.configPath.bufferedReader().useLines { lines ->
             lines.filter { it.contains("=") }.forEach {
@@ -60,9 +67,21 @@ object Config {
                         )
                     }.onFailure { e -> println("Failed to set value for $field (${e.message}).") }
                 } else {
-                    //TODO
+                    value.takeIf { it.startsWith("[") && it.endsWith("]") }
+                        ?.trim('[', ']')
+                        ?.replace(" ", "")
+                        ?.split(",")
+                        ?.mapNotNull { it.toIntOrNull() }
+                        ?.toSet()
+                        ?.let { this.hiddenColumns[field] = it }
                 }
             }
         }
     }
+
+    fun setHidden(id: String, ids: Set<Int>) {
+        this.hiddenColumns[id] = ids
+    }
+
+    fun getHidden(id: String): Set<Int> = this.hiddenColumns[id] ?: emptySet()
 }

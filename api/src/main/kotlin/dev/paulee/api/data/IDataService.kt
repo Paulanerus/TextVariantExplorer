@@ -13,6 +13,8 @@ interface IDataService : Closeable {
 
     fun getSelectedPool(): String
 
+    fun hasSelectedPool(): Boolean
+
     fun getAvailablePools(): Set<String>
 
     fun getPage(query: String, pageCount: Int): Pair<List<Map<String, String>>, Map<String, List<Map<String, String>>>>
