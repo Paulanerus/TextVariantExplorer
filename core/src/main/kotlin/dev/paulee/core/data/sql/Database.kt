@@ -3,7 +3,6 @@ package dev.paulee.core.data.sql
 import dev.paulee.api.data.DataSource
 import dev.paulee.api.data.Unique
 import dev.paulee.core.normalizeDataSource
-import dev.paulee.core.toSnakeCase
 import org.jetbrains.annotations.Nullable
 import java.io.Closeable
 import java.nio.file.Path
@@ -81,24 +80,23 @@ private class Table(val name: String, columns: List<Column>) {
         connection: Connection,
         whereClause: Map<String, List<String>> = emptyMap<String, List<String>>(),
         offset: Int = 0,
-        limit: Int = Int.MAX_VALUE
+        limit: Int = Int.MAX_VALUE,
     ): List<Map<String, String>> {
         val query = buildString {
             append("SELECT * FROM ")
             append(name)
 
             if (whereClause.isNotEmpty()) {
-                val clause = whereClause.entries.joinToString(" AND ") { (column, values) ->
-                    val columnType = getColumnType(column) ?: return@joinToString ""
+                val clause = whereClause.entries.filter { getColumnType(it.key) != null }
+                    .joinToString(" AND ") { (column, values) ->
+                        val columnType = getColumnType(column) ?: return@joinToString ""
 
-                    val inClause = values.joinToString(
-                        ", ",
-                        prefix = "IN (",
-                        postfix = ")"
-                    ) { if (columnType == ColumnType.TEXT) "'$it'" else it }
+                        val inClause = values.joinToString(
+                            ", ", prefix = "IN (", postfix = ")"
+                        ) { if (columnType == ColumnType.TEXT) "'$it'" else it }
 
-                    "$column $inClause"
-                }
+                        "$column $inClause"
+                    }
 
                 if (clause.isNotEmpty()) {
                     append(" WHERE ")
@@ -134,17 +132,16 @@ private class Table(val name: String, columns: List<Column>) {
             append(name)
 
             if (whereClause.isNotEmpty()) {
-                val clause = whereClause.entries.joinToString(" AND ") { (column, values) ->
-                    val columnType = getColumnType(column) ?: return@joinToString ""
+                val clause = whereClause.entries.filter { getColumnType(it.key) != null }
+                    .joinToString(" AND ") { (column, values) ->
+                        val columnType = getColumnType(column) ?: return@joinToString ""
 
-                    val inClause = values.joinToString(
-                        ", ",
-                        prefix = "IN (",
-                        postfix = ")"
-                    ) { if (columnType == ColumnType.TEXT) "'$it'" else it }
+                        val inClause = values.joinToString(
+                            ", ", prefix = "IN (", postfix = ")"
+                        ) { if (columnType == ColumnType.TEXT) "'$it'" else it }
 
-                    "$column $inClause"
-                }
+                        "$column $inClause"
+                    }
 
                 if (clause.isNotEmpty()) {
                     append(" WHERE ")
@@ -220,7 +217,7 @@ internal class Database(path: Path) : Closeable {
         name: String,
         whereClause: Map<String, List<String>> = emptyMap<String, List<String>>(),
         offset: Int = 0,
-        limit: Int = Int.MAX_VALUE
+        limit: Int = Int.MAX_VALUE,
     ): List<Map<String, String>> {
         val table = tables.find { it.name == name } ?: return emptyList()
 
@@ -243,8 +240,7 @@ internal class Database(path: Path) : Closeable {
         conn.autoCommit = false
 
         return try {
-            runCatching { conn.block() }
-                .onSuccess {
+            runCatching { conn.block() }.onSuccess {
                     conn.commit()
                 }.onFailure {
                     conn.rollback()
