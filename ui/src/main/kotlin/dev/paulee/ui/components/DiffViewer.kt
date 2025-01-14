@@ -186,7 +186,7 @@ private fun TagView(entries: List<Map<String, String>>, taggable: Taggable?, mod
                                 MarkedText(
                                     text = value,
                                     highlights = tags,
-                                    textAlign = TextAlign.Center,
+                                    textAlign = TextAlign.Left,
                                 )
                             }
                         }
