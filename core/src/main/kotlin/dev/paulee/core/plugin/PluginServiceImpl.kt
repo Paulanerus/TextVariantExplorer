@@ -14,6 +14,7 @@ import kotlin.io.path.isDirectory
 import kotlin.io.path.walk
 import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.functions
+import kotlin.reflect.full.hasAnnotation
 import kotlin.reflect.full.primaryConstructor
 
 class PluginServiceImpl : IPluginService {
@@ -40,6 +41,8 @@ class PluginServiceImpl : IPluginService {
             plugin?.let {
                 this.collectClasses(path).filter { it != entryPoint }
                     .forEach { runCatching { Class.forName(it, true, classLoader) } }
+
+                if (!plugin::class.hasAnnotation<PluginMetadata>()) return null
 
                 if (init) plugin.init()
 
