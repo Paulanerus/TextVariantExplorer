@@ -35,7 +35,7 @@ private class DataPool(val indexer: Indexer, dataInfo: RequiresData) {
 
     val links = mutableMapOf<String, String>()
 
-    val replacements = mutableMapOf<String, Any>()
+    val metadata = mutableMapOf<String, Any>()
 
     private val keyValueRgx = "\\w+:\\w+|\\w+:\"[^\"]*\"".toRegex()
 
@@ -43,7 +43,9 @@ private class DataPool(val indexer: Indexer, dataInfo: RequiresData) {
         dataInfo.sources.forEach { clazz ->
             val file = clazz.findAnnotation<DataSource>()?.file ?: return@forEach
 
-            clazz.findAnnotation<Variant>()?.let { replacements[file] = it }
+            clazz.findAnnotation<Variant>()?.let { metadata[file] = it }
+
+            clazz.findAnnotation<PreFilter>()?.let { metadata[file] = it }
 
             val normalized = normalizeDataSource(file)
 
@@ -81,17 +83,14 @@ private class DataPool(val indexer: Indexer, dataInfo: RequiresData) {
         if (this.defaultIndexField.isNullOrEmpty()) {
             println("${dataInfo.name} has no default index field.")
 
-            this.fields.filter { it.value }
-                .entries
-                .firstOrNull()?.key
-                .let {
-                    if (it == null) {
-                        println("${dataInfo.name} has no indexable fields.")
-                    } else {
-                        println("'$it' was chosen instead.")
-                        this.defaultIndexField = it
-                    }
+            this.fields.filter { it.value }.entries.firstOrNull()?.key.let {
+                if (it == null) {
+                    println("${dataInfo.name} has no indexable fields.")
+                } else {
+                    println("'$it' was chosen instead.")
+                    this.defaultIndexField = it
                 }
+            }
         }
     }
 
@@ -262,8 +261,8 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
 
     override fun hasSelectedPool(): Boolean = this.currentPool != null && this.currentField != null
 
-    override fun getAvailablePools(): Set<String> = dataPools.filter { it.value.fields.any { it.value } }
-        .flatMap { entry ->
+    override fun getAvailablePools(): Set<String> =
+        dataPools.filter { it.value.fields.any { it.value } }.flatMap { entry ->
             entry.value.fields.filter { it.value }.map { "${entry.key}.${it.key.substringBefore(".")}" }
         }.toSet()
 
@@ -277,14 +276,17 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
 
         val dataPool = this.dataPools[this.currentPool] ?: return Pair(emptyList(), emptyMap())
 
-        val indexResult = dataPool.search(this.handleReplacements(dataPool.replacements, query))
+        val (filterQuery, filter) = this.getPreFilter(query, dataPool)
 
-        if (indexResult.isEmpty()) return Pair(emptyList(), emptyMap())
+        val indexResult = dataPool.search(this.handleReplacements(dataPool.metadata, filterQuery))
+
+        if (filter.isEmpty() && indexResult.isEmpty()) return Pair(emptyList(), emptyMap())
 
         val entries = this.storageProvider.get(
             "${this.currentPool}.${this.currentField}",
             indexResult.ids,
             indexResult.tokens,
+            filter,
             offset = pageCount * this.pageSize,
             limit = pageSize
         )
@@ -299,11 +301,9 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
 
             if (fields.isEmpty()) return@forEach
 
-            links[keyField] =
-                this.storageProvider.get(
-                    "${this.currentPool}.$valSource",
-                    whereClause = fields.map { "$valField:$it" }.toList()
-                )
+            links[keyField] = this.storageProvider.get(
+                "${this.currentPool}.$valSource", whereClause = fields.map { "$valField:$it" }.toList()
+            )
         }
 
         val result = PageResult(entries, links)
@@ -319,12 +319,19 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
 
         val dataPool = this.dataPools[this.currentPool] ?: return Pair(-1, emptySet())
 
-        val indexResult = dataPool.search(this.handleReplacements(dataPool.replacements, query))
+        val (filterQuery, filter) = this.getPreFilter(query, dataPool)
 
-        if (indexResult.isEmpty()) return return Pair(0, emptySet())
+        val indexResult = dataPool.search(this.handleReplacements(dataPool.metadata, filterQuery))
+
+        if (filter.isEmpty() && indexResult.isEmpty()) return return Pair(0, emptySet())
 
         val count =
-            this.storageProvider.count("${this.currentPool}.${this.currentField}", indexResult.ids, indexResult.tokens)
+            this.storageProvider.count(
+                "${this.currentPool}.${this.currentField}",
+                indexResult.ids,
+                indexResult.tokens,
+                filter
+            )
 
         return Pair(ceil(count / pageSize.toDouble()).toLong(), indexResult.indexedValues)
     }
@@ -352,5 +359,41 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
                     .joinToString(" or ", prefix = "(", postfix = ")")
             } else ""
         }
+    }
+
+    private fun getPreFilter(query: String, dataPool: DataPool): Pair<String, List<String>> {
+        val regex = Regex("@[^:\\s]+:[^:\\s]+:[^:\\s]+")
+
+        val filters = regex.findAll(query).map { it.value }.toSet()
+
+        val queryWithoutFilter = filters.fold(query) { acc, filter -> acc.replace(filter, "") }.trim()
+
+        return queryWithoutFilter to filters.filter { it.startsWith("@") && it.count { c -> c == ':' } == 2 }
+            .flatMap { rawFilter ->
+                val (filter, linkValue, value) = rawFilter.substring(1).split(":", limit = 3)
+
+                dataPool.metadata.entries.filter { it.key == filter && it.value is PreFilter }
+                    .flatMap { (key, transform) ->
+                        val preFilter = transform as PreFilter
+
+                        val linkEntries = dataPool.links.filterKeys { it.startsWith(key) }.mapValues { link ->
+                            val (source, field) = link.value.split(".", limit = 2)
+                            source to field
+                        }
+
+                        linkEntries.values.flatMap { (source, field) ->
+                            val ids = storageProvider.get(
+                                "$currentPool.$source", whereClause = listOf("${preFilter.linkKey}:$linkValue")
+                            ).mapNotNull { it[field]?.let { id -> "$field:$id" } }
+
+                            val transformKey = preFilter.key
+
+                            storageProvider.get(
+                                "$currentPool.$key",
+                                whereClause = ids + "${preFilter.value}:$value"
+                            ).mapNotNull { it[transformKey]?.let { id -> "$transformKey:$id" } }
+                        }
+                    }
+            }.distinct()
     }
 }
