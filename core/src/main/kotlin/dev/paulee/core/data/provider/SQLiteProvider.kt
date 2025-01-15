@@ -39,42 +39,58 @@ internal class SQLiteProvider : IStorageProvider {
         name: String,
         ids: Set<Long>,
         whereClause: List<String>,
+        filter: List<String>,
         offset: Int,
-        limit: Int
+        limit: Int,
     ): List<Map<String, String>> {
-        val sourceName = name.substringBefore(".")
-        val tableName = name.substringAfter(".")
-
-        val db = dataSources[sourceName] ?: return emptyList()
-
-        var entries = whereClause.filter { it.contains(":") }.groupBy { it.substringBefore(":") }
-            .mapValues { it.value.map { it.substringAfter(":") } }.toMutableMap()
-
-        val primaryKey = db.primaryKeyOf(tableName) ?: return emptyList()
-
-        if (ids.isNotEmpty()) entries += primaryKey to ids.map { it.toString() }.toList()
-
-        return db.selectAll(tableName, entries, offset = offset, limit = limit)
+        val (tableName, entries) = this.getEntries(name, ids, whereClause, filter) ?: return emptyList()
+        return dataSources[name.substringBefore(".")]!!.selectAll(tableName, entries, offset = offset, limit = limit)
     }
 
     override fun count(
         name: String,
         ids: Set<Long>,
-        whereClause: List<String>
+        whereClause: List<String>,
+        filter: List<String>,
     ): Long {
+        val (tableName, entries) = this.getEntries(name, ids, whereClause, filter) ?: return 0
+        return dataSources[name.substringBefore(".")]!!.count(tableName, entries)
+    }
+
+    private fun getEntries(
+        name: String,
+        ids: Set<Long>,
+        whereClause: List<String>,
+        filter: List<String>,
+    ): Pair<String, MutableMap<String, List<String>>>? {
         val sourceName = name.substringBefore(".")
         val tableName = name.substringAfter(".")
 
-        val db = dataSources[sourceName] ?: return 0
+        val db = dataSources[sourceName] ?: return null
 
         var entries = whereClause.filter { it.contains(":") }.groupBy { it.substringBefore(":") }
             .mapValues { it.value.map { it.substringAfter(":") } }.toMutableMap()
 
-        val primaryKey = db.primaryKeyOf(tableName) ?: return 0
+        val primaryKey = db.primaryKeyOf(tableName) ?: return null
 
         if (ids.isNotEmpty()) entries += primaryKey to ids.map { it.toString() }.toList()
 
-        return db.count(tableName, entries)
+        if (filter.isNotEmpty()) {
+            val groupedFilters = filter.filter { it.contains(":") }.groupBy { it.substringBefore(":") }
+                .mapValues { it.value.map { it.substringAfter(":") } }.toMutableMap()
+
+            if (entries.isEmpty()) return tableName to groupedFilters
+
+            entries.replaceAll { key, values ->
+                groupedFilters[key]?.let { filterValues -> values.filter { it in filterValues } } ?: values
+            }
+
+            entries.entries.removeAll { it.value.isEmpty() }
+
+            if (entries.isEmpty()) return null
+        }
+
+        return tableName to entries
     }
 
     override fun close() = dataSources.values.forEach { it.close() }

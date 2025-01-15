@@ -75,8 +75,9 @@ internal class BinaryProvider : IStorageProvider {
         name: String,
         ids: Set<Long>,
         whereClause: List<String>,
+        filter: List<String>,
         offset: Int,
-        limit: Int
+        limit: Int,
     ): List<Map<String, String>> {
         TODO("Not yet implemented")
     }
@@ -84,7 +85,8 @@ internal class BinaryProvider : IStorageProvider {
     override fun count(
         name: String,
         ids: Set<Long>,
-        whereClause: List<String>
+        whereClause: List<String>,
+        filter: List<String>,
     ): Long {
         TODO("Not yet implemented")
     }
