@@ -52,6 +52,9 @@ enum class Language {
 annotation class Variant(val base: String, val variants: Array<String>)
 
 @Target(AnnotationTarget.CLASS)
+annotation class PreFilter(val key: String, val linkKey: String, val value: String)
+
+@Target(AnnotationTarget.CLASS)
 annotation class RequiresData(val name: String, val sources: Array<KClass<*>> = [])
 
 @Target(AnnotationTarget.CLASS)

@@ -19,13 +19,15 @@ interface IStorageProvider : Closeable {
         name: String,
         ids: Set<Long> = emptySet<Long>(),
         whereClause: List<String> = emptyList<String>(),
+        filter: List<String> = emptyList(),
         offset: Int = 0,
-        limit: Int = Int.MAX_VALUE
+        limit: Int = Int.MAX_VALUE,
     ): List<Map<String, String>>
 
     fun count(
         name: String,
         ids: Set<Long> = emptySet<Long>(),
-        whereClause: List<String> = emptyList<String>()
+        whereClause: List<String> = emptyList<String>(),
+        filter: List<String> = emptyList(),
     ): Long
 }

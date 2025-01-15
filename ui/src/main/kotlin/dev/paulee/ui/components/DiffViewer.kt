@@ -172,7 +172,7 @@ private fun TagView(entries: List<Map<String, String>>, taggable: Taggable?, mod
                         }
                     }
 
-                    Column {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         (0 until greatestSize).forEach { index ->
                             val columnName = columns.getOrNull(currentColumnIndex) ?: return@forEach
 
@@ -186,7 +186,7 @@ private fun TagView(entries: List<Map<String, String>>, taggable: Taggable?, mod
                                 MarkedText(
                                     text = value,
                                     highlights = tags,
-                                    textAlign = TextAlign.Center,
+                                    textAlign = TextAlign.Left,
                                 )
                             }
                         }
@@ -252,7 +252,7 @@ private fun DiffView(
                         }
                     }
 
-                    Column {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         (0 until greatestSize).forEach { index ->
                             val columnName = columns.getOrNull(currentColumnIndex) ?: return@forEach
 
