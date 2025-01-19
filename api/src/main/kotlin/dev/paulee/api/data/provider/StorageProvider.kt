@@ -6,7 +6,6 @@ import java.nio.file.Path
 
 enum class StorageType {
     SQLITE,
-    BINARY,
 }
 
 interface IStorageProvider : Closeable {
