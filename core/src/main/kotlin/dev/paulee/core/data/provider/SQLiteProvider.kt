@@ -10,30 +10,23 @@ internal class SQLiteProvider : IStorageProvider {
 
     private val dataSources = mutableMapOf<String, Database>()
 
+    private lateinit var database: Database
+
     override fun init(dataInfo: RequiresData, path: Path): Int {
         val dbPath = path.resolve("${dataInfo.name}.db")
 
         val exists = dbPath.exists()
 
-        val database = Database(dbPath)
+        this.database = Database(dbPath)
 
-        runCatching { database.connect() }.getOrElse { return -1 }
+        runCatching { this.database.connect() }.getOrElse { return -1 }
 
-        database.createTables(dataInfo.sources)
-
-        dataSources[dataInfo.name] = database
+        this.database.createTables(dataInfo.sources)
 
         return if (exists) 0 else 1
     }
 
-    override fun insert(name: String, entries: List<Map<String, String>>) {
-        val sourceName = name.substringBefore(".")
-        val tableName = name.substringAfter(".")
-
-        val db = dataSources[sourceName] ?: return
-
-        db.insert(tableName, entries)
-    }
+    override fun insert(name: String, entries: List<Map<String, String>>) = this.database.insert(name, entries)
 
     override fun get(
         name: String,
@@ -43,8 +36,8 @@ internal class SQLiteProvider : IStorageProvider {
         offset: Int,
         limit: Int,
     ): List<Map<String, String>> {
-        val (tableName, entries) = this.getEntries(name, ids, whereClause, filter) ?: return emptyList()
-        return dataSources[name.substringBefore(".")]!!.selectAll(tableName, entries, offset = offset, limit = limit)
+        val entries = this.getEntries(name, ids, whereClause, filter) ?: return emptyList()
+        return this.database.selectAll(name, entries, offset = offset, limit = limit)
     }
 
     override fun count(
@@ -53,8 +46,8 @@ internal class SQLiteProvider : IStorageProvider {
         whereClause: List<String>,
         filter: List<String>,
     ): Long {
-        val (tableName, entries) = this.getEntries(name, ids, whereClause, filter) ?: return 0
-        return dataSources[name.substringBefore(".")]!!.count(tableName, entries)
+        val entries = this.getEntries(name, ids, whereClause, filter) ?: return 0
+        return this.database.count(name, entries)
     }
 
     private fun getEntries(
@@ -62,16 +55,11 @@ internal class SQLiteProvider : IStorageProvider {
         ids: Set<Long>,
         whereClause: List<String>,
         filter: List<String>,
-    ): Pair<String, MutableMap<String, List<String>>>? {
-        val sourceName = name.substringBefore(".")
-        val tableName = name.substringAfter(".")
-
-        val db = dataSources[sourceName] ?: return null
-
+    ): MutableMap<String, List<String>>? {
         var entries = whereClause.filter { it.contains(":") }.groupBy { it.substringBefore(":") }
             .mapValues { it.value.map { it.substringAfter(":") } }.toMutableMap()
 
-        val primaryKey = db.primaryKeyOf(tableName) ?: return null
+        val primaryKey = this.database.primaryKeyOf(name) ?: return null
 
         if (ids.isNotEmpty()) entries += primaryKey to ids.map { it.toString() }.toList()
 
@@ -79,7 +67,7 @@ internal class SQLiteProvider : IStorageProvider {
             val groupedFilters = filter.filter { it.contains(":") }.groupBy { it.substringBefore(":") }
                 .mapValues { it.value.map { it.substringAfter(":") } }.toMutableMap()
 
-            if (entries.isEmpty()) return tableName to groupedFilters
+            if (entries.isEmpty()) return groupedFilters
 
             entries.replaceAll { key, values ->
                 groupedFilters[key]?.let { filterValues -> values.filter { it in filterValues } } ?: values
@@ -90,7 +78,7 @@ internal class SQLiteProvider : IStorageProvider {
             if (entries.isEmpty()) return null
         }
 
-        return tableName to entries
+        return entries
     }
 
     override fun close() = dataSources.values.forEach { it.close() }
