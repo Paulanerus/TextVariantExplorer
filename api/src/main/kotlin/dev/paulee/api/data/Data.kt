@@ -1,5 +1,6 @@
 package dev.paulee.api.data
 
+import dev.paulee.api.data.provider.StorageType
 import kotlin.reflect.KClass
 
 enum class Language {
@@ -55,7 +56,7 @@ annotation class Variant(val base: String, val variants: Array<String>)
 annotation class PreFilter(val key: String, val linkKey: String, val value: String)
 
 @Target(AnnotationTarget.CLASS)
-annotation class RequiresData(val name: String, val sources: Array<KClass<*>> = [])
+annotation class RequiresData(val name: String, val sources: Array<KClass<*>> = [], val storage: StorageType = StorageType.SQLITE)
 
 @Target(AnnotationTarget.CLASS)
 annotation class DataSource(val file: String)
