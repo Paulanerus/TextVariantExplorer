@@ -4,6 +4,7 @@ import dev.paulee.api.data.*
 import dev.paulee.api.data.provider.IStorageProvider
 import dev.paulee.core.data.analysis.Indexer
 import dev.paulee.core.data.io.BufferedCSVReader
+import dev.paulee.core.data.provider.StorageProvider
 import dev.paulee.core.normalizeDataSource
 import dev.paulee.core.splitStr
 import java.nio.file.Path
@@ -24,7 +25,7 @@ private data class IndexSearchResult(
     fun isEmpty(): Boolean = ids.isEmpty() && tokens.isEmpty()
 }
 
-private class DataPool(val indexer: Indexer, dataInfo: RequiresData) {
+private class DataPool(val indexer: Indexer, dataInfo: RequiresData, val storageProvider: IStorageProvider) {
     var fields = mutableMapOf<String, Boolean>()
 
     var identifier = mutableMapOf<String, String>()
@@ -156,7 +157,7 @@ private class DataPool(val indexer: Indexer, dataInfo: RequiresData) {
     }
 }
 
-class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataService {
+class DataServiceImpl : IDataService {
 
     private var currentPool: String? = null
 
@@ -175,13 +176,17 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
     override fun createDataPool(dataInfo: RequiresData, path: Path): Boolean {
         val poolPath = path.resolve(dataInfo.name)
 
-        val initStatus = this.storageProvider.init(dataInfo, poolPath)
+        val storageProvider = StorageProvider.of(dataInfo.storage)
+
+        val initStatus = storageProvider.init(dataInfo, poolPath)
 
         if (initStatus < 1) return initStatus == 0
 
         val dataPool = runCatching {
             DataPool(
-                indexer = Indexer(poolPath.resolve("index"), dataInfo.sources), dataInfo = dataInfo
+                indexer = Indexer(poolPath.resolve("index"), dataInfo.sources),
+                dataInfo = dataInfo,
+                storageProvider = storageProvider
             )
         }.getOrElse {
             println("Failed to create index for ${dataInfo.name}")
@@ -212,7 +217,7 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
                 }
 
                 dataPool.indexer.indexEntries(file, entries)
-                this.storageProvider.insert("${dataInfo.name}.$file", entries)
+                storageProvider.insert("${dataInfo.name}.$file", entries)
             }
         }
 
@@ -228,9 +233,15 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
             val poolPath = path.resolve(it.name)
 
             if (poolPath.exists() && poolPath.isDirectory()) {
-                dataPools[it.name] = DataPool(indexer = Indexer(poolPath.resolve("index"), it.sources), dataInfo = it)
+                val storageProvider = StorageProvider.of(it.storage)
 
-                this.storageProvider.init(it, poolPath)
+                storageProvider.init(it, poolPath)
+
+                dataPools[it.name] = DataPool(
+                    indexer = Indexer(poolPath.resolve("index"), it.sources),
+                    dataInfo = it,
+                    storageProvider = storageProvider
+                )
             } else {
                 if (this.createDataPool(it, path)) println("Created data pool ${it.name}")
             }
@@ -276,14 +287,14 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
 
         val dataPool = this.dataPools[this.currentPool] ?: return Pair(emptyList(), emptyMap())
 
-        val (filterQuery, filter) = this.getPreFilter(query, dataPool)
+        val (filterQuery, filter) = this.getPreFilter(query)
 
         val indexResult = dataPool.search(this.handleReplacements(dataPool.metadata, filterQuery))
 
         if (filter.isEmpty() && indexResult.isEmpty()) return Pair(emptyList(), emptyMap())
 
-        val entries = this.storageProvider.get(
-            "${this.currentPool}.${this.currentField}",
+        val entries = dataPool.storageProvider.get(
+            this.currentField!!,
             indexResult.ids,
             indexResult.tokens,
             filter,
@@ -301,8 +312,8 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
 
             if (fields.isEmpty()) return@forEach
 
-            links[keyField] = this.storageProvider.get(
-                "${this.currentPool}.$valSource", whereClause = fields.map { "$valField:$it" }.toList()
+            links[keyField] = dataPool.storageProvider.get(
+                valSource, whereClause = fields.map { "$valField:$it" }.toList()
             )
         }
 
@@ -319,31 +330,28 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
 
         val dataPool = this.dataPools[this.currentPool] ?: return Pair(-1, emptySet())
 
-        val (filterQuery, filter) = this.getPreFilter(query, dataPool)
+        val (filterQuery, filter) = this.getPreFilter(query)
 
         val indexResult = dataPool.search(this.handleReplacements(dataPool.metadata, filterQuery))
 
         if (filter.isEmpty() && indexResult.isEmpty()) return return Pair(0, emptySet())
 
-        val count =
-            this.storageProvider.count(
-                "${this.currentPool}.${this.currentField}",
-                indexResult.ids,
-                indexResult.tokens,
-                filter
-            )
+        val count = dataPool.storageProvider.count(
+            this.currentField!!, indexResult.ids, indexResult.tokens, filter
+        )
 
         return Pair(ceil(count / pageSize.toDouble()).toLong(), indexResult.indexedValues)
     }
 
     override fun close() {
-        this.storageProvider.close()
-
-        this.dataPools.values.forEach { it.indexer.close() }
+        this.dataPools.values.forEach {
+            it.storageProvider.close()
+            it.indexer.close()
+        }
     }
 
     private fun handleReplacements(replacements: Map<String, Any>, query: String): String {
-        if (this.currentPool == null) return query
+        val dataPool = this.dataPools[this.currentPool] ?: return query
 
         val pattern = Regex("@([^:]+):(\\S+)")
 
@@ -354,15 +362,17 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
             val transform = replacements[key] ?: return@replace it.value
 
             if (transform is Variant) {
-                this.storageProvider.get("${this.currentPool}.$key", whereClause = listOf("${transform.base}:$value"))
+                dataPool.storageProvider.get(key, whereClause = listOf("${transform.base}:$value"))
                     .flatMap { map -> transform.variants.mapNotNull { key -> map[key] } }.toSet()
                     .joinToString(" or ", prefix = "(", postfix = ")")
             } else ""
         }
     }
 
-    private fun getPreFilter(query: String, dataPool: DataPool): Pair<String, List<String>> {
+    private fun getPreFilter(query: String): Pair<String, List<String>> {
         val regex = Regex("@[^:\\s]+:[^:\\s]+:[^:\\s]+")
+
+        val dataPool = this.dataPools[this.currentPool] ?: return Pair(query, emptyList())
 
         val filters = regex.findAll(query).map { it.value }.toSet()
 
@@ -382,15 +392,14 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
                         }
 
                         linkEntries.values.flatMap { (source, field) ->
-                            val ids = storageProvider.get(
-                                "$currentPool.$source", whereClause = listOf("${preFilter.linkKey}:$linkValue")
+                            val ids = dataPool.storageProvider.get(
+                                source, whereClause = listOf("${preFilter.linkKey}:$linkValue")
                             ).mapNotNull { it[field]?.let { id -> "$field:$id" } }
 
                             val transformKey = preFilter.key
 
-                            storageProvider.get(
-                                "$currentPool.$key",
-                                whereClause = ids + "${preFilter.value}:$value"
+                            dataPool.storageProvider.get(
+                                key, whereClause = ids + "${preFilter.value}:$value"
                             ).mapNotNull { it[transformKey]?.let { id -> "$transformKey:$id" } }
                         }
                     }
