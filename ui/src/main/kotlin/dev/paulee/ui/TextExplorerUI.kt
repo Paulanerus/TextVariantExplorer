@@ -70,6 +70,7 @@ class TextExplorerUI(
     private fun content() {
         var text by remember { mutableStateOf("") }
         var selectedRows by remember { mutableStateOf(listOf<Map<String, String>>()) }
+        var pluginInfoWindow by remember { mutableStateOf(false) }
         var displayDiffWindow by remember { mutableStateOf(false) }
         var showTable by remember { mutableStateOf(false) }
         var showPopup by remember { mutableStateOf(false) }
@@ -94,15 +95,12 @@ class TextExplorerUI(
                 Box(modifier = Modifier.align(Alignment.TopStart).padding(25.dp)) {
                     Text(
                         selectedText,
-                        modifier = Modifier.padding(2.dp).then(
-                            if (dataService.getAvailablePools().size > 1) Modifier.clickable { showPopup = true }
-                            else Modifier
-                        ))
+                        modifier = Modifier.padding(2.dp)
+                            .then(if (dataService.getAvailablePools().size > 1) Modifier.clickable { showPopup = true }
+                            else Modifier))
 
                     DropdownMenu(
-                        expanded = showPopup,
-                        onDismissRequest = { showPopup = false }
-                    ) {
+                        expanded = showPopup, onDismissRequest = { showPopup = false }) {
                         val menuItems = dataService.getAvailablePools().map {
                             val (p, f) = it.split(".", limit = 2)
                             Pair(it, "$p ($f)")
@@ -121,8 +119,7 @@ class TextExplorerUI(
 
                                     selectedText = item.second
                                     showPopup = false
-                                }
-                            ) {
+                                }) {
                                 Text(item.second)
                             }
                         }
@@ -140,9 +137,7 @@ class TextExplorerUI(
                                 widthLimitWrapper = !widthLimitWrapper
                             }
 
-                            "Plugin Info" -> {
-                                println("Show plugin info")
-                            }
+                            "Plugin Info" -> pluginInfoWindow = true
                         }
                     })
 
@@ -299,12 +294,13 @@ class TextExplorerUI(
                     color = Color.LightGray
                 )
 
-                if (displayDiffWindow) DiffViewerWindow(
-                    diffService,
-                    pluginService,
-                    dataService.getSelectedPool(),
-                    selectedRows
-                ) { displayDiffWindow = false }
+                if (pluginInfoWindow) PluginInfoWindow(pluginService) { pluginInfoWindow = false }
+
+                if (displayDiffWindow) {
+                    DiffViewerWindow(
+                        diffService, pluginService, dataService.getSelectedPool(), selectedRows
+                    ) { displayDiffWindow = false }
+                }
             }
         }
     }
