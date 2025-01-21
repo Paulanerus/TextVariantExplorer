@@ -26,7 +26,7 @@ fun PluginInfoWindow(pluginService: IPluginService, onClose: () -> Unit) {
     val scrollState = rememberScrollState()
 
     val windowState =
-        rememberWindowState(size = DpSize(500.dp, 500.dp))
+        rememberWindowState(size = DpSize(500.dp, 600.dp))
 
     Window(state = windowState, onCloseRequest = onClose, title = "Plugin Info") {
         MaterialTheme {
@@ -86,9 +86,18 @@ private fun PluginInfo(
 
         Spacer(Modifier.height(8.dp))
 
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("Data Pool:", fontWeight = FontWeight.Bold)
-            Text(dataInfo?.name ?: "None", fontStyle = if (dataInfo == null) FontStyle.Italic else FontStyle.Normal)
+        Column {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Data Pool:", fontWeight = FontWeight.Bold)
+                Text(dataInfo?.name ?: "None", fontStyle = if (dataInfo == null) FontStyle.Italic else FontStyle.Normal)
+            }
+
+            dataInfo?.sources.orEmpty().takeIf { it.isNotEmpty() }?.let {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Sources:", fontWeight = FontWeight.Bold)
+                    Text(it.joinToString(", ") { it.simpleName ?: "" })
+                }
+            }
         }
 
         variants.takeIf { it.isNotEmpty() }?.let {
