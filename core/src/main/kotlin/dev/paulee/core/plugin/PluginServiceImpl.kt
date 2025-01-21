@@ -1,8 +1,6 @@
 package dev.paulee.core.plugin
 
-import dev.paulee.api.data.DataSource
-import dev.paulee.api.data.RequiresData
-import dev.paulee.api.data.ViewFilter
+import dev.paulee.api.data.*
 import dev.paulee.api.plugin.*
 import dev.paulee.core.normalizeDataSource
 import java.net.URLClassLoader
@@ -100,6 +98,22 @@ class PluginServiceImpl : IPluginService {
 
         return annotation
     }
+
+    override fun getVariants(dataInfo: RequiresData?): Set<String> =
+        dataInfo?.sources.orEmpty().mapNotNull {
+            val dataSource = it.findAnnotation<DataSource>() ?: return@mapNotNull null
+
+            if (it.hasAnnotation<Variant>()) dataSource.file
+            else null
+        }.toSet()
+
+    override fun getPreFilters(dataInfo: RequiresData?): Set<String> =
+        dataInfo?.sources.orEmpty().mapNotNull {
+            val dataSource = it.findAnnotation<DataSource>() ?: return@mapNotNull null
+
+            if (it.hasAnnotation<PreFilter>()) dataSource.file
+            else null
+        }.toSet()
 
     private fun getAllFields(plugin: IPlugin): Set<String> = this.getDataInfo(plugin)?.sources.orEmpty()
         .flatMap { it.primaryConstructor?.parameters.orEmpty().mapNotNull { it.name } }.toSet()

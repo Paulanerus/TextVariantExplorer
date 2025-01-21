@@ -25,4 +25,8 @@ interface IPluginService {
     fun tagFields(plugin: IPlugin, field: String, value: String): Map<String, Tag>
 
     fun getViewFilter(plugin: IPlugin): ViewFilter?
+
+    fun getVariants(dataInfo: RequiresData?): Set<String>
+
+    fun getPreFilters(dataInfo: RequiresData?): Set<String>
 }
