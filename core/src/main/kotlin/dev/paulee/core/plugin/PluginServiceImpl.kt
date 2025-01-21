@@ -40,7 +40,11 @@ class PluginServiceImpl : IPluginService {
                 this.collectClasses(path).filter { it != entryPoint }
                     .forEach { runCatching { Class.forName(it, true, classLoader) } }
 
-                if (!plugin::class.hasAnnotation<PluginMetadata>()) return null
+                val metadata = plugin::class.findAnnotation<PluginMetadata>() ?: return null
+
+                if (metadata.name.isBlank() || metadata.version.isBlank()) return null
+
+                if (plugin::class.findAnnotation<RequiresData>()?.name.isNullOrBlank()) return null
 
                 if (init) plugin.init()
 
