@@ -21,12 +21,6 @@ dependencies {
     implementation(project(":api"))
     implementation(project(":core"))
     implementation(project(":ui"))
-
-    testImplementation(kotlin("test"))
-}
-
-tasks.test {
-    useJUnitPlatform()
 }
 
 kotlin {
