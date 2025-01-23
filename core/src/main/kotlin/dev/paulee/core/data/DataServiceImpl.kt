@@ -171,6 +171,8 @@ class DataServiceImpl : IDataService {
         }
     }
 
+    private val storageProvider = mutableMapOf<String, IStorageProvider>()
+
     private val dataPools = mutableMapOf<String, DataPool>()
 
     override fun createDataPool(dataInfo: RequiresData, path: Path): Boolean {
@@ -343,7 +345,21 @@ class DataServiceImpl : IDataService {
         return Pair(ceil(count / pageSize.toDouble()).toLong(), indexResult.indexedValues)
     }
 
+    override fun createStorageProvider(dataInfo: RequiresData, path: Path): IStorageProvider? {
+        val name = dataInfo.name
+
+        if (this.storageProvider[name] == null) this.storageProvider[name] = StorageProvider.of(dataInfo.storage)
+
+        val provider = this.storageProvider[name] ?: return null
+
+        provider.init(dataInfo, path, true)
+
+        return provider
+    }
+
     override fun close() {
+        this.storageProvider.forEach { it.value.close() }
+
         this.dataPools.values.forEach {
             it.storageProvider.close()
             it.indexer.close()
