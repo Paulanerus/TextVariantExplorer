@@ -7,6 +7,7 @@ import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -200,22 +201,19 @@ private fun TagView(entries: List<Map<String, String>>, taggable: Taggable?, mod
 @Composable
 private fun DiffView(
     diffService: DiffService,
-    entries: List<Map<String, String>>,
+    initialEntries: List<Map<String, String>>,
     modifier: Modifier = Modifier,
 ) {
+    var entries by remember { mutableStateOf(initialEntries) }
     val grouped = entries.flatMap { it.entries }.groupBy({ it.key }, { it.value }).filterValues { it.isNotEmpty() }
 
     val greatestSize = grouped.values.maxOfOrNull { it.size } ?: 0
-
     val columns = entries.flatMap { it.keys }.distinct()
-
     var currentColumnIndex by remember { mutableStateOf(0) }
 
     val textMeasurer = rememberTextMeasurer()
     val density = LocalDensity.current
-
     val headerTextStyle = LocalTextStyle.current.copy(fontWeight = FontWeight.Bold)
-
     val maxWidth = columns.maxOf {
         val headerWidthPx = textMeasurer.measure(text = AnnotatedString(it), style = headerTextStyle).size.width
 
@@ -255,24 +253,40 @@ private fun DiffView(
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         (0 until greatestSize).forEach { index ->
                             val columnName = columns.getOrNull(currentColumnIndex) ?: return@forEach
-
                             val values = grouped[columnName] ?: return@forEach
-
                             val value = values.getOrNull(index) ?: ""
-
                             val change = diffService.getDiff(values[0], value)
 
-                            SelectionContainer {
-                                if (index == 0) {
-                                    Text(value)
-                                    Spacer(Modifier.height(40.dp))
-                                } else {
-                                    if (value.isEmpty()) Text(value)
-                                    else HeatmapText(
-                                        change,
-                                        values[0],
-                                        textAlign = TextAlign.Left,
-                                    )
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                SelectionContainer {
+                                    if (index == 0) {
+                                        Text(value)
+                                        Spacer(Modifier.height(40.dp))
+                                    } else {
+                                        if (value.isEmpty()) Text(value)
+                                        else HeatmapText(
+                                            change, values[0], textAlign = TextAlign.Left
+                                        )
+                                    }
+                                }
+
+                                if (index == 0) return@Row
+
+                                IconButton(onClick = {
+                                    val itemIndex = entries.indexOfFirst { it[columnName] == value }
+
+                                    if (itemIndex != -1) {
+                                        val updatedList = entries.toMutableList()
+
+                                        val selectedItem = updatedList.removeAt(itemIndex)
+                                        updatedList.add(0, selectedItem)
+                                        entries = updatedList
+                                    }
+                                }) {
+                                    Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Up")
                                 }
                             }
                         }
