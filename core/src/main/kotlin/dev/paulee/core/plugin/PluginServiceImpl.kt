@@ -26,7 +26,7 @@ class PluginServiceImpl : IPluginService {
         return path.walk().filter { it.extension == "jar" }.mapNotNull { this.loadPlugin(it) }.count()
     }
 
-    override fun loadPlugin(path: Path, init: Boolean): IPlugin? {
+    override fun loadPlugin(path: Path): IPlugin? {
         if (path.extension != "jar") return null
 
         return URLClassLoader(arrayOf(path.toUri().toURL()), this.javaClass.classLoader).use { classLoader ->
@@ -46,8 +46,6 @@ class PluginServiceImpl : IPluginService {
 
                 if (plugin::class.findAnnotation<RequiresData>()?.name.isNullOrBlank()) return null
 
-                if (init) plugin.init()
-
                 this.plugins.add(plugin)
 
                 return plugin
@@ -59,10 +57,16 @@ class PluginServiceImpl : IPluginService {
 
     override fun getDataInfo(plugin: IPlugin): RequiresData? = plugin::class.findAnnotation<RequiresData>()
 
-    override fun initAll() {
+    override fun initAll(dataService: IDataService, path: Path) {
         this.plugins.sortBy { it::class.findAnnotation<PluginOrder>()?.order ?: 0 }
 
-        this.plugins.forEach { it.init() }
+        this.plugins.forEach {
+            val dataInfo = this.getDataInfo(it) ?: return@forEach
+
+            val provider = dataService.createStorageProvider(dataInfo, path.resolve(dataInfo.name)) ?: return@forEach
+
+            runCatching { it.init(provider) }.getOrElse { e -> println("Failed to load ${this.getPluginMetadata(it)?.name} plugin (${e.message}).") }
+        }
     }
 
     override fun getPlugins(): List<IPlugin> = this.plugins.toList()
