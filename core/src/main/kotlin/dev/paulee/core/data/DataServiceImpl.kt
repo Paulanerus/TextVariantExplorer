@@ -217,7 +217,7 @@ class DataServiceImpl : IDataService {
                 }
 
                 dataPool.indexer.indexEntries(file, entries)
-                storageProvider.insert("${dataInfo.name}.$file", entries)
+                storageProvider.insert(file, entries)
             }
         }
 
