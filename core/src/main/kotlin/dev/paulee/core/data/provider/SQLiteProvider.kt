@@ -8,12 +8,16 @@ import kotlin.io.path.exists
 
 internal class SQLiteProvider : IStorageProvider {
 
-    private val dataSources = mutableMapOf<String, Database>()
-
     private lateinit var database: Database
 
-    override fun init(dataInfo: RequiresData, path: Path): Int {
+    private var initialized = false
+
+    private var lock = false
+
+    override fun init(dataInfo: RequiresData, path: Path, lock: Boolean): Int {
         val dbPath = path.resolve("${dataInfo.name}.db")
+
+        if (initialized) return -1
 
         val exists = dbPath.exists()
 
@@ -23,10 +27,16 @@ internal class SQLiteProvider : IStorageProvider {
 
         this.database.createTables(dataInfo.sources)
 
+        this.initialized = true
+
+        this.lock = lock
+
         return if (exists) 0 else 1
     }
 
-    override fun insert(name: String, entries: List<Map<String, String>>) = this.database.insert(name, entries)
+    override fun insert(name: String, entries: List<Map<String, String>>) {
+        if (!this.lock) this.database.insert(name, entries)
+    }
 
     override fun get(
         name: String,
@@ -81,5 +91,8 @@ internal class SQLiteProvider : IStorageProvider {
         return entries
     }
 
-    override fun close() = dataSources.values.forEach { it.close() }
+    override fun close() {
+        this.initialized = false
+        this.database.close()
+    }
 }

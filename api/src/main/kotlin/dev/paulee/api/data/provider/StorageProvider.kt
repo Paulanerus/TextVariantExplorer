@@ -10,7 +10,7 @@ enum class StorageType {
 
 interface IStorageProvider : Closeable {
 
-    fun init(dataInfo: RequiresData, path: Path): Int
+    fun init(dataInfo: RequiresData, path: Path, lock: Boolean = false): Int
 
     fun insert(name: String, entry: List<Map<String, String>>)
 
