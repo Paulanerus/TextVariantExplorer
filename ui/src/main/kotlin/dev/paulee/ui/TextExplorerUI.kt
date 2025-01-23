@@ -57,11 +57,11 @@ class TextExplorerUI(
         Config.load(appDir)
 
         this.pluginService.loadFromDirectory(pluginsDir)
-        this.pluginService.initAll()
-
         val size = this.dataService.loadDataPools(dataDir, this.pluginService.getAllDataInfos())
 
         println("Loaded $size data pools")
+
+        this.pluginService.initAll(this.dataService, dataDir)
 
         if (Config.selectedPool.isNotEmpty()) this.dataService.selectDataPool(Config.selectedPool)
     }
@@ -327,9 +327,7 @@ class TextExplorerUI(
 
         path.copyTo(pluginPath)
 
-        val plugin = pluginService.loadPlugin(pluginPath, true)
-
-        if (plugin == null) return false
+        val plugin = pluginService.loadPlugin(pluginPath) ?: return false
 
         this.pluginService.getDataInfo(plugin)?.let { dataInfo ->
             if (dataInfo.sources.isEmpty()) return@let
@@ -356,7 +354,13 @@ class TextExplorerUI(
                 }
 
             } else println("Failed to create data pool for ${dataInfo.name}")
+
+            val provider =
+                this.dataService.createStorageProvider(dataInfo, appDir.resolve(dataInfo.name)) ?: return true
+
+            plugin.init(provider)
         }
+
         return true
     }
 }
