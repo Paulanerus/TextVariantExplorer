@@ -13,7 +13,13 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.sp
 import dev.paulee.api.data.Change
+import dev.paulee.api.plugin.Drawable
 import dev.paulee.api.plugin.Tag
+import kotlin.reflect.KFunction
+import kotlin.reflect.KType
+import kotlin.reflect.full.declaredFunctions
+import kotlin.reflect.full.hasAnnotation
+import kotlin.reflect.full.valueParameters
 
 fun java.awt.Color.toComposeColor() = Color(red, green, blue, alpha)
 
@@ -136,4 +142,41 @@ fun HeatmapText(
         }
     }
     Text(text = annotatedString, modifier = modifier, textDecoration = textDecoration, textAlign = textAlign)
+}
+
+@Composable
+@Suppress("UNCHECKED_CAST")
+fun invokeDrawable(drawable: Drawable, entries: List<Map<String, String>>) {
+    drawable::class.declaredFunctions
+        .find { it.name == "composeContent" }
+        ?.takeIf { it.isComposableFunction() }
+        ?.let {
+            when {
+                it.hasNoParameters() -> (it.call(drawable) as? (@Composable () -> Unit))?.invoke()
+                it.hasEntryParameter() -> (it.call(drawable, entries) as? (@Composable () -> Unit))?.invoke()
+            }
+        }
+}
+
+private fun KFunction<*>.isComposableFunction(): Boolean =
+    returnType.classifier == Function0::class && returnType.hasAnnotation<Composable>()
+
+private fun KFunction<*>.hasNoParameters(): Boolean =
+    valueParameters.isEmpty()
+
+private fun KFunction<*>.hasEntryParameter(): Boolean =
+    valueParameters.singleOrNull()?.type?.hasEntryType() == true
+
+private fun KType.hasEntryType(): Boolean {
+    if (this.classifier != List::class || this.arguments.size != 1) return false
+
+    val argType = this.arguments.firstOrNull()?.type ?: return false
+
+    if (argType.classifier != Map::class || argType.arguments.size != 2) return false
+
+    val keyType = argType.arguments[0].type?.classifier
+
+    val valueType = argType.arguments[1].type?.classifier
+
+    return keyType == String::class && valueType == String::class
 }
