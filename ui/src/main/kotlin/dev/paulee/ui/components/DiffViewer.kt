@@ -20,11 +20,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
 import dev.paulee.api.data.DiffService
+import dev.paulee.api.plugin.Drawable
 import dev.paulee.api.plugin.IPlugin
 import dev.paulee.api.plugin.IPluginService
 import dev.paulee.api.plugin.Taggable
 import dev.paulee.ui.HeatmapText
 import dev.paulee.ui.MarkedText
+import dev.paulee.ui.invokeDrawable
 
 @Composable
 fun DiffViewerWindow(
@@ -48,6 +50,17 @@ fun DiffViewerWindow(
         }
     }
 
+    fun getDrawableName(drawable: Drawable?): String? {
+        val plugin = drawable as? IPlugin ?: return null
+
+        val pluginName = pluginService.getPluginMetadata(plugin)?.name ?: return null
+
+        return when {
+            pluginName.isNotEmpty() -> pluginName
+            else -> null
+        }
+    }
+
     val pool = selected.substringBefore(".")
 
     val associatedPlugins = pluginService.getPlugins().filter { pluginService.getDataInfo(it)?.name == pool }
@@ -55,12 +68,17 @@ fun DiffViewerWindow(
     val tagPlugins = associatedPlugins.mapNotNull { it as? Taggable }
     var selectedTaggablePlugin = tagPlugins.firstOrNull()
 
+    val drawablePlugins = associatedPlugins.mapNotNull { it as? Drawable }
+    var selectedDrawablePlugin = drawablePlugins.firstOrNull()
+
     val viewFilter = associatedPlugins.mapNotNull { pluginService.getViewFilter(it) }.filter { it.global }
         .flatMap { it.fields.filter { it.isNotBlank() }.toList() }.toSet()
 
-    var selectedText by remember { mutableStateOf(getTagName(selectedTaggablePlugin) ?: "") }
+    var selectedTextDrawable by remember { mutableStateOf(getDrawableName(selectedDrawablePlugin) ?: "") }
+    var selectedTextTaggable by remember { mutableStateOf(getTagName(selectedTaggablePlugin) ?: "") }
     var showPopup by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf(false) }
+    var segment by remember { mutableStateOf(false) }
 
     val entries = remember(selected) {
         if (selected) {
@@ -74,48 +92,100 @@ fun DiffViewerWindow(
     Window(onCloseRequest = onClose, title = "DiffViewer") {
         MaterialTheme {
             Box(modifier = Modifier.fillMaxSize()) {
-                Box(modifier = Modifier.align(Alignment.TopStart).padding(16.dp)) {
+                if (drawablePlugins.isNotEmpty()) {
+                    TwoSegmentButton(
+                        "Diff",
+                        "Plugin",
+                        segment,
+                        onClick = { segment = it },
+                        modifier = Modifier.align(Alignment.TopCenter)
+                    )
+                }
 
-                    if (selectedTaggablePlugin == null) return@Box
+                if (segment) {
+                    Box(modifier = Modifier.align(Alignment.TopStart).padding(16.dp)) {
 
-                    Text("Tagger:", fontWeight = FontWeight.Bold)
+                        if (selectedDrawablePlugin == null) return@Box
 
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(start = 4.dp, top = 8.dp)
-                    ) {
-                        Text(
-                            selectedText,
-                            fontSize = 14.sp,
-                            modifier = Modifier.then(if (tagPlugins.size > 1) Modifier.clickable { showPopup = true }
-                            else Modifier))
+                        Text("Plugin:", fontWeight = FontWeight.Bold)
 
-                        Checkbox(checked = selected, onCheckedChange = { selected = it })
-                    }
-
-                    DropdownMenu(
-                        expanded = showPopup, onDismissRequest = { showPopup = false }) {
-                        val menuItems = tagPlugins.mapNotNull {
-                            val name = getTagName(it) ?: return@mapNotNull null
-
-                            Pair(name, it)
+                        Box(Modifier.padding(start = 4.dp, top = 20.dp)) {
+                            Text(
+                                selectedTextDrawable,
+                                fontSize = 14.sp,
+                                modifier = Modifier.then(if (drawablePlugins.size > 1) Modifier.clickable {
+                                    showPopup = true
+                                }
+                                else Modifier))
                         }
-                        menuItems.forEach { item ->
-                            DropdownMenuItem(
-                                onClick = {
-                                    selectedTaggablePlugin = item.second
-                                    selectedText = item.first
-                                    showPopup = false
-                                }) {
-                                Text(item.first)
+
+                        DropdownMenu(
+                            expanded = showPopup, onDismissRequest = { showPopup = false }) {
+                            val menuItems = drawablePlugins.mapNotNull {
+                                val name = getDrawableName(it) ?: return@mapNotNull null
+
+                                Pair(name, it)
+                            }
+                            menuItems.forEach { item ->
+                                DropdownMenuItem(
+                                    onClick = {
+                                        selectedDrawablePlugin = item.second
+                                        selectedTextDrawable = item.first
+                                        showPopup = false
+                                    }) {
+                                    Text(item.first)
+                                }
                             }
                         }
                     }
-                }
 
-                Box(modifier = Modifier.fillMaxSize()) {
-                    if (selected) TagView(entries, selectedTaggablePlugin, Modifier.align(Alignment.CenterStart))
-                    else DiffView(diffService, entries, Modifier.align(Alignment.CenterStart))
+                    selectedDrawablePlugin?.let { invokeDrawable(it, selectedRows) }
+                } else {
+                    Box(modifier = Modifier.align(Alignment.TopStart).padding(16.dp)) {
+
+                        if (selectedTaggablePlugin == null) return@Box
+
+                        Text("Tagger:", fontWeight = FontWeight.Bold)
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(start = 4.dp, top = 8.dp)
+                        ) {
+                            Text(
+                                selectedTextTaggable,
+                                fontSize = 14.sp,
+                                modifier = Modifier.then(if (tagPlugins.size > 1) Modifier.clickable {
+                                    showPopup = true
+                                }
+                                else Modifier))
+
+                            Checkbox(checked = selected, onCheckedChange = { selected = it })
+                        }
+
+                        DropdownMenu(
+                            expanded = showPopup, onDismissRequest = { showPopup = false }) {
+                            val menuItems = tagPlugins.mapNotNull {
+                                val name = getTagName(it) ?: return@mapNotNull null
+
+                                Pair(name, it)
+                            }
+                            menuItems.forEach { item ->
+                                DropdownMenuItem(
+                                    onClick = {
+                                        selectedTaggablePlugin = item.second
+                                        selectedTextTaggable = item.first
+                                        showPopup = false
+                                    }) {
+                                    Text(item.first)
+                                }
+                            }
+                        }
+                    }
+
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        if (selected) TagView(entries, selectedTaggablePlugin, Modifier.align(Alignment.CenterStart))
+                        else DiffView(diffService, entries, Modifier.align(Alignment.CenterStart))
+                    }
                 }
             }
         }
