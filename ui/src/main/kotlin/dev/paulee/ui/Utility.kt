@@ -2,6 +2,7 @@ package dev.paulee.ui
 
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
@@ -16,6 +17,8 @@ import dev.paulee.api.plugin.Tag
 
 fun java.awt.Color.toComposeColor() = Color(red, green, blue, alpha)
 
+internal data class HighlightMatch(val start: Int, val end: Int, val word: String, val tag: String, val color: Color)
+
 @Composable
 fun MarkedText(
     modifier: Modifier = Modifier,
@@ -24,39 +27,60 @@ fun MarkedText(
     text: String,
     highlights: Map<String, Tag>,
 ) {
-    val annotatedString = buildAnnotatedString {
-        var currentIndex = 0
+    val allMatches = remember(text, highlights) {
+        buildList {
+            highlights.forEach { (word, tagAndColor) ->
+                val (tag, color) = tagAndColor
 
-        highlights.forEach { (highlightedWord, tagAndColor) ->
-            val (tag, color) = tagAndColor
-            val startIndex = text.indexOf(highlightedWord, currentIndex)
+                var searchIndex = 0
 
-            val composeColor = color.toComposeColor()
+                while (true) {
+                    val foundIndex = text.indexOf(word, searchIndex)
 
-            if (startIndex != -1) {
-                append(text.substring(currentIndex, startIndex))
+                    if (foundIndex == -1) break
 
-                withStyle(style = SpanStyle(background = composeColor.copy(alpha = 0.3f))) {
-                    append(highlightedWord)
+                    add(
+                        HighlightMatch(
+                            start = foundIndex,
+                            end = foundIndex + word.length,
+                            word = word,
+                            tag = tag,
+                            color = color.toComposeColor()
+                        )
+                    )
+
+                    searchIndex = foundIndex + word.length
+                }
+            }
+        }.sortedBy { it.start }
+    }
+
+    val annotatedString = remember(text, allMatches) {
+        buildAnnotatedString {
+            var currentIndex = 0
+
+            allMatches.forEach {
+                if (it.start > currentIndex) append(text.substring(currentIndex, it.start))
+
+                withStyle(style = SpanStyle(background = it.color.copy(alpha = 0.3f))) {
+                    append("${it.word} ")
                 }
 
-                if (tag.isNotEmpty()) {
+                if (it.tag.isNotEmpty()) {
                     withStyle(
                         style = SpanStyle(
-                            fontSize = 13.sp,
-                            background = composeColor.copy(alpha = 0.8f),
-                            fontWeight = FontWeight.Bold
+                            fontSize = 13.sp, background = it.color.copy(alpha = 0.8f), fontWeight = FontWeight.Bold
                         )
                     ) {
-                        append("  $tag ")
+                        append(" ${it.tag} ")
                     }
                 }
 
-                currentIndex = startIndex + highlightedWord.length
+                currentIndex = it.end
             }
-        }
 
-        if (currentIndex < text.length) append(text.substring(currentIndex))
+            if (currentIndex < text.length) append(text.substring(currentIndex))
+        }
     }
     Text(text = annotatedString, modifier = modifier, textDecoration = textDecoration, textAlign = textAlign)
 }
@@ -71,43 +95,45 @@ fun HeatmapText(
 ) {
     val text = change?.str ?: fallback
 
-    val annotatedString = buildAnnotatedString {
-        var currentIndex = 0
+    val annotatedString = remember(change) {
+        buildAnnotatedString {
+            var currentIndex = 0
 
-        val sortedTokens = change?.tokens.orEmpty().sortedBy { it.second.first }
+            val sortedTokens = change?.tokens.orEmpty().sortedBy { it.second.first }
 
-        sortedTokens.forEach { (token, _) ->
-            val startIndex = text.indexOf(token, currentIndex)
+            sortedTokens.forEach { (token, _) ->
+                val startIndex = text.indexOf(token, currentIndex)
 
-            if (startIndex != -1) {
-                append(text.substring(currentIndex, startIndex))
+                if (startIndex != -1) {
+                    append(text.substring(currentIndex, startIndex))
 
-                val processedToken = when {
-                    token.startsWith("~~") && token.endsWith("~~") -> {
-                        withStyle(style = SpanStyle(background = Color.Red.copy(alpha = 0.3f))) {
-                            append(" ".repeat(token.trim('~').length))
+                    val processedToken = when {
+                        token.startsWith("~~") && token.endsWith("~~") -> {
+                            withStyle(style = SpanStyle(background = Color.Red.copy(alpha = 0.3f))) {
+                                append(" ".repeat(token.trim('~').length))
+                            }
+                            ""
                         }
-                        ""
+
+                        token.startsWith("**") && token.endsWith("**") -> {
+                            val trimmedToken = token.removeSurrounding("**")
+                            withStyle(style = SpanStyle(background = Color.Green.copy(alpha = 0.3f))) {
+                                append(trimmedToken)
+                            }
+                            ""
+                        }
+
+                        else -> token
                     }
 
-                    token.startsWith("**") && token.endsWith("**") -> {
-                        val trimmedToken = token.removeSurrounding("**")
-                        withStyle(style = SpanStyle(background = Color.Green.copy(alpha = 0.3f))) {
-                            append(trimmedToken)
-                        }
-                        ""
-                    }
+                    if (processedToken.isNotEmpty()) append(processedToken)
 
-                    else -> token
+                    currentIndex = startIndex + token.length
                 }
-
-                if (processedToken.isNotEmpty()) append(processedToken)
-
-                currentIndex = startIndex + token.length
             }
-        }
 
-        if (currentIndex < text.length) append(text.substring(currentIndex))
+            if (currentIndex < text.length) append(text.substring(currentIndex))
+        }
     }
     Text(text = annotatedString, modifier = modifier, textDecoration = textDecoration, textAlign = textAlign)
 }
