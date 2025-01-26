@@ -63,7 +63,7 @@ class TextExplorerUI(
 
         this.pluginService.initAll(this.dataService, this.dataDir)
 
-        if (Config.selectedPool.isNotEmpty()) this.dataService.selectDataPool(Config.selectedPool)
+        if (Config.selectedPool in this.dataService.getAvailablePools()) this.dataService.selectDataPool(Config.selectedPool)
     }
 
     @Composable
