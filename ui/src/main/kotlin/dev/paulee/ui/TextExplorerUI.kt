@@ -52,16 +52,16 @@ class TextExplorerUI(
     private var poolSelected by mutableStateOf(false)
 
     init {
-        if (!pluginsDir.exists()) pluginsDir.createDirectories()
+        if (!this.pluginsDir.exists()) this.pluginsDir.createDirectories()
 
-        Config.load(appDir)
+        Config.load(this.appDir)
 
-        this.pluginService.loadFromDirectory(pluginsDir)
-        val size = this.dataService.loadDataPools(dataDir, this.pluginService.getAllDataInfos())
+        this.pluginService.loadFromDirectory(this.pluginsDir)
+        val size = this.dataService.loadDataPools(this.dataDir, this.pluginService.getAllDataInfos())
 
         println("Loaded $size data pools")
 
-        this.pluginService.initAll(this.dataService, dataDir)
+        this.pluginService.initAll(this.dataService, this.dataDir)
 
         if (Config.selectedPool.isNotEmpty()) this.dataService.selectDataPool(Config.selectedPool)
     }
@@ -327,7 +327,7 @@ class TextExplorerUI(
 
         path.copyTo(pluginPath)
 
-        val plugin = pluginService.loadPlugin(pluginPath) ?: return false
+        val plugin = this.pluginService.loadPlugin(pluginPath) ?: return false
 
         this.pluginService.getDataInfo(plugin)?.let { dataInfo ->
             if (dataInfo.sources.isEmpty()) return@let
@@ -343,7 +343,7 @@ class TextExplorerUI(
 
             val poolsEmpty = this.dataService.getAvailablePools().isEmpty()
 
-            if (this.dataService.createDataPool(dataInfo, dataDir)) {
+            if (this.dataService.createDataPool(dataInfo, this.dataDir)) {
                 println("Created data pool for ${dataInfo.name}")
 
                 this.dataService.getAvailablePools().firstOrNull()?.let {
@@ -356,7 +356,7 @@ class TextExplorerUI(
             } else println("Failed to create data pool for ${dataInfo.name}")
 
             val provider =
-                this.dataService.createStorageProvider(dataInfo, appDir.resolve(dataInfo.name)) ?: return true
+                this.dataService.createStorageProvider(dataInfo, this.dataDir.resolve(dataInfo.name)) ?: return true
 
             plugin.init(provider)
         }
