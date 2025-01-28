@@ -88,9 +88,6 @@ class PluginServiceImpl : IPluginService {
         return dataSources
     }
 
-    override fun tagFields(plugin: IPlugin, field: String, value: String): Map<String, Tag> =
-        (plugin as? Taggable)?.tag(field, value) ?: emptyMap()
-
     override fun getViewFilter(plugin: IPlugin): ViewFilter? {
         val taggable = plugin as? Taggable ?: return null
 
