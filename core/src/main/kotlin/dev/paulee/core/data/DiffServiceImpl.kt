@@ -10,9 +10,9 @@ class DiffServiceImpl : DiffService {
         DiffRowGenerator.create().mergeOriginalRevised(true).showInlineDiffs(true).oldTag { f -> "~~" }
             .newTag { f -> "**" }.build()
 
-    override fun getDiff(strings: List<String>): Set<Change> {
+    override fun getDiff(strings: List<String>): List<Change> {
 
-        if (strings.size <= 1) return emptySet()
+        if (strings.size <= 1) return emptyList()
 
         val first = listOf(strings[0])
 
@@ -22,7 +22,7 @@ class DiffServiceImpl : DiffService {
             val oldLine = output.first().oldLine
 
             Change(oldLine, extractToken(oldLine))
-        }.toSet()
+        }
     }
 
     override fun getDiff(original: String, str: String): Change? = this.getDiff(listOf(original, str)).firstOrNull()
