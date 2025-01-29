@@ -15,8 +15,6 @@ class DemoPlugin : IPlugin, Taggable, Drawable {
     val names = mutableSetOf<String>()
 
     override fun init(storageProvider: IStorageProvider) {
-        println("Loaded GreekVariant Plugin")
-
         storageProvider.get("names").mapNotNullTo(names) { it["variant"] }
     }
 
