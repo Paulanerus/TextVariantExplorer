@@ -44,7 +44,7 @@ class DiffServiceImplTest {
             )
         )
 
-        val result = setOf(
+        val result = listOf(
             Change("A normal sentence**, with something extra**.", listOf("**, with something extra**" to 17..42)),
             Change("A normal sen~~tence~~.", listOf("~~tence~~" to 12..20))
         )
