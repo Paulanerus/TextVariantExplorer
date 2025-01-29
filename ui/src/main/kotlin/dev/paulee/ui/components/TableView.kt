@@ -55,16 +55,14 @@ fun TableView(
     val columnWidths = remember(columns, data, widthLimitWrapper) {
         columns.mapIndexed { colIndex, colName ->
             val headerWidthPx = textMeasurer.measure(
-                text = AnnotatedString(colName),
-                style = headerTextStyle
+                text = AnnotatedString(colName), style = headerTextStyle
             ).size.width
 
             val headerWidth = with(density) { headerWidthPx.toDp() }
 
             val maxDataWidthPx = data.map { it[colIndex] }.maxOf { text ->
                 textMeasurer.measure(
-                    text = AnnotatedString(text),
-                    style = cellTextStyle
+                    text = AnnotatedString(text), style = cellTextStyle
                 ).size.width
             }
 
@@ -86,8 +84,7 @@ fun TableView(
                     onClick = {
                         selectedRows = emptySet()
                         onRowSelect(emptyList())
-                    }, enabled = selectedRows.isNotEmpty(),
-                    modifier = Modifier.width(48.dp).padding(bottom = 12.dp)
+                    }, enabled = selectedRows.isNotEmpty(), modifier = Modifier.width(48.dp).padding(bottom = 12.dp)
                 ) {
                     Icon(Icons.Default.Delete, contentDescription = "Delete")
                 }
@@ -102,10 +99,8 @@ fun TableView(
                     ) {
                         columns.forEachIndexed { index, column ->
                             Button(onClick = {
-                                hiddenColumns = if (hiddenColumns.contains(index))
-                                    hiddenColumns - index
-                                else
-                                    hiddenColumns + index
+                                hiddenColumns = if (hiddenColumns.contains(index)) hiddenColumns - index
+                                else hiddenColumns + index
 
                                 Config.setHidden(pool, hiddenColumns)
                             }, colors = ButtonDefaults.buttonColors(backgroundColor = Color.LightGray)) {
@@ -150,8 +145,7 @@ fun TableView(
                                 end = Offset(size.width - halfStrokeWidth, size.height),
                                 strokeWidth = strokeWidth
                             )
-                        }
-                    ) {
+                        }) {
                         Text(
                             text = columnName,
                             fontWeight = FontWeight.Bold,
@@ -196,28 +190,21 @@ fun TableView(
                                                 if (link == null) return@TooltipArea
 
                                                 Surface(
-                                                    color = Color.Gray,
-                                                    shape = RoundedCornerShape(4.dp)
+                                                    color = Color.Gray, shape = RoundedCornerShape(4.dp)
                                                 ) {
                                                     Text(
-                                                        text = link.toString(),
-                                                        modifier = Modifier.padding(10.dp)
+                                                        text = link.toString(), modifier = Modifier.padding(10.dp)
                                                     )
                                                 }
-                                            }
-                                        ) {
+                                            }) {
                                             MarkedText(
                                                 modifier = Modifier.width(columnWidths[colIndex])
                                                     .padding(horizontal = 4.dp),
                                                 textDecoration = if (link == null) TextDecoration.None else TextDecoration.Underline,
                                                 text = cell,
-                                                highlights = indexStrings.associate {
-                                                    it to Tag(
-                                                        "",
-                                                        java.awt.Color.green
-                                                    )
-                                                }
-                                            )
+                                                highlights = if (indexStrings.isEmpty()) emptyMap() else indexStrings.associate {
+                                                    it to Tag("", java.awt.Color.green)
+                                                })
                                         }
                                     }
                                 }
