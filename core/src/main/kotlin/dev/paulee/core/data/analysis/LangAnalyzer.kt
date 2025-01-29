@@ -53,8 +53,8 @@ internal object LangAnalyzer {
 
     private val EMPTY_PATH = Path("")
 
-    fun new(lang: Language, wordList: Path = EMPTY_PATH, extend: Boolean = true): Analyzer{
-        val clazz = when(lang){
+    fun new(lang: Language, wordList: Path = EMPTY_PATH, extend: Boolean = true): Analyzer {
+        val clazz = when (lang) {
             Language.ARABIC -> ArabicAnalyzer::class
             Language.BULGARIAN -> BulgarianAnalyzer::class
             Language.BENGALI -> BengaliAnalyzer::class
