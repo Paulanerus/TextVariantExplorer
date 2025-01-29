@@ -20,7 +20,7 @@ class DemoPlugin : IPlugin, Taggable, Drawable {
         storageProvider.get("names").mapNotNullTo(names) { it["variant"] }
     }
 
-    @ViewFilter("DemoTag", fields = ["text"], global = true)
+    @ViewFilter("DemoTag", fields = ["text"], alwaysShow = ["ga"], global = true)
     override fun tag(field: String, value: String): Map<String, Tag> = names.associate { it to Tag("NAME", Color.BLUE) }
 
 
