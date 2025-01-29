@@ -13,7 +13,6 @@ import kotlin.io.path.walk
 import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.functions
 import kotlin.reflect.full.hasAnnotation
-import kotlin.reflect.full.primaryConstructor
 
 class PluginServiceImpl : IPluginService {
 
@@ -93,15 +92,7 @@ class PluginServiceImpl : IPluginService {
 
         val func = taggable::class.functions.find { it.name == "tag" } ?: return null
 
-        val annotation = func.findAnnotation<ViewFilter>() ?: return null
-
-        val fields = getAllFields(plugin)
-
-        if (fields.isEmpty()) return annotation
-
-        if (annotation.fields.none { it in fields }) return null
-
-        return annotation
+        return func.findAnnotation<ViewFilter>()
     }
 
     override fun getVariants(dataInfo: RequiresData?): Set<String> =
@@ -119,9 +110,6 @@ class PluginServiceImpl : IPluginService {
             if (it.hasAnnotation<PreFilter>()) dataSource.file
             else null
         }.toSet()
-
-    private fun getAllFields(plugin: IPlugin): Set<String> = this.getDataInfo(plugin)?.sources.orEmpty()
-        .flatMap { it.primaryConstructor?.parameters.orEmpty().mapNotNull { it.name } }.toSet()
 
     private fun getPluginEntryPoint(path: Path): String? =
         JarFile(path.toFile()).use { return it.manifest.mainAttributes.getValue("Main-Class") }
