@@ -14,7 +14,7 @@ align with the project's overall setup.
    local dependency:
 
 ```kotlin
-implementation(files("libs/api-0.32.2.jar"))
+implementation(files("libs/api-0.40.2.jar"))
 ```
 
 4. Reload the Gradle project.
@@ -27,14 +27,15 @@ To create your first plugin, follow these steps:
 
 ```kotlin
 class PluginMain : IPlugin {
-    override fun init() {
+    override fun init(storageProvider: IStorageProvider) {
         println("Hello world from plugin.")
     }
 }
 ```
 
 The `init` function is executed when the application starts or the plugin is loaded via the interface. Use this function
-to initialize external services or perform setup tasks.
+to initialize external services or perform setup tasks. The StorageProvider instance can be used to access imported
+data.
 
 2. Annotate the class with `@PluginMetadata` to declare the plugin's metadata. You can include additional information
    like the version, author, or a short description.
@@ -163,20 +164,78 @@ class PluginMain : IPlugin {
 This setup allows the user to search for `@countries:USA`, and TextExplorer will return all entries that match any of
 the variants declared for "USA."
 
+## Pre filtering
+
+Pre-filters can be used to select objects matching a condition before searching with the initial query. For this
+purpose, a data class needs to be annotated with `@PreFilter` and must have a link to another class that stores
+additional
+information. One can say a pre-filter acts on datasets, resembling a bridge between two data sets.
+
+An example could be a set of entries where information is stored indicating whether a quote contains certain words:
+
+**occurrence.csv**
+
+```text
+quote_id,occurrence,word_id
+77,false,12
+78,true,12
+```
+
+**words.csv**
+
+```text
+word_id,word,type
+12,House,Noun
+```
+
+**quotes.csv**
+
+```text
+quote_id,quote,author  
+...
+77,...,...
+78,...,...
+...
+```
+
+For this example a reference implementation would look like this:
+
+```kotlin
+@PreFilter(key = "quote_id", linkKey = "type", value = "occurrence")
+@DataSource("occurrences")
+data class Occurrence(val quote_id: Long, val occurrence: Int, @Link(Word::class) val word_id: Int)
+
+@DataSource("words")
+data class Word(val word_id: Long, val word: String, val type: String)
+
+@DataSource("quotes")
+data class Quote(@Unique(true) val quote_id: Long, @Index(Language.ENGLISH) val quote: String, val author: String)
+```
+
+`@PreFilter` has three parameters: key, linkKey, and value. The key field must match the identifier of a class that has a
+field marked with `@Index`, which will be used to retrieve the actual objects. linkKey determines the column for the first
+value in the request and must match a field from the linked class (e.g., Word in this example). The last parameter,
+value, specifies the column in the pre-filter dataset.
+
+A query for this example would look like this: `@occurrences:Noun:false`. This query would return the quote with the
+quote_id 77.
+
 ## Tagging API
 
 The Tagging API allows you to highlight specific words (e.g., names) within the Tagging View.
 
-To implement this functionality, simply implement the tag function from the Taggable interface in your Plugin Main class.
+To implement this functionality, simply implement the tag function from the Taggable interface in your Plugin Main
+class.
 This function takes the field name and its corresponding value as parameters.
 
-Additionally, annotate the function with `@ViewFilter`, which specifies a filter name and the fields it accepts.
+Additionally, annotate the function with `@ViewFilter`, which specifies a filter name and the fields it accepts. The
+alwaysShow field can be used to make certain columns always visible
 Optionally, you can use the global parameter to apply the tags to the DiffView.
 
 To highlight the name "Tom" in every field, the implementation would look like this:
 
 ```kotlin
-@ViewFilter("Name Highlighter", fields = ["quote"], global = true)
+@ViewFilter("Name Highlighter", fields = ["quote"], alwaysShow = ["author_id"], global = true)
 override fun tag(field: String, value: String): Map<String, Tag> = mapOf("Tom" to Tag("NAME", Color.blue))
 ```
 
@@ -186,13 +245,21 @@ In this example:
 + The word "Tom" is mapped to the Tag with the identifier `NAME` and the color blue.
 + Every occurrence of "Tom" in the quote field will be highlighted in blue.
 
-## Pre filtering
+## Drawable
 
-**Not yet implemented**
+The Drawable interface allows you to extend the user interface of your application. Since UI extension capabilities vary
+based on the UI framework in use, this interface does not include any pre-defined functions. However, when using the
+standard UI implementation with Compose, the UI will invoke functions like:
 
-## Access plugin data
+````kotlin
+fun composeContent(entries: List<Map<String, String>>): @Composable () -> Unit = {
+    //Compose components
+}
+````
 
-**Not yet implemented**
+to extend the user interface.
+
+**Important:** The Drawable interface and the exact structure of the function are required.
 
 ## Export plugin
 
@@ -218,11 +285,11 @@ gradlew.bat jar
 @PluginMetadata("demo", author = "Author", version = "1.0.0", description = "A short description.")
 class PluginMain : IPlugin, Taggable {
 
-    override fun init() {
+    override fun init(storageProvider: IStorageProvider) {
         println("Hello world from plugin.")
     }
 
-    @ViewFilter("Name Highlighter", fields = ["quote"], global = true)
+    @ViewFilter("Name Highlighter", fields = ["quote"], alwaysShow = ["author_id"], global = true)
     override fun tag(field: String, value: String): Map<String, Tag> = mapOf("Tom" to Tag("NAME", Color.blue))
 }
 ```
