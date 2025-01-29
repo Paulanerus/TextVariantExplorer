@@ -1,6 +1,6 @@
 package dev.paulee.ui.components
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.*
@@ -71,8 +71,8 @@ fun DiffViewerWindow(
     val drawablePlugins = associatedPlugins.mapNotNull { it as? Drawable }
     var selectedDrawablePlugin = drawablePlugins.firstOrNull()
 
-    val viewFilter = associatedPlugins.mapNotNull { pluginService.getViewFilter(it) }.filter { it.global }
-        .flatMap { it.fields.filter { it.isNotBlank() }.toList() }.toSet()
+    val alwaysShowFields =
+        associatedPlugins.mapNotNull { pluginService.getViewFilter(it) }.flatMap { it.alwaysShow.distinct() }
 
     var selectedTextDrawable by remember { mutableStateOf(getDrawableName(selectedDrawablePlugin) ?: "") }
     var selectedTextTaggable by remember { mutableStateOf(getTagName(selectedTaggablePlugin) ?: "") }
@@ -80,13 +80,11 @@ fun DiffViewerWindow(
     var selected by remember { mutableStateOf(false) }
     var segment by remember { mutableStateOf(false) }
 
-    val entries = remember(selected) {
-        if (selected) {
-            val tagFilter = pluginService.getViewFilter(selectedTaggablePlugin as IPlugin)?.fields.orEmpty()
-                .filter { it.isNotBlank() }
-
-            selectedRows.map { it.filterKeys { key -> tagFilter.isEmpty() || (key in tagFilter) } }
-        } else selectedRows.map { it.filterKeys { key -> viewFilter.isEmpty() || (key in viewFilter) } }
+    val viewFilter = remember(selected) {
+        if (selected) pluginService.getViewFilter(selectedTaggablePlugin as IPlugin)?.fields.orEmpty()
+            .filter { it.isNotBlank() }
+        else associatedPlugins.mapNotNull { pluginService.getViewFilter(it) }.filter { it.global }
+            .flatMap { it.fields.filter { it.isNotBlank() }.toList().distinct() }
     }
 
     Window(onCloseRequest = onClose, title = "DiffViewer") {
@@ -183,8 +181,23 @@ fun DiffViewerWindow(
                     }
 
                     Box(modifier = Modifier.fillMaxSize()) {
-                        if (selected) TagView(entries, selectedTaggablePlugin, Modifier.align(Alignment.CenterStart))
-                        else DiffView(diffService, entries, Modifier.align(Alignment.CenterStart))
+                        if (selected) {
+                            TagView(
+                                selectedRows,
+                                viewFilter,
+                                alwaysShowFields,
+                                selectedTaggablePlugin,
+                                Modifier.align(Alignment.CenterStart)
+                            )
+                        } else {
+                            DiffView(
+                                diffService,
+                                selectedRows,
+                                viewFilter,
+                                alwaysShowFields,
+                                Modifier.align(Alignment.CenterStart)
+                            )
+                        }
                     }
                 }
             }
@@ -193,25 +206,40 @@ fun DiffViewerWindow(
 }
 
 @Composable
-private fun TagView(entries: List<Map<String, String>>, taggable: Taggable?, modifier: Modifier = Modifier) {
-    val grouped = entries.flatMap { it.entries }.groupBy({ it.key }, { it.value }).filterValues { it.isNotEmpty() }
+private fun TagView(
+    initialEntries: List<Map<String, String>>,
+    viewFilter: List<String> = emptyList(),
+    alwaysShowFields: List<String> = emptyList(),
+    taggable: Taggable?,
+    modifier: Modifier = Modifier,
+) {
+    var entries by remember { mutableStateOf(initialEntries) }
 
-    val greatestSize = grouped.values.maxOfOrNull { it.size } ?: 0
+    val allFieldsGrouped =
+        entries.flatMap { it.entries }.groupBy({ it.key }, { it.value }).filterValues { it.isNotEmpty() }
 
-    val columns = entries.flatMap { it.keys }.distinct()
+    val filteredFields = allFieldsGrouped.filterKeys { viewFilter.isEmpty() || it in viewFilter }
+
+    val alwaysShowGrouped = allFieldsGrouped.filterKeys { it in alwaysShowFields }
+
+    val greatestSize = filteredFields.values.maxOfOrNull { it.size } ?: 0
+
+    val columns = filteredFields.keys.toList()
 
     var currentColumnIndex by remember { mutableStateOf(0) }
+
+    val horizontalScrollState = rememberScrollState()
 
     val textMeasurer = rememberTextMeasurer()
     val density = LocalDensity.current
 
     val headerTextStyle = LocalTextStyle.current.copy(fontWeight = FontWeight.Bold)
 
-    val maxWidth = columns.maxOf {
+    val maxWidth = columns.maxOfOrNull {
         val headerWidthPx = textMeasurer.measure(text = AnnotatedString(it), style = headerTextStyle).size.width
 
         with(density) { headerWidthPx.toDp() + 16.dp }
-    }
+    } ?: 0.dp
 
     Box(modifier = modifier) {
         Column {
@@ -243,25 +271,32 @@ private fun TagView(entries: List<Map<String, String>>, taggable: Taggable?, mod
                         }
                     }
 
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        (0 until greatestSize).forEach { index ->
-                            val columnName = columns.getOrNull(currentColumnIndex) ?: return@forEach
+                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        AlwaysVisibleFields(alwaysShowFields, alwaysShowGrouped, true)
 
-                            val values = grouped[columnName] ?: return@forEach
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.horizontalScroll(horizontalScrollState)
+                        ) {
+                            Spacer(Modifier.height(16.dp))
 
-                            val value = values.getOrNull(index) ?: ""
+                            (0 until greatestSize).forEach { index ->
+                                val columnName = columns.getOrNull(currentColumnIndex) ?: return@forEach
 
-                            val tags = taggable?.tag(columnName, value).orEmpty()
+                                val values = filteredFields[columnName] ?: return@forEach
 
-                            SelectionContainer {
-                                MarkedText(
-                                    text = value,
-                                    highlights = tags,
-                                    textAlign = TextAlign.Left,
-                                )
+                                val value = values.getOrNull(index) ?: ""
+
+                                val tags = taggable?.tag(columnName, value).orEmpty()
+
+                                SelectionContainer {
+                                    MarkedText(text = value, highlights = tags, textAlign = TextAlign.Left)
+                                }
                             }
                         }
                     }
+
+                    HorizontalScrollbar(adapter = rememberScrollbarAdapter(horizontalScrollState))
                 }
             }
         }
@@ -272,23 +307,36 @@ private fun TagView(entries: List<Map<String, String>>, taggable: Taggable?, mod
 private fun DiffView(
     diffService: DiffService,
     initialEntries: List<Map<String, String>>,
+    viewFilter: List<String> = emptyList(),
+    alwaysShowFields: List<String> = emptyList(),
     modifier: Modifier = Modifier,
 ) {
     var entries by remember { mutableStateOf(initialEntries) }
-    val grouped = entries.flatMap { it.entries }.groupBy({ it.key }, { it.value }).filterValues { it.isNotEmpty() }
 
-    val greatestSize = grouped.values.maxOfOrNull { it.size } ?: 0
-    val columns = entries.flatMap { it.keys }.distinct()
+    val allFieldsGrouped =
+        entries.flatMap { it.entries }.groupBy({ it.key }, { it.value }).filterValues { it.isNotEmpty() }
+
+    val filteredFields = allFieldsGrouped.filterKeys { viewFilter.isEmpty() || it in viewFilter }
+
+    val alwaysShowGrouped = allFieldsGrouped.filterKeys { it in alwaysShowFields }
+
+    val greatestSize = filteredFields.values.maxOfOrNull { it.size } ?: 0
+
+    val columns = filteredFields.keys.toList()
+
     var currentColumnIndex by remember { mutableStateOf(0) }
+
+    val horizontalScrollState = rememberScrollState()
 
     val textMeasurer = rememberTextMeasurer()
     val density = LocalDensity.current
     val headerTextStyle = LocalTextStyle.current.copy(fontWeight = FontWeight.Bold)
-    val maxWidth = columns.maxOf {
+
+    val maxWidth = columns.maxOfOrNull {
         val headerWidthPx = textMeasurer.measure(text = AnnotatedString(it), style = headerTextStyle).size.width
 
         with(density) { headerWidthPx.toDp() + 16.dp }
-    }
+    } ?: 0.dp
 
     Box(modifier = modifier) {
         Column {
@@ -320,46 +368,80 @@ private fun DiffView(
                         }
                     }
 
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        (0 until greatestSize).forEach { index ->
-                            val columnName = columns.getOrNull(currentColumnIndex) ?: return@forEach
-                            val values = grouped[columnName] ?: return@forEach
-                            val value = values.getOrNull(index) ?: ""
-                            val change = diffService.getDiff(values[0], value)
+                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        AlwaysVisibleFields(alwaysShowFields, alwaysShowGrouped)
 
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                SelectionContainer {
-                                    if (index == 0) {
-                                        Text(value)
-                                        Spacer(Modifier.height(40.dp))
-                                    } else {
-                                        if (value.isEmpty()) Text(value)
-                                        else HeatmapText(
-                                            change, values[0], textAlign = TextAlign.Left
-                                        )
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.horizontalScroll(horizontalScrollState)
+                        ) {
+                            Spacer(Modifier.height(16.dp))
+
+                            (0 until greatestSize).forEach { index ->
+                                val columnName = columns.getOrNull(currentColumnIndex) ?: return@forEach
+                                val values = filteredFields[columnName] ?: return@forEach
+                                val value = values.getOrNull(index) ?: ""
+                                val change = diffService.getDiff(values[0], value)
+
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    SelectionContainer {
+                                        if (index == 0) {
+                                            Column {
+                                                Text(value)
+                                                Spacer(Modifier.height(40.dp))
+                                            }
+                                        } else {
+                                            if (value.isEmpty()) Text(value)
+                                            else HeatmapText(change, values[0], textAlign = TextAlign.Left)
+                                        }
                                     }
-                                }
 
-                                if (index == 0) return@Row
-
-                                IconButton(onClick = {
-                                    val itemIndex = entries.indexOfFirst { it[columnName] == value }
-
-                                    if (itemIndex != -1) {
-                                        val updatedList = entries.toMutableList()
-
-                                        val selectedItem = updatedList.removeAt(itemIndex)
-                                        updatedList.add(0, selectedItem)
-                                        entries = updatedList
+                                    if (index != 0) {
+                                        IconButton(
+                                            onClick = {
+                                                val itemIndex = entries.indexOfFirst {
+                                                    it[columnName] == value
+                                                }
+                                                if (itemIndex != -1) {
+                                                    val updatedList = entries.toMutableList()
+                                                    val selectedItem = updatedList.removeAt(itemIndex)
+                                                    updatedList.add(0, selectedItem)
+                                                    entries = updatedList
+                                                }
+                                            }) {
+                                            Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Move up")
+                                        }
                                     }
-                                }) {
-                                    Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Up")
                                 }
                             }
                         }
+                    }
+
+                    HorizontalScrollbar(adapter = rememberScrollbarAdapter(horizontalScrollState))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AlwaysVisibleFields(
+    alwaysShowFields: List<String>,
+    alwaysShowGrouped: Map<String, List<String>>,
+    tagView: Boolean = false,
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        alwaysShowFields.forEach {
+            Column {
+                Text(it, fontWeight = FontWeight.Bold)
+                alwaysShowGrouped[it]?.forEachIndexed { index, value ->
+                    Column {
+                        Text(value)
+                        if (tagView) Spacer(Modifier.height(6.dp))
+                        else Spacer(Modifier.height(if (index == 0) 57.dp else 30.dp))
                     }
                 }
             }
