@@ -35,7 +35,7 @@ fun MarkedText(
 ) {
     val allMatches = remember(text, highlights) {
         buildList {
-            highlights.forEach { (word, tagAndColor) ->
+            highlights.filter { it.key.isNotBlank() }.forEach { (word, tagAndColor) ->
                 val (tag, color) = tagAndColor
 
                 var searchIndex = 0
