@@ -7,7 +7,6 @@ object StorageProvider {
     fun of(type: StorageType): IStorageProvider {
         return when (type) {
             StorageType.SQLITE -> SQLiteProvider()
-            StorageType.BINARY -> BinaryProvider()
         }
     }
 }

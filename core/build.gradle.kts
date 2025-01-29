@@ -26,6 +26,7 @@ dependencies {
     implementation("org.apache.lucene:lucene-analysis-nori:${rootProject.extra["lucene.version"]}")
     implementation("org.apache.lucene:lucene-analysis-morfologik:${rootProject.extra["lucene.version"]}")
     implementation("org.apache.lucene:lucene-queryparser:${rootProject.extra["lucene.version"]}")
+    implementation("org.apache.lucene:lucene-backward-codecs:${rootProject.extra["lucene.version"]}")
 
     testImplementation(kotlin("test"))
 }
@@ -33,6 +34,7 @@ dependencies {
 tasks.test {
     useJUnitPlatform()
 }
+
 kotlin {
     jvmToolchain(21)
 }

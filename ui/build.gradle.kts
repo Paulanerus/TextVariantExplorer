@@ -18,14 +18,9 @@ dependencies {
 
     implementation(project(":api"))
 
-    testImplementation(kotlin("test"))
-
     implementation(compose.desktop.currentOs)
 }
 
-tasks.test {
-    useJUnitPlatform()
-}
 kotlin {
     jvmToolchain(21)
 }

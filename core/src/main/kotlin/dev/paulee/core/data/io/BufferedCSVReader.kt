@@ -1,10 +1,13 @@
 package dev.paulee.core.data.io
 
+import dev.paulee.core.Logger
 import dev.paulee.core.splitStr
 import java.nio.file.Path
 import kotlin.io.path.bufferedReader
 
-internal class BufferedCSVReader(path: Path, private val delimiter: Char = ',') {
+internal class BufferedCSVReader(private val path: Path, private val delimiter: Char = ',') {
+
+    private val logger = Logger.getLogger("CSVReader")
 
     var errorCount: Long = 0
 
@@ -16,7 +19,12 @@ internal class BufferedCSVReader(path: Path, private val delimiter: Char = ',') 
         val batch = mutableListOf<Map<String, String>>()
 
         reader.use {
-            val head = this.readLine() ?: return
+            val head = this.readLine()
+
+            if (head == null) {
+                this.logger.error("Could not read Head ($path).")
+                return
+            }
 
             val header = splitStr(head, delimiter)
 
@@ -32,7 +40,10 @@ internal class BufferedCSVReader(path: Path, private val delimiter: Char = ',') 
                     split.forEachIndexed { index, entry -> headToValue[header[index]] = entry.trim('"') }
 
                     batch.add(headToValue)
-                } else errorCount++
+                } else {
+                    errorCount++
+                    this.logger.warn("Line mismatch (Head: $headSize, Line: ${split.size}, error count: $errorCount): $line")
+                }
 
                 if (batch.size == 100) callback(batch).also { batch.clear() }
 
@@ -44,14 +55,22 @@ internal class BufferedCSVReader(path: Path, private val delimiter: Char = ',') 
     }
 
     private fun readLine(): String? {
-        val line = runCatching { this.reader.readLine() }.getOrNull() ?: return null
+        val line = runCatching { this.reader.readLine() }
+            .getOrElse { e ->
+                this.logger.exception(e)
+                null
+            } ?: return null
 
         if (this.headSize == -1 || (this.getDelimiterCount(line) + 1) == this.headSize) return line
 
         var fullLine = line
 
-        while ((this.getDelimiterCount(fullLine) + 1) < this.headSize) fullLine += runCatching { this.reader.readLine() }.getOrNull()
-            ?.trim() ?: ""
+        while ((this.getDelimiterCount(fullLine) + 1) < this.headSize) {
+            fullLine += runCatching { this.reader.readLine() }.getOrElse { e ->
+                this.logger.exception(e)
+                null
+            }?.trim() ?: ""
+        }
 
         return fullLine
     }

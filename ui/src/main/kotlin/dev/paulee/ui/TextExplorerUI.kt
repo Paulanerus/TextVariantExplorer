@@ -52,24 +52,23 @@ class TextExplorerUI(
     private var poolSelected by mutableStateOf(false)
 
     init {
-        if (!pluginsDir.exists()) pluginsDir.createDirectories()
+        if (!this.pluginsDir.exists()) this.pluginsDir.createDirectories()
 
-        Config.load(appDir)
+        Config.load(this.appDir)
 
-        this.pluginService.loadFromDirectory(pluginsDir)
-        this.pluginService.initAll()
+        this.pluginService.loadFromDirectory(this.pluginsDir)
+        this.dataService.loadDataPools(this.dataDir, this.pluginService.getAllDataInfos())
 
-        val size = this.dataService.loadDataPools(dataDir, this.pluginService.getAllDataInfos())
+        this.pluginService.initAll(this.dataService, this.dataDir)
 
-        println("Loaded $size data pools")
-
-        if (Config.selectedPool.isNotEmpty()) this.dataService.selectDataPool(Config.selectedPool)
+        if (Config.selectedPool in this.dataService.getAvailablePools()) this.dataService.selectDataPool(Config.selectedPool)
     }
 
     @Composable
     private fun content() {
         var text by remember { mutableStateOf("") }
         var selectedRows by remember { mutableStateOf(listOf<Map<String, String>>()) }
+        var pluginInfoWindow by remember { mutableStateOf(false) }
         var displayDiffWindow by remember { mutableStateOf(false) }
         var showTable by remember { mutableStateOf(false) }
         var showPopup by remember { mutableStateOf(false) }
@@ -94,15 +93,12 @@ class TextExplorerUI(
                 Box(modifier = Modifier.align(Alignment.TopStart).padding(25.dp)) {
                     Text(
                         selectedText,
-                        modifier = Modifier.padding(2.dp).then(
-                            if (dataService.getAvailablePools().size > 1) Modifier.clickable { showPopup = true }
-                            else Modifier
-                        ))
+                        modifier = Modifier.padding(2.dp)
+                            .then(if (dataService.getAvailablePools().size > 1) Modifier.clickable { showPopup = true }
+                            else Modifier))
 
                     DropdownMenu(
-                        expanded = showPopup,
-                        onDismissRequest = { showPopup = false }
-                    ) {
+                        expanded = showPopup, onDismissRequest = { showPopup = false }) {
                         val menuItems = dataService.getAvailablePools().map {
                             val (p, f) = it.split(".", limit = 2)
                             Pair(it, "$p ($f)")
@@ -121,8 +117,7 @@ class TextExplorerUI(
 
                                     selectedText = item.second
                                     showPopup = false
-                                }
-                            ) {
+                                }) {
                                 Text(item.second)
                             }
                         }
@@ -140,9 +135,7 @@ class TextExplorerUI(
                                 widthLimitWrapper = !widthLimitWrapper
                             }
 
-                            "Plugin Info" -> {
-                                println("Show plugin info")
-                            }
+                            "Plugin Info" -> pluginInfoWindow = true
                         }
                     })
 
@@ -299,12 +292,13 @@ class TextExplorerUI(
                     color = Color.LightGray
                 )
 
-                if (displayDiffWindow) DiffViewerWindow(
-                    diffService,
-                    pluginService,
-                    dataService.getSelectedPool(),
-                    selectedRows
-                ) { displayDiffWindow = false }
+                if (pluginInfoWindow) PluginInfoWindow(pluginService) { pluginInfoWindow = false }
+
+                if (displayDiffWindow) {
+                    DiffViewerWindow(
+                        diffService, pluginService, dataService.getSelectedPool(), selectedRows
+                    ) { displayDiffWindow = false }
+                }
             }
         }
     }
@@ -331,9 +325,7 @@ class TextExplorerUI(
 
         path.copyTo(pluginPath)
 
-        val plugin = pluginService.loadPlugin(pluginPath, true)
-
-        if (plugin == null) return false
+        val plugin = this.pluginService.loadPlugin(pluginPath) ?: return false
 
         this.pluginService.getDataInfo(plugin)?.let { dataInfo ->
             if (dataInfo.sources.isEmpty()) return@let
@@ -344,14 +336,11 @@ class TextExplorerUI(
                 val dataSourcePath = parentPath.resolve(name)
 
                 if (dataSourcePath.exists()) dataSourcePath.copyTo(this.dataDir.resolve(name), true)
-                else println("No source file for '$it' in plugin dir.")
             }
 
             val poolsEmpty = this.dataService.getAvailablePools().isEmpty()
 
-            if (this.dataService.createDataPool(dataInfo, dataDir)) {
-                println("Created data pool for ${dataInfo.name}")
-
+            if (this.dataService.createDataPool(dataInfo, this.dataDir)) {
                 this.dataService.getAvailablePools().firstOrNull()?.let {
                     if (!poolsEmpty) return@let
 
@@ -359,8 +348,14 @@ class TextExplorerUI(
                     this.poolSelected = !this.poolSelected
                 }
 
-            } else println("Failed to create data pool for ${dataInfo.name}")
+            }
+
+            val provider =
+                this.dataService.createStorageProvider(dataInfo, this.dataDir.resolve(dataInfo.name)) ?: return true
+
+            plugin.init(provider)
         }
+
         return true
     }
 }

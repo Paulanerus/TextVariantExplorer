@@ -6,12 +6,11 @@ import java.nio.file.Path
 
 enum class StorageType {
     SQLITE,
-    BINARY,
 }
 
 interface IStorageProvider : Closeable {
 
-    fun init(dataInfo: RequiresData, path: Path): Int
+    fun init(dataInfo: RequiresData, path: Path, lock: Boolean = false): Int
 
     fun insert(name: String, entry: List<Map<String, String>>)
 

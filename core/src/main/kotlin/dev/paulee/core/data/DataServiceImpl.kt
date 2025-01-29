@@ -2,8 +2,10 @@ package dev.paulee.core.data
 
 import dev.paulee.api.data.*
 import dev.paulee.api.data.provider.IStorageProvider
+import dev.paulee.core.Logger
 import dev.paulee.core.data.analysis.Indexer
 import dev.paulee.core.data.io.BufferedCSVReader
+import dev.paulee.core.data.provider.StorageProvider
 import dev.paulee.core.normalizeDataSource
 import dev.paulee.core.splitStr
 import java.nio.file.Path
@@ -13,6 +15,8 @@ import kotlin.io.path.isDirectory
 import kotlin.math.ceil
 import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.primaryConstructor
+
+private val logger = Logger.getLogger("DataService")
 
 typealias PageResult = Pair<List<Map<String, String>>, Map<String, List<Map<String, String>>>>
 
@@ -24,7 +28,7 @@ private data class IndexSearchResult(
     fun isEmpty(): Boolean = ids.isEmpty() && tokens.isEmpty()
 }
 
-private class DataPool(val indexer: Indexer, dataInfo: RequiresData) {
+private class DataPool(val indexer: Indexer, dataInfo: RequiresData, val storageProvider: IStorageProvider) {
     var fields = mutableMapOf<String, Boolean>()
 
     var identifier = mutableMapOf<String, String>()
@@ -59,7 +63,7 @@ private class DataPool(val indexer: Indexer, dataInfo: RequiresData) {
                     link.clazz.findAnnotation<DataSource>()?.file?.let { linkFile ->
 
                         if (dataInfo.sources.contains(link.clazz)) links[key] = "$linkFile.$name"
-                        else println("Link '$linkFile' was not specified in the plugin main and will be ignored.")
+                        else logger.warn("Link '$linkFile' was not specified in the plugin main and will be ignored.")
                     }
                 }
 
@@ -81,13 +85,13 @@ private class DataPool(val indexer: Indexer, dataInfo: RequiresData) {
         }
 
         if (this.defaultIndexField.isNullOrEmpty()) {
-            println("${dataInfo.name} has no default index field.")
+            logger.warn("${dataInfo.name} has no default index field.")
 
             this.fields.filter { it.value }.entries.firstOrNull()?.key.let {
                 if (it == null) {
-                    println("${dataInfo.name} has no indexable fields.")
+                    logger.warn("${dataInfo.name} has no indexable fields.")
                 } else {
-                    println("'$it' was chosen instead.")
+                    logger.warn("'$it' was chosen instead.")
                     this.defaultIndexField = it
                 }
             }
@@ -156,7 +160,7 @@ private class DataPool(val indexer: Indexer, dataInfo: RequiresData) {
     }
 }
 
-class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataService {
+class DataServiceImpl : IDataService {
 
     private var currentPool: String? = null
 
@@ -170,21 +174,27 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
         }
     }
 
+    private val storageProvider = mutableMapOf<String, IStorageProvider>()
+
     private val dataPools = mutableMapOf<String, DataPool>()
 
     override fun createDataPool(dataInfo: RequiresData, path: Path): Boolean {
         val poolPath = path.resolve(dataInfo.name)
 
-        val initStatus = this.storageProvider.init(dataInfo, poolPath)
+        val storageProvider = StorageProvider.of(dataInfo.storage)
+
+        val initStatus = storageProvider.init(dataInfo, poolPath)
 
         if (initStatus < 1) return initStatus == 0
 
         val dataPool = runCatching {
             DataPool(
-                indexer = Indexer(poolPath.resolve("index"), dataInfo.sources), dataInfo = dataInfo
+                indexer = Indexer(poolPath.resolve("index"), dataInfo.sources),
+                dataInfo = dataInfo,
+                storageProvider = storageProvider
             )
-        }.getOrElse {
-            println("Failed to create index for ${dataInfo.name}")
+        }.getOrElse { e ->
+            logger.exception(e)
             return false
         }
 
@@ -192,14 +202,14 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
             val file = clazz.findAnnotation<DataSource>()?.file
 
             if (file.isNullOrEmpty()) {
-                println("No data source provided for ${clazz.simpleName}")
+                logger.warn("No data source provided for ${clazz.simpleName}.")
                 return@forEach
             }
 
             val sourcePath = path.resolve(file.let { if (it.endsWith(".csv")) it else "$it.csv" })
 
             if (!sourcePath.exists()) {
-                println("Source file '$sourcePath' not found")
+                logger.warn("Source file '$sourcePath' not found.")
                 return@forEach
             }
 
@@ -212,7 +222,7 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
                 }
 
                 dataPool.indexer.indexEntries(file, entries)
-                this.storageProvider.insert("${dataInfo.name}.$file", entries)
+                storageProvider.insert(file, entries)
             }
         }
 
@@ -228,22 +238,35 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
             val poolPath = path.resolve(it.name)
 
             if (poolPath.exists() && poolPath.isDirectory()) {
-                dataPools[it.name] = DataPool(indexer = Indexer(poolPath.resolve("index"), it.sources), dataInfo = it)
+                val storageProvider = StorageProvider.of(it.storage)
 
-                this.storageProvider.init(it, poolPath)
+                storageProvider.init(it, poolPath)
+
+                dataPools[it.name] = DataPool(
+                    indexer = Indexer(poolPath.resolve("index"), it.sources),
+                    dataInfo = it,
+                    storageProvider = storageProvider
+                )
             } else {
-                if (this.createDataPool(it, path)) println("Created data pool ${it.name}")
+                if (this.createDataPool(it, path)) logger.info("Created data pool ${it.name}")
+                else logger.warn("Failed to create data pool.")
             }
         }
 
-        if (dataPools.size == 1) {
+        val amount = dataPools.size
+
+        if (amount == 1) {
             val pool = dataPools.entries.first()
 
             this.currentPool = pool.key
             this.currentField = pool.value.defaultClass
 
-            if (this.currentField == null) println("${this.currentPool} has no index field.")
+            if (this.currentField == null) logger.warn("${this.currentPool} has no index field.")
+            else logger.info("Set selected data pool to $currentPool.$currentField")
         }
+
+        if (amount > 0) logger.info("Loaded ${dataInfo.size} data ${if (amount == 1) "pool" else "pools"}.")
+        else logger.info("No data pools in '$path' available.")
 
         return dataPools.size
     }
@@ -255,6 +278,8 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
 
         this.currentPool = pool
         this.currentField = field
+
+        logger.info("Selected $selection.")
     }
 
     override fun getSelectedPool(): String = "${this.currentPool}.${this.currentField}"
@@ -270,20 +295,22 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
 
         if (this.currentPool == null || this.currentField == null) return Pair(emptyList(), emptyMap())
 
+        logger.info("Query: $query")
+
         val key = Pair(pageCount, query)
 
         pageCache[key]?.let { return it }
 
         val dataPool = this.dataPools[this.currentPool] ?: return Pair(emptyList(), emptyMap())
 
-        val (filterQuery, filter) = this.getPreFilter(query, dataPool)
+        val (filterQuery, filter) = this.getPreFilter(query)
 
         val indexResult = dataPool.search(this.handleReplacements(dataPool.metadata, filterQuery))
 
         if (filter.isEmpty() && indexResult.isEmpty()) return Pair(emptyList(), emptyMap())
 
-        val entries = this.storageProvider.get(
-            "${this.currentPool}.${this.currentField}",
+        val entries = dataPool.storageProvider.get(
+            this.currentField!!,
             indexResult.ids,
             indexResult.tokens,
             filter,
@@ -301,8 +328,8 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
 
             if (fields.isEmpty()) return@forEach
 
-            links[keyField] = this.storageProvider.get(
-                "${this.currentPool}.$valSource", whereClause = fields.map { "$valField:$it" }.toList()
+            links[keyField] = dataPool.storageProvider.get(
+                valSource, whereClause = fields.map { "$valField:$it" }.toList()
             )
         }
 
@@ -319,31 +346,47 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
 
         val dataPool = this.dataPools[this.currentPool] ?: return Pair(-1, emptySet())
 
-        val (filterQuery, filter) = this.getPreFilter(query, dataPool)
+        val (filterQuery, filter) = this.getPreFilter(query)
 
         val indexResult = dataPool.search(this.handleReplacements(dataPool.metadata, filterQuery))
 
         if (filter.isEmpty() && indexResult.isEmpty()) return return Pair(0, emptySet())
 
-        val count =
-            this.storageProvider.count(
-                "${this.currentPool}.${this.currentField}",
-                indexResult.ids,
-                indexResult.tokens,
-                filter
-            )
+        val count = dataPool.storageProvider.count(
+            this.currentField!!, indexResult.ids, indexResult.tokens, filter
+        )
 
         return Pair(ceil(count / pageSize.toDouble()).toLong(), indexResult.indexedValues)
     }
 
-    override fun close() {
-        this.storageProvider.close()
+    override fun createStorageProvider(dataInfo: RequiresData, path: Path): IStorageProvider? {
+        val name = dataInfo.name
 
-        this.dataPools.values.forEach { it.indexer.close() }
+        if (this.storageProvider[name] == null) this.storageProvider[name] = StorageProvider.of(dataInfo.storage)
+
+        val provider = this.storageProvider[name]
+
+        if (provider == null) {
+            logger.error("Failed to create StorageProvider of type: ${dataInfo.storage.name}")
+            return null
+        }
+
+        provider.init(dataInfo, path, true)
+
+        return provider
+    }
+
+    override fun close() {
+        this.storageProvider.forEach { it.value.close() }
+
+        this.dataPools.values.forEach {
+            it.storageProvider.close()
+            it.indexer.close()
+        }
     }
 
     private fun handleReplacements(replacements: Map<String, Any>, query: String): String {
-        if (this.currentPool == null) return query
+        val dataPool = this.dataPools[this.currentPool] ?: return query
 
         val pattern = Regex("@([^:]+):(\\S+)")
 
@@ -354,15 +397,17 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
             val transform = replacements[key] ?: return@replace it.value
 
             if (transform is Variant) {
-                this.storageProvider.get("${this.currentPool}.$key", whereClause = listOf("${transform.base}:$value"))
+                dataPool.storageProvider.get(key, whereClause = listOf("${transform.base}:$value"))
                     .flatMap { map -> transform.variants.mapNotNull { key -> map[key] } }.toSet()
                     .joinToString(" or ", prefix = "(", postfix = ")")
             } else ""
         }
     }
 
-    private fun getPreFilter(query: String, dataPool: DataPool): Pair<String, List<String>> {
+    private fun getPreFilter(query: String): Pair<String, List<String>> {
         val regex = Regex("@[^:\\s]+:[^:\\s]+:[^:\\s]+")
+
+        val dataPool = this.dataPools[this.currentPool] ?: return Pair(query, emptyList())
 
         val filters = regex.findAll(query).map { it.value }.toSet()
 
@@ -382,15 +427,14 @@ class DataServiceImpl(private val storageProvider: IStorageProvider) : IDataServ
                         }
 
                         linkEntries.values.flatMap { (source, field) ->
-                            val ids = storageProvider.get(
-                                "$currentPool.$source", whereClause = listOf("${preFilter.linkKey}:$linkValue")
+                            val ids = dataPool.storageProvider.get(
+                                source, whereClause = listOf("${preFilter.linkKey}:$linkValue")
                             ).mapNotNull { it[field]?.let { id -> "$field:$id" } }
 
                             val transformKey = preFilter.key
 
-                            storageProvider.get(
-                                "$currentPool.$key",
-                                whereClause = ids + "${preFilter.value}:$value"
+                            dataPool.storageProvider.get(
+                                key, whereClause = ids + "${preFilter.value}:$value"
                             ).mapNotNull { it[transformKey]?.let { id -> "$transformKey:$id" } }
                         }
                     }

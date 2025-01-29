@@ -60,12 +60,7 @@ object Config {
                         else -> value
                     }
 
-                    runCatching {
-                        member.setter.call(
-                            this,
-                            converted
-                        )
-                    }.onFailure { e -> println("Failed to set value for $field (${e.message}).") }
+                    runCatching { member.setter.call(this, converted) }
                 } else {
                     value.takeIf { it.startsWith("[") && it.endsWith("]") }
                         ?.trim('[', ']')
