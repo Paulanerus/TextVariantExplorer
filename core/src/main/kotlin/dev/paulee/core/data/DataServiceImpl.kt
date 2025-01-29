@@ -2,6 +2,7 @@ package dev.paulee.core.data
 
 import dev.paulee.api.data.*
 import dev.paulee.api.data.provider.IStorageProvider
+import dev.paulee.core.Logger
 import dev.paulee.core.data.analysis.Indexer
 import dev.paulee.core.data.io.BufferedCSVReader
 import dev.paulee.core.data.provider.StorageProvider
@@ -14,6 +15,8 @@ import kotlin.io.path.isDirectory
 import kotlin.math.ceil
 import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.primaryConstructor
+
+private val logger = Logger.getLogger("DataService")
 
 typealias PageResult = Pair<List<Map<String, String>>, Map<String, List<Map<String, String>>>>
 
@@ -60,7 +63,7 @@ private class DataPool(val indexer: Indexer, dataInfo: RequiresData, val storage
                     link.clazz.findAnnotation<DataSource>()?.file?.let { linkFile ->
 
                         if (dataInfo.sources.contains(link.clazz)) links[key] = "$linkFile.$name"
-                        else println("Link '$linkFile' was not specified in the plugin main and will be ignored.")
+                        else logger.warn("Link '$linkFile' was not specified in the plugin main and will be ignored.")
                     }
                 }
 
@@ -82,13 +85,13 @@ private class DataPool(val indexer: Indexer, dataInfo: RequiresData, val storage
         }
 
         if (this.defaultIndexField.isNullOrEmpty()) {
-            println("${dataInfo.name} has no default index field.")
+            logger.warn("${dataInfo.name} has no default index field.")
 
             this.fields.filter { it.value }.entries.firstOrNull()?.key.let {
                 if (it == null) {
-                    println("${dataInfo.name} has no indexable fields.")
+                    logger.warn("${dataInfo.name} has no indexable fields.")
                 } else {
-                    println("'$it' was chosen instead.")
+                    logger.warn("'$it' was chosen instead.")
                     this.defaultIndexField = it
                 }
             }
@@ -190,8 +193,8 @@ class DataServiceImpl : IDataService {
                 dataInfo = dataInfo,
                 storageProvider = storageProvider
             )
-        }.getOrElse {
-            println("Failed to create index for ${dataInfo.name}")
+        }.getOrElse { e ->
+            logger.exception(e)
             return false
         }
 
@@ -199,14 +202,14 @@ class DataServiceImpl : IDataService {
             val file = clazz.findAnnotation<DataSource>()?.file
 
             if (file.isNullOrEmpty()) {
-                println("No data source provided for ${clazz.simpleName}")
+                logger.warn("No data source provided for ${clazz.simpleName}.")
                 return@forEach
             }
 
             val sourcePath = path.resolve(file.let { if (it.endsWith(".csv")) it else "$it.csv" })
 
             if (!sourcePath.exists()) {
-                println("Source file '$sourcePath' not found")
+                logger.warn("Source file '$sourcePath' not found.")
                 return@forEach
             }
 
@@ -245,18 +248,25 @@ class DataServiceImpl : IDataService {
                     storageProvider = storageProvider
                 )
             } else {
-                if (this.createDataPool(it, path)) println("Created data pool ${it.name}")
+                if (this.createDataPool(it, path)) logger.info("Created data pool ${it.name}")
+                else logger.warn("Failed to create data pool.")
             }
         }
 
-        if (dataPools.size == 1) {
+        val amount = dataPools.size
+
+        if (amount == 1) {
             val pool = dataPools.entries.first()
 
             this.currentPool = pool.key
             this.currentField = pool.value.defaultClass
 
-            if (this.currentField == null) println("${this.currentPool} has no index field.")
+            if (this.currentField == null) logger.warn("${this.currentPool} has no index field.")
+            else logger.info("Set selected data pool to $currentPool.$currentField")
         }
+
+        if (amount > 0) logger.info("Loaded ${dataInfo.size} data ${if (amount == 1) "pool" else "pools"}.")
+        else logger.info("No data pools in '$path' available.")
 
         return dataPools.size
     }
@@ -268,6 +278,8 @@ class DataServiceImpl : IDataService {
 
         this.currentPool = pool
         this.currentField = field
+
+        logger.info("Selected $selection.")
     }
 
     override fun getSelectedPool(): String = "${this.currentPool}.${this.currentField}"
@@ -282,6 +294,8 @@ class DataServiceImpl : IDataService {
     override fun getPage(query: String, pageCount: Int): PageResult {
 
         if (this.currentPool == null || this.currentField == null) return Pair(emptyList(), emptyMap())
+
+        logger.info("Query: $query")
 
         val key = Pair(pageCount, query)
 
@@ -350,7 +364,12 @@ class DataServiceImpl : IDataService {
 
         if (this.storageProvider[name] == null) this.storageProvider[name] = StorageProvider.of(dataInfo.storage)
 
-        val provider = this.storageProvider[name] ?: return null
+        val provider = this.storageProvider[name]
+
+        if (provider == null) {
+            logger.error("Failed to create StorageProvider of type: ${dataInfo.storage.name}")
+            return null
+        }
 
         provider.init(dataInfo, path, true)
 

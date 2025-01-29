@@ -4,6 +4,7 @@ import dev.paulee.api.data.DataSource
 import dev.paulee.api.data.Index
 import dev.paulee.api.data.Language
 import dev.paulee.api.data.Unique
+import dev.paulee.core.Logger
 import dev.paulee.core.normalizeDataSource
 import org.apache.lucene.analysis.Analyzer
 import org.apache.lucene.analysis.en.EnglishAnalyzer
@@ -30,6 +31,8 @@ import kotlin.reflect.full.hasAnnotation
 import kotlin.reflect.full.primaryConstructor
 
 class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
+
+    private val logger = Logger.getLogger("Indexer")
 
     private val directory: BaseDirectory
 
@@ -80,6 +83,12 @@ class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
         this.writer = IndexWriter(this.directory, config)
 
         this.reader = DirectoryReader.open(this.writer)
+
+        this.logger.info("Initialized Indexer (${if (this.isWindows()) "FS" else "NIOFS"})")
+
+        val analyzer =
+            this.mappedAnalyzer.entries.joinToString(", ") { (key, value) -> "$key (${value::class.simpleName})" }
+        this.logger.info("Indexer fields: $analyzer")
     }
 
     fun indexEntries(name: String, entries: List<Map<String, String>>) {

@@ -2,11 +2,14 @@ package dev.paulee.core.data.provider
 
 import dev.paulee.api.data.RequiresData
 import dev.paulee.api.data.provider.IStorageProvider
+import dev.paulee.core.Logger
 import dev.paulee.core.data.sql.Database
 import java.nio.file.Path
 import kotlin.io.path.exists
 
 internal class SQLiteProvider : IStorageProvider {
+
+    private val logger = Logger.getLogger("SQLite StorageProvider")
 
     private lateinit var database: Database
 
@@ -23,7 +26,11 @@ internal class SQLiteProvider : IStorageProvider {
 
         this.database = Database(dbPath)
 
-        runCatching { this.database.connect() }.getOrElse { return -1 }
+        runCatching { this.database.connect() }
+            .getOrElse { e ->
+                this.logger.exception(e)
+                return -1
+            }
 
         this.database.createTables(dataInfo.sources)
 
@@ -31,11 +38,14 @@ internal class SQLiteProvider : IStorageProvider {
 
         this.lock = lock
 
+        this.logger.info("Initializing SQLStorageProvider (${dataInfo.name}, locked=$lock).")
+
         return if (exists) 0 else 1
     }
 
     override fun insert(name: String, entries: List<Map<String, String>>) {
         if (!this.lock) this.database.insert(name, entries)
+        else this.logger.warn("Blocked insert on locked provider ($name).")
     }
 
     override fun get(
@@ -69,7 +79,12 @@ internal class SQLiteProvider : IStorageProvider {
         var entries = whereClause.filter { it.contains(":") }.groupBy { it.substringBefore(":") }
             .mapValues { it.value.map { it.substringAfter(":") } }.toMutableMap()
 
-        val primaryKey = this.database.primaryKeyOf(name) ?: return null
+        val primaryKey = this.database.primaryKeyOf(name)
+
+        if (primaryKey == null) {
+            this.logger.warn("Primary key for $name not found.")
+            return null
+        }
 
         if (ids.isNotEmpty()) entries += primaryKey to ids.map { it.toString() }.toList()
 

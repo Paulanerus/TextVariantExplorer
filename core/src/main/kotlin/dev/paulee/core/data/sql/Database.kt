@@ -2,6 +2,7 @@ package dev.paulee.core.data.sql
 
 import dev.paulee.api.data.DataSource
 import dev.paulee.api.data.Unique
+import dev.paulee.core.Logger
 import dev.paulee.core.normalizeDataSource
 import org.jetbrains.annotations.Nullable
 import java.io.Closeable
@@ -16,7 +17,7 @@ import kotlin.reflect.full.hasAnnotation
 import kotlin.reflect.full.primaryConstructor
 
 private enum class ColumnType {
-    TEXT, INTEGER, REAL, NUMERIC,
+    TEXT, INTEGER, REAL, NUMERIC, UNKNOWN
 }
 
 private fun typeToColumnType(type: KClassifier): ColumnType = when (type) {
@@ -28,7 +29,7 @@ private fun typeToColumnType(type: KClassifier): ColumnType = when (type) {
     Float::class -> ColumnType.REAL
     Double::class -> ColumnType.REAL
     Boolean::class -> ColumnType.NUMERIC
-    else -> throw IllegalArgumentException("Unsupported type: $type")
+    else -> ColumnType.UNKNOWN
 }
 
 private data class Column(val name: String, val type: ColumnType, val primary: Boolean, val nullable: Boolean) {
@@ -162,6 +163,8 @@ private class Table(val name: String, columns: List<Column>) {
 
 internal class Database(path: Path) : Closeable {
 
+    private val logger = Logger.getLogger("Database")
+
     private val dbPath = "jdbc:sqlite:$path"
 
     private var connection: Connection? = null
@@ -204,11 +207,13 @@ internal class Database(path: Path) : Closeable {
 
         val table = Table(normalizeDataSource(tableName), columns)
 
-        transaction {
-            table.createIfNotExists(this)
+        runCatching {
+            transaction {
+                table.createIfNotExists(this)
 
-            tables.add(table)
-        }
+                tables.add(table)
+            }
+        }.getOrElse { e -> this.logger.exception(e) }
     }
 
     fun primaryKeyOf(name: String): String? = tables.find { it.name == name }?.primaryKey?.name
@@ -221,16 +226,26 @@ internal class Database(path: Path) : Closeable {
     ): List<Map<String, String>> {
         val table = tables.find { it.name == name } ?: return emptyList()
 
-        return transaction {
-            table.selectAll(this, whereClause, offset, limit)
+        return runCatching {
+            transaction {
+                table.selectAll(this, whereClause, offset, limit)
+            }
+        }.getOrElse { e ->
+            this.logger.exception(e)
+            emptyList<Map<String, String>>()
         }
     }
 
     fun count(name: String, whereClause: Map<String, List<String>> = emptyMap<String, List<String>>()): Long {
         val table = tables.find { it.name == name } ?: return -1L
 
-        return transaction {
-            table.count(this, whereClause)
+        return runCatching {
+            transaction {
+                table.count(this, whereClause)
+            }
+        }.getOrElse { e ->
+            this.logger.exception(e)
+            0
         }
     }
 
@@ -241,10 +256,10 @@ internal class Database(path: Path) : Closeable {
 
         return try {
             runCatching { conn.block() }.onSuccess {
-                    conn.commit()
-                }.onFailure {
-                    conn.rollback()
-                }.getOrThrow()
+                conn.commit()
+            }.onFailure {
+                conn.rollback()
+            }.getOrThrow()
         } finally {
             conn.autoCommit = true
         }

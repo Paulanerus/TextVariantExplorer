@@ -2,6 +2,7 @@ package dev.paulee.core.plugin
 
 import dev.paulee.api.data.*
 import dev.paulee.api.plugin.*
+import dev.paulee.core.Logger
 import dev.paulee.core.normalizeDataSource
 import java.net.URLClassLoader
 import java.nio.file.Path
@@ -16,39 +17,73 @@ import kotlin.reflect.full.hasAnnotation
 
 class PluginServiceImpl : IPluginService {
 
+    private val logger = Logger.getLogger("PluginService")
+
     private val plugins = mutableListOf<IPlugin>()
 
     @OptIn(ExperimentalPathApi::class)
     override fun loadFromDirectory(path: Path): Int {
-        if (!path.isDirectory()) return -1
+        if (!path.isDirectory()) {
+            this.logger.warn("$path is not a directory.")
+            return -1
+        }
 
-        return path.walk().filter { it.extension == "jar" }.mapNotNull { this.loadPlugin(it) }.count()
+        val amount = path.walk().filter { it.extension == "jar" }.mapNotNull { this.loadPlugin(it) }.count()
+
+        if (amount == 0) this.logger.info("No plugins were loaded.")
+        else this.logger.info("Loaded $amount ${if (amount == 1) "plugin" else "plugins"}.")
+
+        return amount
     }
 
     override fun loadPlugin(path: Path): IPlugin? {
-        if (path.extension != "jar") return null
+        if (path.extension != "jar") {
+            this.logger.warn("'$path' is not a jar file.")
+            return null
+        }
 
         return URLClassLoader(arrayOf(path.toUri().toURL()), this.javaClass.classLoader).use { classLoader ->
             val entryPoint = this.getPluginEntryPoint(path)
 
-            val plugin = entryPoint?.let { runCatching { Class.forName(it, true, classLoader) }.getOrNull() }
+            if (entryPoint == null) {
+                this.logger.warn("Plugin '$path' entrypoint is missing.")
+                return null
+            }
+
+            val plugin = entryPoint.let { runCatching { Class.forName(it, true, classLoader) }.getOrNull() }
                 ?.takeIf { IPlugin::class.java.isAssignableFrom(it) }
                 ?.let { runCatching { it.declaredConstructors.first() }.getOrNull() }?.newInstance() as? IPlugin
 
-            plugin?.let {
-                this.collectClasses(path).filter { it != entryPoint }
-                    .forEach { runCatching { Class.forName(it, true, classLoader) } }
-
-                val metadata = plugin::class.findAnnotation<PluginMetadata>() ?: return null
-
-                if (metadata.name.isBlank() || metadata.version.isBlank()) return null
-
-                if (plugin::class.findAnnotation<RequiresData>()?.name.isNullOrBlank()) return null
-
-                this.plugins.add(plugin)
-
-                return plugin
+            if (plugin == null) {
+                this.logger.warn("'$path' is not a plugin.")
+                return null
             }
+
+            this.collectClasses(path).filter { it != entryPoint }
+                .forEach { runCatching { Class.forName(it, true, classLoader) } }
+
+            val metadata = plugin::class.findAnnotation<PluginMetadata>()
+
+            if (metadata == null) {
+                this.logger.warn("Plugin '$path' is missing PluginMetadata.")
+                return null
+            }
+
+            if (metadata.name.isBlank() || metadata.version.isBlank()) {
+                this.logger.warn("Plugin '$path' is missing name and/or version.")
+                return null
+            }
+
+            if (plugin::class.findAnnotation<RequiresData>()?.name.isNullOrBlank()) {
+                this.logger.warn("Plugin '$path' is missing data info annotation.")
+                return null
+            }
+
+            this.plugins.add(plugin)
+
+            this.logger.info("Loaded plugin (${metadata.name}).")
+
+            return plugin
         }
     }
 
@@ -64,8 +99,10 @@ class PluginServiceImpl : IPluginService {
 
             val provider = dataService.createStorageProvider(dataInfo, path.resolve(dataInfo.name)) ?: return@forEach
 
-            runCatching { it.init(provider) }.getOrElse { e -> println("Failed to load ${this.getPluginMetadata(it)?.name} plugin (${e.message}).") }
+            runCatching { it.init(provider) }.getOrElse { e -> this.logger.exception(e) }
         }
+
+        this.logger.info("Initialized plugins.")
     }
 
     override fun getPlugins(): List<IPlugin> = this.plugins.toList()
