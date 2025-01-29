@@ -7,6 +7,7 @@ import java.time.format.DateTimeFormatter
 import kotlin.io.path.appendText
 import kotlin.io.path.createDirectories
 import kotlin.io.path.createFile
+import kotlin.io.path.deleteIfExists
 import kotlin.io.path.notExists
 import kotlin.system.exitProcess
 
@@ -51,6 +52,8 @@ class Logger private constructor(
 
         init {
             if (systemPath.notExists()) systemPath.createDirectories()
+
+            defaultLogFile.deleteIfExists()
         }
 
         fun getLogger(serviceName: String): Logger {
