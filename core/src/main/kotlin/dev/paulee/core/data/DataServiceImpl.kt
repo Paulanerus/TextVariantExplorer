@@ -228,6 +228,8 @@ class DataServiceImpl : IDataService {
 
         dataPools[dataInfo.name] = dataPool
 
+        logger.info("Created data pool ${dataInfo.name}.")
+
         return true
     }
 
@@ -247,9 +249,10 @@ class DataServiceImpl : IDataService {
                     dataInfo = it,
                     storageProvider = storageProvider
                 )
+
+                logger.info("Loaded ${it.name} data pool.")
             } else {
-                if (this.createDataPool(it, path)) logger.info("Created data pool ${it.name}")
-                else logger.warn("Failed to create data pool.")
+                if (!this.createDataPool(it, path)) logger.warn("Failed to create data pool.")
             }
         }
 

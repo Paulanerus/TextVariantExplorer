@@ -1,6 +1,7 @@
 package dev.paulee.core.plugin
 
 import dev.paulee.api.data.*
+import dev.paulee.api.data.provider.IStorageProvider
 import dev.paulee.api.plugin.*
 import dev.paulee.core.Logger
 import dev.paulee.core.normalizeDataSource
@@ -11,9 +12,12 @@ import kotlin.io.path.ExperimentalPathApi
 import kotlin.io.path.extension
 import kotlin.io.path.isDirectory
 import kotlin.io.path.walk
+import kotlin.reflect.KClass
+import kotlin.reflect.full.declaredFunctions
 import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.functions
 import kotlin.reflect.full.hasAnnotation
+import kotlin.reflect.full.valueParameters
 
 class PluginServiceImpl : IPluginService {
 
@@ -56,6 +60,11 @@ class PluginServiceImpl : IPluginService {
 
             if (plugin == null) {
                 this.logger.warn("'$path' is not a plugin.")
+                return null
+            }
+
+            if (this.invalidInitFunc(plugin::class)) {
+                this.logger.warn("Invalid function structure.")
                 return null
             }
 
@@ -154,5 +163,11 @@ class PluginServiceImpl : IPluginService {
     private fun collectClasses(path: Path): Set<String> = JarFile(path.toFile()).use { jar ->
         jar.entries().asSequence().filter { !it.isDirectory && it.name.endsWith(".class") }
             .map { it.name.replace("/", ".").substring(0, it.name.length - 6) }.toSet()
+    }
+
+    private fun invalidInitFunc(pluginKlass: KClass<out IPlugin>): Boolean {
+        val func = pluginKlass.declaredFunctions.find { it.name == "init" } ?: return true
+
+        return func.returnType.classifier != Unit::class || func.valueParameters.size != 1 || func.valueParameters.first().type.classifier != IStorageProvider::class
     }
 }
