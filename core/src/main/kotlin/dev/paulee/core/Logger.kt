@@ -54,6 +54,8 @@ class Logger private constructor(
             if (systemPath.notExists()) systemPath.createDirectories()
 
             defaultLogFile.deleteIfExists()
+
+            this.registerGlobalExceptionHandler()
         }
 
         fun getLogger(serviceName: String): Logger {
@@ -62,7 +64,7 @@ class Logger private constructor(
             }
         }
 
-        fun registerGlobalExceptionHandler() {
+        private fun registerGlobalExceptionHandler() {
             Thread.setDefaultUncaughtExceptionHandler { thread, exception ->
                 val timestamp = getTimestamp()
 
@@ -90,7 +92,7 @@ class Logger private constructor(
 
     fun error(str: String) = this.log(str, LogType.ERROR)
 
-    fun exception(exception: Throwable) = this.log(exception.message, LogType.EXCEPTION)
+    fun exception(exception: Throwable) = this.log(exception.message + " | " + exception.stackTraceToString(), LogType.EXCEPTION)
 
     private fun log(str: String?, type: LogType) {
         val timestamp = getTimestamp()
