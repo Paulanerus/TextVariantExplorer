@@ -143,10 +143,7 @@ class TextExplorerUI(
                     FileDialog { paths ->
                         isOpened = false
 
-                        paths.filter { it.extension == "jar" }.forEach {
-                            if (loadPlugin(it)) println("Loaded plugin ${it.name}")
-                            else println("Failed to load plugin ${it.name}")
-                        }
+                        paths.filter { it.extension == "jar" }.forEach { loadPlugin(it) }
                     }
                 }
 
@@ -323,9 +320,7 @@ class TextExplorerUI(
 
         if (pluginPath.exists()) return true
 
-        path.copyTo(pluginPath)
-
-        val plugin = this.pluginService.loadPlugin(pluginPath) ?: return false
+        val plugin = this.pluginService.loadPlugin(path) ?: return false
 
         this.pluginService.getDataInfo(plugin)?.let { dataInfo ->
             if (dataInfo.sources.isEmpty()) return@let
@@ -354,6 +349,8 @@ class TextExplorerUI(
                 this.dataService.createStorageProvider(dataInfo, this.dataDir.resolve(dataInfo.name)) ?: return true
 
             plugin.init(provider)
+
+            path.copyTo(pluginPath)
         }
 
         return true
