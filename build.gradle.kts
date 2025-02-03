@@ -36,6 +36,7 @@ compose.desktop {
         }
 
         jvmArgs += listOf(
+            "--add-modules", "java.sql",
             "-Dapi.version=${property("api.version")}",
             "-Dcore.version=${property("core.version")}",
             "-Dui.version=${property("ui.version")}",
