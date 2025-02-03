@@ -163,20 +163,34 @@ private class Table(val name: String, columns: List<Column>) {
 
 internal class Database(path: Path) : Closeable {
 
-    private val logger = Logger.getLogger("Database")
-
     private val dbPath = "jdbc:sqlite:$path"
 
     private var connection: Connection? = null
 
     private val tables = mutableSetOf<Table>()
 
+    companion object {
+
+        private val logger = Logger.getLogger("Database")
+
+        private val hasNoSQLModule: Boolean
+
+        init {
+            val sqlModule = ModuleLayer.boot().findModule("java.sql")
+
+            this.hasNoSQLModule = sqlModule.isEmpty
+
+            if(hasNoSQLModule) logger.error("The required java.sql module is missing.")
+            else logger.info("Found java.sql module.")
+        }
+    }
+
     init {
         path.parent.createDirectories()
     }
 
     fun connect() {
-        if (this.connection != null) return
+        if (hasNoSQLModule || this.connection != null) return
 
         this.connection = DriverManager.getConnection(dbPath)
     }
@@ -192,6 +206,8 @@ internal class Database(path: Path) : Closeable {
     }
 
     fun createTable(klass: KClass<*>) {
+        if(hasNoSQLModule) return
+
         val tableName = klass.findAnnotation<DataSource>()?.file ?: return
 
         val columns = klass.primaryConstructor?.parameters.orEmpty().mapNotNull { param ->
@@ -213,7 +229,7 @@ internal class Database(path: Path) : Closeable {
 
                 tables.add(table)
             }
-        }.getOrElse { e -> this.logger.exception(e) }
+        }.getOrElse { e -> logger.exception(e) }
     }
 
     fun primaryKeyOf(name: String): String? = tables.find { it.name == name }?.primaryKey?.name
@@ -224,6 +240,8 @@ internal class Database(path: Path) : Closeable {
         offset: Int = 0,
         limit: Int = Int.MAX_VALUE,
     ): List<Map<String, String>> {
+        if(hasNoSQLModule) return emptyList()
+
         val table = tables.find { it.name == name } ?: return emptyList()
 
         return runCatching {
@@ -231,12 +249,14 @@ internal class Database(path: Path) : Closeable {
                 table.selectAll(this, whereClause, offset, limit)
             }
         }.getOrElse { e ->
-            this.logger.exception(e)
+            logger.exception(e)
             emptyList<Map<String, String>>()
         }
     }
 
     fun count(name: String, whereClause: Map<String, List<String>> = emptyMap<String, List<String>>()): Long {
+        if(hasNoSQLModule) return -1L
+
         val table = tables.find { it.name == name } ?: return -1L
 
         return runCatching {
@@ -244,7 +264,7 @@ internal class Database(path: Path) : Closeable {
                 table.count(this, whereClause)
             }
         }.getOrElse { e ->
-            this.logger.exception(e)
+            logger.exception(e)
             0
         }
     }
