@@ -96,7 +96,7 @@ fun DiffViewerWindow(
                         "Plugin",
                         segment,
                         onClick = { segment = it },
-                        modifier = Modifier.align(Alignment.TopCenter)
+                        modifier = Modifier.align(Alignment.TopCenter).padding(top = 12.dp)
                     )
                 }
 
