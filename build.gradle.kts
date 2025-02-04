@@ -47,6 +47,7 @@ compose.desktop {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "TextExplorer"
 
+            modules += listOf("java.sql")
         }
     }
 }
