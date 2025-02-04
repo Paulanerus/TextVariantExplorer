@@ -71,7 +71,7 @@ class PluginServiceImpl : IPluginService {
             this.collectClasses(path).filter { it != entryPoint }
                 .forEach { runCatching { Class.forName(it, true, classLoader) } }
 
-            val metadata = plugin::class.findAnnotation<PluginMetadata>()
+            val metadata = this.getPluginMetadata(plugin)
 
             if (metadata == null) {
                 this.logger.warn("Plugin '$path' is missing PluginMetadata.")
@@ -83,7 +83,7 @@ class PluginServiceImpl : IPluginService {
                 return null
             }
 
-            if (plugin::class.findAnnotation<RequiresData>()?.name.isNullOrBlank()) {
+            if (this.getDataInfo(plugin)?.name.isNullOrBlank()) {
                 this.logger.warn("Plugin '$path' is missing data info annotation.")
                 return null
             }
