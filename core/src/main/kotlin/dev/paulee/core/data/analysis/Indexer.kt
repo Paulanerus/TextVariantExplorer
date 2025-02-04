@@ -94,12 +94,18 @@ class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
     fun indexEntries(name: String, entries: List<Map<String, String>>) {
         if (this.mappedAnalyzer.isEmpty() || entries.isEmpty()) return
 
+        var hasChanges = false
+
         entries.forEach {
             val fieldName = idFields.find { it.startsWith(name) } ?: return@forEach
             val fieldValue = it[fieldName.substringAfter("$name.")] ?: return@forEach
 
             this.writer.updateDocument(Term(fieldName, fieldValue), this.createDoc(name, it))
+
+            hasChanges = true
         }
+
+        if (hasChanges) runCatching { this.writer.commit() }.getOrElse { e -> this.logger.exception(e) }
     }
 
     fun searchFieldIndex(field: String, query: String): List<Document> {
