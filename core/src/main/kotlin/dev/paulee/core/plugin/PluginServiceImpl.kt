@@ -136,9 +136,7 @@ class PluginServiceImpl : IPluginService {
     override fun getViewFilter(plugin: IPlugin): ViewFilter? {
         val taggable = plugin as? Taggable ?: return null
 
-        val func = taggable::class.functions.find { it.name == "tag" } ?: return null
-
-        return func.findAnnotation<ViewFilter>()
+        return taggable::class.functions.find { it.name == "tag" }?.findAnnotation<ViewFilter>()
     }
 
     override fun getVariants(dataInfo: RequiresData?): Set<String> =
