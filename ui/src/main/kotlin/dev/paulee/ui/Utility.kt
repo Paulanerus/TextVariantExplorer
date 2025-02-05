@@ -154,6 +154,7 @@ fun invokeDrawable(drawable: Drawable, entries: List<Map<String, String>>) {
             when {
                 it.hasNoParameters() -> (it.call(drawable) as? (@Composable () -> Unit))?.invoke()
                 it.hasEntryParameter() -> (it.call(drawable, entries) as? (@Composable () -> Unit))?.invoke()
+                else -> {}
             }
         }
 }

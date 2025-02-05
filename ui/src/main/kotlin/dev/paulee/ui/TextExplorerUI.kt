@@ -189,15 +189,15 @@ class TextExplorerUI(
                                 indexStrings = indexed
 
                                 if (totalPages > 0) {
-                                    dataService.getPage(text, currentPage).let {
+                                    dataService.getPage(text, currentPage).let { (pageEntries, pageLinks) ->
 
-                                        val first = it.first.firstOrNull() ?: return@let
+                                        val first = pageEntries.firstOrNull() ?: return@let
 
                                         header = first.keys.toList()
 
-                                        data = it.first.map { it.values.toList() }
+                                        data = pageEntries.map { it.values.toList() }
 
-                                        links = it.second
+                                        links = pageLinks
                                     }
                                 }
 
@@ -215,14 +215,14 @@ class TextExplorerUI(
                     AnimatedVisibility(visible = showTable) {
                         Column(
                             modifier = Modifier.fillMaxWidth().padding(8.dp),
-                        ) {
+                        ) inner@{
                             if (totalPages == 0L) {
                                 Text(
                                     "No results were found.",
                                     fontSize = 24.sp,
                                     modifier = Modifier.align(Alignment.CenterHorizontally).padding(16.dp)
                                 )
-                                return@Column
+                                return@inner
                             }
 
                             TableView(
@@ -235,7 +235,7 @@ class TextExplorerUI(
                                 onRowSelect = { selectedRows = it },
                                 clicked = { displayDiffWindow = true })
 
-                            if (totalPages < 2) return@Column
+                            if (totalPages < 2) return@inner
 
                             Spacer(modifier = Modifier.height(8.dp))
 
@@ -336,8 +336,8 @@ class TextExplorerUI(
             val poolsEmpty = this.dataService.getAvailablePools().isEmpty()
 
             if (this.dataService.createDataPool(dataInfo, this.dataDir)) {
-                this.dataService.getAvailablePools().firstOrNull()?.let {
-                    if (!poolsEmpty) return@let
+                this.dataService.getAvailablePools().firstOrNull()?.let inner@{
+                    if (!poolsEmpty) return@inner
 
                     this.dataService.selectDataPool(it)
                     this.poolSelected = !this.poolSelected

@@ -44,8 +44,8 @@ object Config {
         if (this.configPath.notExists()) return
 
         this.configPath.bufferedReader().useLines { lines ->
-            lines.filter { it.contains("=") }.forEach {
-                val (field, value) = it.split("=", limit = 2).map { it.trim() }
+            lines.filter { it.contains("=") }.forEach { line ->
+                val (field, value) = line.split("=", limit = 2).map { it.trim() }
 
                 val member = this::class.memberProperties.find { it.name == field }
 
