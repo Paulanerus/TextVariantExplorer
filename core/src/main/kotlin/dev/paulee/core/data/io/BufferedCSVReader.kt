@@ -9,7 +9,7 @@ internal class BufferedCSVReader(private val path: Path, private val delimiter: 
 
     private val logger = Logger.getLogger("CSVReader")
 
-    var errorCount: Long = 0
+    private var errorCount: Long = 0
 
     private var reader = path.bufferedReader()
 

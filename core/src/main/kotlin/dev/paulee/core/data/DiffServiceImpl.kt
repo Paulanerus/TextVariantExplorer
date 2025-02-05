@@ -7,8 +7,8 @@ import dev.paulee.api.data.DiffService
 class DiffServiceImpl : DiffService {
 
     private val generator =
-        DiffRowGenerator.create().mergeOriginalRevised(true).showInlineDiffs(true).oldTag { f -> "~~" }
-            .newTag { f -> "**" }.build()
+        DiffRowGenerator.create().mergeOriginalRevised(true).showInlineDiffs(true).oldTag { _ -> "~~" }
+            .newTag { _ -> "**" }.build()
 
     override fun getDiff(strings: List<String>): List<Change> {
 

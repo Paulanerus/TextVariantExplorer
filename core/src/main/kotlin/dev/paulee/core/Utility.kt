@@ -1,11 +1,11 @@
 package dev.paulee.core
 
 fun splitStr(str: String, delimiter: Char, quoteCharacters: Array<Char> = arrayOf('"')): List<String> {
-    var tokens = mutableListOf<String>()
+    val tokens = mutableListOf<String>()
 
     var tokenStart = 0
     var insideQuotes = false
-    (0 until str.length).forEach {
+    str.indices.forEach {
         val c = str[it]
 
         if (quoteCharacters.contains(c)) insideQuotes = !insideQuotes

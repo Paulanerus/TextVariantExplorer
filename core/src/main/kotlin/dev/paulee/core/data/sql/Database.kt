@@ -65,10 +65,10 @@ private class Table(val name: String, columns: List<Column>) {
         }
 
         connection.prepareStatement(query).use {
-            var size = columns.size
+            val size = columns.size
             entries.forEachIndexed { index, map ->
-                columns.forEachIndexed { idx, column ->
-                    val value = map[column.name] ?: return@forEachIndexed
+                columns.forEachIndexed inner@ { idx, column ->
+                    val value = map[column.name] ?: return@inner
 
                     it.setString((size * index) + idx + 1, value)
                 }
@@ -236,7 +236,7 @@ internal class Database(path: Path) : Closeable {
 
     fun selectAll(
         name: String,
-        whereClause: Map<String, List<String>> = emptyMap<String, List<String>>(),
+        whereClause: Map<String, List<String>> = emptyMap(),
         offset: Int = 0,
         limit: Int = Int.MAX_VALUE,
     ): List<Map<String, String>> {
@@ -250,11 +250,11 @@ internal class Database(path: Path) : Closeable {
             }
         }.getOrElse { e ->
             logger.exception(e)
-            emptyList<Map<String, String>>()
+            emptyList()
         }
     }
 
-    fun count(name: String, whereClause: Map<String, List<String>> = emptyMap<String, List<String>>()): Long {
+    fun count(name: String, whereClause: Map<String, List<String>> = emptyMap()): Long {
         if(hasNoSQLModule) return -1L
 
         val table = tables.find { it.name == name } ?: return -1L

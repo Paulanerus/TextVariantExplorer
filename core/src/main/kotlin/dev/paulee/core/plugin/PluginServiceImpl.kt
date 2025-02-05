@@ -8,16 +8,11 @@ import dev.paulee.core.normalizeDataSource
 import java.net.URLClassLoader
 import java.nio.file.Path
 import java.util.jar.JarFile
-import kotlin.io.path.ExperimentalPathApi
 import kotlin.io.path.extension
 import kotlin.io.path.isDirectory
 import kotlin.io.path.walk
 import kotlin.reflect.KClass
-import kotlin.reflect.full.declaredFunctions
-import kotlin.reflect.full.findAnnotation
-import kotlin.reflect.full.functions
-import kotlin.reflect.full.hasAnnotation
-import kotlin.reflect.full.valueParameters
+import kotlin.reflect.full.*
 
 class PluginServiceImpl : IPluginService {
 
@@ -25,7 +20,6 @@ class PluginServiceImpl : IPluginService {
 
     private val plugins = mutableListOf<IPlugin>()
 
-    @OptIn(ExperimentalPathApi::class)
     override fun loadFromDirectory(path: Path): Int {
         if (!path.isDirectory()) {
             this.logger.warn("$path is not a directory.")
@@ -118,14 +112,14 @@ class PluginServiceImpl : IPluginService {
 
     override fun getAllDataInfos(): Set<RequiresData> = this.plugins.mapNotNull { this.getDataInfo(it) }.toSet()
 
-    override fun getDataSources(datInfo: String): Set<String> {
+    override fun getDataSources(dataInfo: String): Set<String> {
         val dataSources = mutableSetOf<String>()
 
         this.plugins.mapNotNull { this.getDataInfo(it) }
-            .filter { it.name == datInfo }
+            .filter { it.name == dataInfo }
             .map { it.sources }
-            .forEach {
-                it.forEach { clazz ->
+            .forEach { sources ->
+                sources.forEach { clazz ->
                     clazz.findAnnotation<DataSource>()?.file?.let { dataSources.add(normalizeDataSource(it)) }
                 }
             }

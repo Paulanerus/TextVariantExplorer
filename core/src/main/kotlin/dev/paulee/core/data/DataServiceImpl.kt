@@ -21,9 +21,9 @@ private val logger = Logger.getLogger("DataService")
 typealias PageResult = Pair<List<Map<String, String>>, Map<String, List<Map<String, String>>>>
 
 private data class IndexSearchResult(
-    val ids: Set<Long> = emptySet<Long>(),
-    val tokens: List<String> = emptyList<String>(),
-    val indexedValues: Set<String> = emptySet<String>(),
+    val ids: Set<Long> = emptySet(),
+    val tokens: List<String> = emptyList(),
+    val indexedValues: Set<String> = emptySet(),
 ) {
     fun isEmpty(): Boolean = ids.isEmpty() && tokens.isEmpty()
 }
@@ -53,8 +53,8 @@ private class DataPool(val indexer: Indexer, dataInfo: RequiresData, val storage
 
             val normalized = normalizeDataSource(file)
 
-            clazz.primaryConstructor?.parameters.orEmpty().forEach { param ->
-                val name = param.name ?: return@forEach
+            clazz.primaryConstructor?.parameters.orEmpty().forEach inner@{ param ->
+                val name = param.name ?: return@inner
 
                 val key = "$normalized.$name"
                 fields[key] = false
@@ -322,7 +322,7 @@ class DataServiceImpl : IDataService {
         )
 
         val links = mutableMapOf<String, List<Map<String, String>>>()
-        dataPool.links.forEach { key, value ->
+        dataPool.links.forEach { (key, value) ->
             val keyField = key.substringAfter('.')
 
             val (valSource, valField) = value.split('.', limit = 2)

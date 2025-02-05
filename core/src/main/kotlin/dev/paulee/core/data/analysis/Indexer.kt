@@ -60,15 +60,16 @@ class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
             ) return@forEach
 
             it.primaryConstructor?.parameters.orEmpty()
-                .forEach { param ->
-                    val paramName = param.name ?: return@forEach
+                .forEach inner@{ param ->
+                    val paramName = param.name ?: return@inner
 
                     param.findAnnotation<Index>()?.also { index ->
                         this.mappedAnalyzer["$normalized.$paramName"] = LangAnalyzer.new(index.lang)
                     }
 
-                    param.findAnnotation<Unique>()?.takeIf { param.type.classifier == Long::class && it.identify }
-                        ?.also { unique -> this.idFields.add("$normalized.$paramName") }
+                    param.findAnnotation<Unique>()
+                        ?.takeIf { unique -> param.type.classifier == Long::class && unique.identify }
+                        ?.also { this.idFields.add("$normalized.$paramName") }
                 }
 
             this.idFields.add("${normalized}_ag_id")
@@ -142,7 +143,7 @@ class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
         operator.entries.fold(query) { acc, entry -> acc.replace(entry.key.toRegex(), entry.value) }
 
     private fun createDoc(name: String, map: Map<String, String>): Document = Document().apply {
-        map.forEach { key, value ->
+        map.forEach { (key, value) ->
             val id = "$name.$key"
 
             if (idFields.contains(id) || idFields.contains(key)) {

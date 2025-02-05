@@ -76,8 +76,8 @@ internal class SQLiteProvider : IStorageProvider {
         whereClause: List<String>,
         filter: List<String>,
     ): MutableMap<String, List<String>>? {
-        var entries = whereClause.filter { it.contains(":") }.groupBy { it.substringBefore(":") }
-            .mapValues { it.value.map { it.substringAfter(":") } }.toMutableMap()
+        val entries = whereClause.filter { it.contains(":") }.groupBy { it.substringBefore(":") }
+            .mapValues { entry -> entry.value.map { it.substringAfter(":") } }.toMutableMap()
 
         val primaryKey = this.database.primaryKeyOf(name)
 
@@ -90,7 +90,7 @@ internal class SQLiteProvider : IStorageProvider {
 
         if (filter.isNotEmpty()) {
             val groupedFilters = filter.filter { it.contains(":") }.groupBy { it.substringBefore(":") }
-                .mapValues { it.value.map { it.substringAfter(":") } }.toMutableMap()
+                .mapValues { entry -> entry.value.map { it.substringAfter(":") } }.toMutableMap()
 
             if (entries.isEmpty()) return groupedFilters
 
