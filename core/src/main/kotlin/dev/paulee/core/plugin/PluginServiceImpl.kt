@@ -45,7 +45,7 @@ class PluginServiceImpl : IPluginService {
 
             if (entryPoint == null) {
                 this.logger.warn("Plugin '$path' entrypoint is missing.")
-                return null
+                return@use null
             }
 
             val plugin = entryPoint.let { runCatching { Class.forName(it, true, classLoader) }.getOrNull() }
@@ -54,12 +54,12 @@ class PluginServiceImpl : IPluginService {
 
             if (plugin == null) {
                 this.logger.warn("'$path' is not a plugin.")
-                return null
+                return@use null
             }
 
             if (this.invalidInitFunc(plugin::class)) {
                 this.logger.warn("Invalid function structure.")
-                return null
+                return@use null
             }
 
             this.collectClasses(path).filter { it != entryPoint }
@@ -69,24 +69,24 @@ class PluginServiceImpl : IPluginService {
 
             if (metadata == null) {
                 this.logger.warn("Plugin '$path' is missing PluginMetadata.")
-                return null
+                return@use null
             }
 
             if (metadata.name.isBlank() || metadata.version.isBlank()) {
                 this.logger.warn("Plugin '$path' is missing name and/or version.")
-                return null
+                return@use null
             }
 
             if (this.getDataInfo(plugin)?.name.isNullOrBlank()) {
                 this.logger.warn("Plugin '$path' is missing data info annotation.")
-                return null
+                return@use null
             }
 
             this.plugins.add(plugin)
 
             this.logger.info("Loaded plugin (${metadata.name}).")
 
-            return plugin
+            return@use plugin
         }
     }
 
