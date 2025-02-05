@@ -2,12 +2,12 @@ package dev.paulee.core.data
 
 import dev.paulee.api.data.*
 import dev.paulee.api.data.provider.IStorageProvider
-import dev.paulee.core.Logger
 import dev.paulee.core.data.analysis.Indexer
 import dev.paulee.core.data.io.BufferedCSVReader
 import dev.paulee.core.data.provider.StorageProvider
 import dev.paulee.core.normalizeDataSource
 import dev.paulee.core.splitStr
+import org.slf4j.LoggerFactory.getLogger
 import java.nio.file.Path
 import kotlin.io.path.createDirectories
 import kotlin.io.path.exists
@@ -16,7 +16,7 @@ import kotlin.math.ceil
 import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.primaryConstructor
 
-private val logger = Logger.getLogger("DataService")
+private val logger = getLogger(DataServiceImpl::class.java)
 
 typealias PageResult = Pair<List<Map<String, String>>, Map<String, List<Map<String, String>>>>
 
@@ -201,7 +201,7 @@ class DataServiceImpl : IDataService {
                 storageProvider = storageProvider
             )
         }.getOrElse { e ->
-            logger.exception(e)
+            logger.error("Exception: Failed to create data pool.", e)
             return false
         }
 

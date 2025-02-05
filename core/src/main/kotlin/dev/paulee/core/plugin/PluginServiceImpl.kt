@@ -3,8 +3,8 @@ package dev.paulee.core.plugin
 import dev.paulee.api.data.*
 import dev.paulee.api.data.provider.IStorageProvider
 import dev.paulee.api.plugin.*
-import dev.paulee.core.Logger
 import dev.paulee.core.normalizeDataSource
+import org.slf4j.LoggerFactory.getLogger
 import java.net.URLClassLoader
 import java.nio.file.Path
 import java.util.jar.JarFile
@@ -16,7 +16,7 @@ import kotlin.reflect.full.*
 
 class PluginServiceImpl : IPluginService {
 
-    private val logger = Logger.getLogger("PluginService")
+    private val logger = getLogger(PluginServiceImpl::class.java)
 
     private val plugins = mutableListOf<IPlugin>()
 
@@ -102,7 +102,11 @@ class PluginServiceImpl : IPluginService {
 
             val provider = dataService.createStorageProvider(dataInfo, path.resolve(dataInfo.name)) ?: return@forEach
 
-            runCatching { it.init(provider) }.getOrElse { e -> this.logger.exception(e) }
+            runCatching { it.init(provider) }.getOrElse { e ->
+                this.logger.error(
+                    "Exception: Failed to initialize plugin.", e
+                )
+            }
         }
 
         this.logger.info("Initialized plugins.")
@@ -115,9 +119,7 @@ class PluginServiceImpl : IPluginService {
     override fun getDataSources(dataInfo: String): Set<String> {
         val dataSources = mutableSetOf<String>()
 
-        this.plugins.mapNotNull { this.getDataInfo(it) }
-            .filter { it.name == dataInfo }
-            .map { it.sources }
+        this.plugins.mapNotNull { this.getDataInfo(it) }.filter { it.name == dataInfo }.map { it.sources }
             .forEach { sources ->
                 sources.forEach { clazz ->
                     clazz.findAnnotation<DataSource>()?.file?.let { dataSources.add(normalizeDataSource(it)) }
@@ -133,21 +135,19 @@ class PluginServiceImpl : IPluginService {
         return taggable::class.functions.find { it.name == "tag" }?.findAnnotation<ViewFilter>()
     }
 
-    override fun getVariants(dataInfo: RequiresData?): Set<String> =
-        dataInfo?.sources.orEmpty().mapNotNull {
-            val dataSource = it.findAnnotation<DataSource>() ?: return@mapNotNull null
+    override fun getVariants(dataInfo: RequiresData?): Set<String> = dataInfo?.sources.orEmpty().mapNotNull {
+        val dataSource = it.findAnnotation<DataSource>() ?: return@mapNotNull null
 
-            if (it.hasAnnotation<Variant>()) dataSource.file
-            else null
-        }.toSet()
+        if (it.hasAnnotation<Variant>()) dataSource.file
+        else null
+    }.toSet()
 
-    override fun getPreFilters(dataInfo: RequiresData?): Set<String> =
-        dataInfo?.sources.orEmpty().mapNotNull {
-            val dataSource = it.findAnnotation<DataSource>() ?: return@mapNotNull null
+    override fun getPreFilters(dataInfo: RequiresData?): Set<String> = dataInfo?.sources.orEmpty().mapNotNull {
+        val dataSource = it.findAnnotation<DataSource>() ?: return@mapNotNull null
 
-            if (it.hasAnnotation<PreFilter>()) dataSource.file
-            else null
-        }.toSet()
+        if (it.hasAnnotation<PreFilter>()) dataSource.file
+        else null
+    }.toSet()
 
     private fun getPluginEntryPoint(path: Path): String? =
         JarFile(path.toFile()).use { return it.manifest.mainAttributes.getValue("Main-Class") }

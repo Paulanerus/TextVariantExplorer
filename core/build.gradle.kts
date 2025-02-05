@@ -28,6 +28,10 @@ dependencies {
     implementation("org.apache.lucene:lucene-queryparser:${rootProject.extra["lucene.version"]}")
     implementation("org.apache.lucene:lucene-backward-codecs:${rootProject.extra["lucene.version"]}")
 
+    implementation("org.apache.logging.log4j:log4j-core:${rootProject.extra["log4j.version"]}")
+    implementation("org.apache.logging.log4j:log4j-api:${rootProject.extra["log4j.version"]}")
+    implementation("org.apache.logging.log4j:log4j-slf4j2-impl:${rootProject.extra["log4j.version"]}")
+
     testImplementation(kotlin("test"))
 }
 

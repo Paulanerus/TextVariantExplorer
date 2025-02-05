@@ -2,9 +2,9 @@ package dev.paulee.core.data.sql
 
 import dev.paulee.api.data.DataSource
 import dev.paulee.api.data.Unique
-import dev.paulee.core.Logger
 import dev.paulee.core.normalizeDataSource
 import org.jetbrains.annotations.Nullable
+import org.slf4j.LoggerFactory.getLogger
 import java.io.Closeable
 import java.nio.file.Path
 import java.sql.Connection
@@ -38,7 +38,11 @@ private data class Column(val name: String, val type: ColumnType, val primary: B
 
 private class Table(val name: String, columns: List<Column>) {
 
-    val primaryKey: Column = columns.find { it.primary } ?: Column("${name}_ag_id", ColumnType.INTEGER, true, false)
+    val primaryKey: Column = columns.find { it.primary } ?: Column(
+        "${name}_ag_id", ColumnType.INTEGER,
+        primary = true,
+        nullable = false
+    )
 
     val columns = listOf(primaryKey) + columns.filter { !it.primary }
 
@@ -67,7 +71,7 @@ private class Table(val name: String, columns: List<Column>) {
         connection.prepareStatement(query).use {
             val size = columns.size
             entries.forEachIndexed { index, map ->
-                columns.forEachIndexed inner@ { idx, column ->
+                columns.forEachIndexed inner@{ idx, column ->
                     val value = map[column.name] ?: return@inner
 
                     it.setString((size * index) + idx + 1, value)
@@ -79,7 +83,7 @@ private class Table(val name: String, columns: List<Column>) {
 
     fun selectAll(
         connection: Connection,
-        whereClause: Map<String, List<String>> = emptyMap<String, List<String>>(),
+        whereClause: Map<String, List<String>> = emptyMap(),
         offset: Int = 0,
         limit: Int = Int.MAX_VALUE,
     ): List<Map<String, String>> {
@@ -127,7 +131,7 @@ private class Table(val name: String, columns: List<Column>) {
         }
     }
 
-    fun count(connection: Connection, whereClause: Map<String, List<String>> = emptyMap<String, List<String>>()): Long {
+    fun count(connection: Connection, whereClause: Map<String, List<String>> = emptyMap()): Long {
         val query = buildString {
             append("SELECT COUNT(*) FROM ")
             append(name)
@@ -171,7 +175,7 @@ internal class Database(path: Path) : Closeable {
 
     companion object {
 
-        private val logger = Logger.getLogger("Database")
+        private val logger = getLogger(Database::class.java)
 
         private val hasNoSQLModule: Boolean
 
@@ -180,7 +184,7 @@ internal class Database(path: Path) : Closeable {
 
             this.hasNoSQLModule = sqlModule.isEmpty
 
-            if(hasNoSQLModule) logger.error("The required java.sql module is missing.")
+            if (hasNoSQLModule) logger.error("The required java.sql module is missing.")
             else logger.info("Found java.sql module.")
         }
     }
@@ -206,7 +210,7 @@ internal class Database(path: Path) : Closeable {
     }
 
     fun createTable(klass: KClass<*>) {
-        if(hasNoSQLModule) return
+        if (hasNoSQLModule) return
 
         val tableName = klass.findAnnotation<DataSource>()?.file ?: return
 
@@ -229,7 +233,7 @@ internal class Database(path: Path) : Closeable {
 
                 tables.add(table)
             }
-        }.getOrElse { e -> logger.exception(e) }
+        }.getOrElse { e -> logger.error("TODO", e) }
     }
 
     fun primaryKeyOf(name: String): String? = tables.find { it.name == name }?.primaryKey?.name
@@ -240,7 +244,7 @@ internal class Database(path: Path) : Closeable {
         offset: Int = 0,
         limit: Int = Int.MAX_VALUE,
     ): List<Map<String, String>> {
-        if(hasNoSQLModule) return emptyList()
+        if (hasNoSQLModule) return emptyList()
 
         val table = tables.find { it.name == name } ?: return emptyList()
 
@@ -249,13 +253,13 @@ internal class Database(path: Path) : Closeable {
                 table.selectAll(this, whereClause, offset, limit)
             }
         }.getOrElse { e ->
-            logger.exception(e)
+            logger.error("TODO", e)
             emptyList()
         }
     }
 
     fun count(name: String, whereClause: Map<String, List<String>> = emptyMap()): Long {
-        if(hasNoSQLModule) return -1L
+        if (hasNoSQLModule) return -1L
 
         val table = tables.find { it.name == name } ?: return -1L
 
@@ -264,7 +268,7 @@ internal class Database(path: Path) : Closeable {
                 table.count(this, whereClause)
             }
         }.getOrElse { e ->
-            logger.exception(e)
+            logger.error("TODO", e)
             0
         }
     }

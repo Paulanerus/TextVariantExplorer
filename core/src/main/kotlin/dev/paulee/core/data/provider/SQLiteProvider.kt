@@ -2,14 +2,14 @@ package dev.paulee.core.data.provider
 
 import dev.paulee.api.data.RequiresData
 import dev.paulee.api.data.provider.IStorageProvider
-import dev.paulee.core.Logger
 import dev.paulee.core.data.sql.Database
+import org.slf4j.LoggerFactory.getLogger
 import java.nio.file.Path
 import kotlin.io.path.exists
 
 internal class SQLiteProvider : IStorageProvider {
 
-    private val logger = Logger.getLogger("SQLite StorageProvider")
+    private val logger = getLogger(SQLiteProvider::class.java)
 
     private lateinit var database: Database
 
@@ -28,7 +28,7 @@ internal class SQLiteProvider : IStorageProvider {
 
         runCatching { this.database.connect() }
             .getOrElse { e ->
-                this.logger.exception(e)
+                this.logger.error("Exception: Failed to connect to DB.", e)
                 return -1
             }
 

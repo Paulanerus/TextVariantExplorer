@@ -4,7 +4,6 @@ import dev.paulee.api.data.DataSource
 import dev.paulee.api.data.Index
 import dev.paulee.api.data.Language
 import dev.paulee.api.data.Unique
-import dev.paulee.core.Logger
 import dev.paulee.core.normalizeDataSource
 import org.apache.lucene.analysis.Analyzer
 import org.apache.lucene.analysis.en.EnglishAnalyzer
@@ -23,6 +22,7 @@ import org.apache.lucene.search.IndexSearcher
 import org.apache.lucene.store.BaseDirectory
 import org.apache.lucene.store.FSDirectory
 import org.apache.lucene.store.NIOFSDirectory
+import org.slf4j.LoggerFactory.getLogger
 import java.io.Closeable
 import java.nio.file.Path
 import kotlin.reflect.KClass
@@ -32,7 +32,7 @@ import kotlin.reflect.full.primaryConstructor
 
 class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
 
-    private val logger = Logger.getLogger("Indexer")
+    private val logger = getLogger(Indexer::class.java)
 
     private val directory: BaseDirectory
 
@@ -106,7 +106,12 @@ class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
             hasChanges = true
         }
 
-        if (hasChanges) runCatching { this.writer.commit() }.getOrElse { e -> this.logger.exception(e) }
+        if (hasChanges) runCatching { this.writer.commit() }.getOrElse { e ->
+            this.logger.error(
+                "Exception: Failed to commit changes.",
+                e
+            )
+        }
     }
 
     fun searchFieldIndex(field: String, query: String): List<Document> {
