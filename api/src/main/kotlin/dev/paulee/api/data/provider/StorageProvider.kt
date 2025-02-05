@@ -12,12 +12,12 @@ interface IStorageProvider : Closeable {
 
     fun init(dataInfo: RequiresData, path: Path, lock: Boolean = false): Int
 
-    fun insert(name: String, entry: List<Map<String, String>>)
+    fun insert(name: String, entries: List<Map<String, String>>)
 
     fun get(
         name: String,
-        ids: Set<Long> = emptySet<Long>(),
-        whereClause: List<String> = emptyList<String>(),
+        ids: Set<Long> = emptySet(),
+        whereClause: List<String> = emptyList(),
         filter: List<String> = emptyList(),
         offset: Int = 0,
         limit: Int = Int.MAX_VALUE,
@@ -25,8 +25,8 @@ interface IStorageProvider : Closeable {
 
     fun count(
         name: String,
-        ids: Set<Long> = emptySet<Long>(),
-        whereClause: List<String> = emptyList<String>(),
+        ids: Set<Long> = emptySet(),
+        whereClause: List<String> = emptyList(),
         filter: List<String> = emptyList(),
     ): Long
 }
