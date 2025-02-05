@@ -4,11 +4,7 @@ import java.nio.file.Path
 import java.nio.file.Paths
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
-import kotlin.io.path.appendText
-import kotlin.io.path.createDirectories
-import kotlin.io.path.createFile
-import kotlin.io.path.deleteIfExists
-import kotlin.io.path.notExists
+import kotlin.io.path.*
 import kotlin.system.exitProcess
 
 private const val RESET = "\u001B[0m"
@@ -65,7 +61,7 @@ class Logger private constructor(
         }
 
         private fun registerGlobalExceptionHandler() {
-            Thread.setDefaultUncaughtExceptionHandler { thread, exception ->
+            Thread.setDefaultUncaughtExceptionHandler { _, exception ->
                 val timestamp = getTimestamp()
 
                 val message = buildString {
@@ -92,7 +88,8 @@ class Logger private constructor(
 
     fun error(str: String) = this.log(str, LogType.ERROR)
 
-    fun exception(exception: Throwable) = this.log(exception.message + " | " + exception.stackTraceToString(), LogType.EXCEPTION)
+    fun exception(exception: Throwable) =
+        this.log(exception.message + " | " + exception.stackTraceToString(), LogType.EXCEPTION)
 
     private fun log(str: String?, type: LogType) {
         val timestamp = getTimestamp()
