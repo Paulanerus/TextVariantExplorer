@@ -29,6 +29,7 @@ private data class IndexSearchResult(
 }
 
 private class DataPool(val indexer: Indexer, dataInfo: RequiresData, val storageProvider: IStorageProvider) {
+
     var fields = mutableMapOf<String, Boolean>()
 
     var identifier = mutableMapOf<String, String>()
@@ -162,11 +163,17 @@ private class DataPool(val indexer: Indexer, dataInfo: RequiresData, val storage
 
 class DataServiceImpl : IDataService {
 
+    companion object {
+        private const val PAGE_SIZE = 50
+
+        private val variantPattern = Regex("@([^:]+):(\\S+)")
+
+        private val preFilterPattern = Regex("@[^:\\s]+:[^:\\s]+:[^:\\s]+")
+    }
+
     private var currentPool: String? = null
 
     private var currentField: String? = null
-
-    private val pageSize = 50
 
     private val pageCache = object : LinkedHashMap<Pair<Int, String>, PageResult>(3, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Pair<Int, String>, PageResult>?): Boolean {
@@ -317,8 +324,8 @@ class DataServiceImpl : IDataService {
             indexResult.ids,
             indexResult.tokens,
             filter,
-            offset = pageCount * this.pageSize,
-            limit = pageSize
+            offset = pageCount * PAGE_SIZE,
+            limit = PAGE_SIZE
         )
 
         val links = mutableMapOf<String, List<Map<String, String>>>()
@@ -353,13 +360,13 @@ class DataServiceImpl : IDataService {
 
         val indexResult = dataPool.search(this.handleReplacements(dataPool.metadata, filterQuery))
 
-        if (filter.isEmpty() && indexResult.isEmpty()) return return Pair(0, emptySet())
+        if (filter.isEmpty() && indexResult.isEmpty()) return Pair(0, emptySet())
 
         val count = dataPool.storageProvider.count(
             this.currentField!!, indexResult.ids, indexResult.tokens, filter
         )
 
-        return Pair(ceil(count / pageSize.toDouble()).toLong(), indexResult.indexedValues)
+        return Pair(ceil(count / PAGE_SIZE.toDouble()).toLong(), indexResult.indexedValues)
     }
 
     override fun createStorageProvider(dataInfo: RequiresData, path: Path): IStorageProvider? {
@@ -391,9 +398,7 @@ class DataServiceImpl : IDataService {
     private fun handleReplacements(replacements: Map<String, Any>, query: String): String {
         val dataPool = this.dataPools[this.currentPool] ?: return query
 
-        val pattern = Regex("@([^:]+):(\\S+)")
-
-        return pattern.replace(query) {
+        return variantPattern.replace(query) {
             val key = it.groupValues[1]
             val value = it.groupValues[2]
 
@@ -408,11 +413,9 @@ class DataServiceImpl : IDataService {
     }
 
     private fun getPreFilter(query: String): Pair<String, List<String>> {
-        val regex = Regex("@[^:\\s]+:[^:\\s]+:[^:\\s]+")
-
         val dataPool = this.dataPools[this.currentPool] ?: return Pair(query, emptyList())
 
-        val filters = regex.findAll(query).map { it.value }.toSet()
+        val filters = preFilterPattern.findAll(query).map { it.value }.toSet()
 
         val queryWithoutFilter = filters.fold(query) { acc, filter -> acc.replace(filter, "") }.trim()
 
