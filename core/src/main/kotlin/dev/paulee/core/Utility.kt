@@ -1,5 +1,21 @@
 package dev.paulee.core
 
+import org.slf4j.LoggerFactory.getLogger
+
+object GlobalExceptionHandler {
+
+    private val logger = getLogger(GlobalExceptionHandler::class.java)
+
+    init {
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            logger.error(
+                "Uncaught exception in thread ${thread.name}.",
+                throwable
+            )
+        }
+    }
+}
+
 fun splitStr(str: String, delimiter: Char, quoteCharacters: Array<Char> = arrayOf('"')): List<String> {
     val tokens = mutableListOf<String>()
 
