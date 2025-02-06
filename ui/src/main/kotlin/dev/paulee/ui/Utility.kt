@@ -122,9 +122,8 @@ fun HeatmapText(
                         }
 
                         token.startsWith("**") && token.endsWith("**") -> {
-                            val trimmedToken = token.removeSurrounding("**")
                             withStyle(style = SpanStyle(background = Color.Green.copy(alpha = 0.3f))) {
-                                append(trimmedToken)
+                                append(token.trim('*'))
                             }
                             ""
                         }
