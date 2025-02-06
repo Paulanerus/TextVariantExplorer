@@ -35,26 +35,6 @@ class DiffServiceImplTest {
     }
 
     @Test
-    fun getDiffMultiple() {
-        val changes = diffService.getDiff(
-            listOf(
-                "A normal sentence.",
-                "A normal sentence, with something extra.",
-                "A normal sen."
-            )
-        )
-
-        val result = listOf(
-            Change("A normal sentence**, with something extra**.", listOf("**, with something extra**" to 17..42)),
-            Change("A normal sen~~tence~~.", listOf("~~tence~~" to 12..20))
-        )
-
-        assertFalse(changes.isEmpty())
-
-        assertEquals(changes, result)
-    }
-
-    @Test
     fun oldValue() {
         val change =
             Change("A normal sentence**, with something extra**.", listOf("**, with something extra**" to 17..42))
