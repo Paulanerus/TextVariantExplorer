@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration>
+    <Properties>
+        <Property name="logFile">${sys:user.home}/.textexplorer/log.txt</Property>
+        <Property name="logPattern">${sys:user.home}/.textexplorer/log-%d{dd-MM-yyyy}-%i.txt.gz</Property>
+    </Properties>
+    <Appenders>
+        <Console name="Console" target="SYSTEM_OUT">
+            <PatternLayout disableAnsi="false"
+                           pattern="%highlight{%d{dd-MM-yyyy HH:mm:ss} [%level] %c{1} - %msg%n%throwable}{FATAL=red blink, ERROR=red, WARN=yellow, INFO=green, DEBUG=magenta, TRACE=blue}"/>
+        </Console>
+        <RollingFile name="RollingFileAppender" fileName="${logFile}" filePattern="${logPattern}">
+            <PatternLayout pattern="%d{dd-MM-yyyy HH:mm:ss} [%level] %c{1} - %msg%n%throwable"/>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+                <SizeBasedTriggeringPolicy size="10 MB"/>
+            </Policies>
+            <DefaultRolloverStrategy max="5"/>
+        </RollingFile>
+    </Appenders>
+    <Loggers>
+        <Root level="debug">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="RollingFileAppender"/>
+        </Root>
+    </Loggers>
+</Configuration>

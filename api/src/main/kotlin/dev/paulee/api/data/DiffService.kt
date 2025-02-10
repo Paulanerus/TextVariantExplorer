@@ -4,8 +4,6 @@ data class Change(val str: String, val tokens: List<Pair<String, IntRange>>)
 
 interface DiffService {
 
-    fun getDiff(strings: List<String>): List<Change>
-
     fun getDiff(original: String, str: String): Change?
 
     fun oldValue(change: Change): String

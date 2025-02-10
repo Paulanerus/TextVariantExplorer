@@ -45,7 +45,7 @@ fun TwoSegmentButton(
                 .width(maxSegmentWidth)
                 .clickable { onClick(false) }
                 .background(
-                    if (selected == false) Color.Gray else Color.LightGray,
+                    if (!selected) Color.Gray else Color.LightGray,
                     shape = RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp)
                 )
                 .padding(horizontal = 16.dp, vertical = 8.dp),
@@ -59,7 +59,7 @@ fun TwoSegmentButton(
                 .width(maxSegmentWidth)
                 .clickable { onClick(true) }
                 .background(
-                    if (selected == true) Color.Gray else Color.LightGray,
+                    if (selected) Color.Gray else Color.LightGray,
                     shape = RoundedCornerShape(topEnd = 8.dp, bottomEnd = 8.dp)
                 )
                 .padding(horizontal = 16.dp, vertical = 8.dp),

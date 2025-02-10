@@ -36,6 +36,7 @@ compose.desktop {
         }
 
         jvmArgs += listOf(
+            "--add-modules", "java.sql",
             "-Dapi.version=${property("api.version")}",
             "-Dcore.version=${property("core.version")}",
             "-Dui.version=${property("ui.version")}",
@@ -46,6 +47,7 @@ compose.desktop {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "TextExplorer"
 
+            modules += listOf("java.sql")
         }
     }
 }

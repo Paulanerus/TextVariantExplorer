@@ -7,25 +7,18 @@ import dev.paulee.api.data.DiffService
 class DiffServiceImpl : DiffService {
 
     private val generator =
-        DiffRowGenerator.create().mergeOriginalRevised(true).showInlineDiffs(true).oldTag { f -> "~~" }
-            .newTag { f -> "**" }.build()
+        DiffRowGenerator.create().mergeOriginalRevised(true).showInlineDiffs(true).oldTag { _ -> "~~" }
+            .newTag { _ -> "**" }.build()
 
-    override fun getDiff(strings: List<String>): List<Change> {
+    override fun getDiff(original: String, str: String): Change? {
+        if (original == str) return null
 
-        if (strings.size <= 1) return emptyList()
+        val output = generator.generateDiffRows(listOf(original), listOf(str))
 
-        val first = listOf(strings[0])
+        val oldLine = output.firstOrNull()?.oldLine ?: return null
 
-        return (1 until strings.size).map {
-            val output = generator.generateDiffRows(first, listOf(strings[it]))
-
-            val oldLine = output.first().oldLine
-
-            Change(oldLine, extractToken(oldLine))
-        }
+        return Change(oldLine, extractToken(oldLine))
     }
-
-    override fun getDiff(original: String, str: String): Change? = this.getDiff(listOf(original, str)).firstOrNull()
 
     override fun oldValue(change: Change): String = with(change) {
         tokens.fold(str) { acc, token ->

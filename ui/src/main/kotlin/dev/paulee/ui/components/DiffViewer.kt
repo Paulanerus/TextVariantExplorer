@@ -77,14 +77,14 @@ fun DiffViewerWindow(
     var selectedTextDrawable by remember { mutableStateOf(getDrawableName(selectedDrawablePlugin) ?: "") }
     var selectedTextTaggable by remember { mutableStateOf(getTagName(selectedTaggablePlugin) ?: "") }
     var showPopup by remember { mutableStateOf(false) }
-    var selected by remember { mutableStateOf(false) }
+    var pluginSelected by remember { mutableStateOf(false) }
     var segment by remember { mutableStateOf(false) }
 
-    val viewFilter = remember(selected) {
-        if (selected) pluginService.getViewFilter(selectedTaggablePlugin as IPlugin)?.fields.orEmpty()
+    val viewFilter = remember(pluginSelected) {
+        if (pluginSelected) pluginService.getViewFilter(selectedTaggablePlugin as IPlugin)?.fields.orEmpty()
             .filter { it.isNotBlank() }
         else associatedPlugins.mapNotNull { pluginService.getViewFilter(it) }.filter { it.global }
-            .flatMap { it.fields.filter { it.isNotBlank() }.toList().distinct() }
+            .flatMap { filter -> filter.fields.filter { it.isNotBlank() }.toList().distinct() }
     }
 
     Window(onCloseRequest = onClose, title = "DiffViewer") {
@@ -96,14 +96,14 @@ fun DiffViewerWindow(
                         "Plugin",
                         segment,
                         onClick = { segment = it },
-                        modifier = Modifier.align(Alignment.TopCenter)
+                        modifier = Modifier.align(Alignment.TopCenter).padding(top = 12.dp)
                     )
                 }
 
                 if (segment) {
-                    Box(modifier = Modifier.align(Alignment.TopStart).padding(16.dp)) {
+                    Box(modifier = Modifier.align(Alignment.TopStart).padding(16.dp)) inner@{
 
-                        if (selectedDrawablePlugin == null) return@Box
+                        if (selectedDrawablePlugin == null) return@inner
 
                         Text("Plugin:", fontWeight = FontWeight.Bold)
 
@@ -139,9 +139,9 @@ fun DiffViewerWindow(
 
                     selectedDrawablePlugin?.let { invokeDrawable(it, selectedRows) }
                 } else {
-                    Box(modifier = Modifier.align(Alignment.TopStart).padding(16.dp)) {
+                    Box(modifier = Modifier.align(Alignment.TopStart).padding(16.dp)) inner@{
 
-                        if (selectedTaggablePlugin == null) return@Box
+                        if (selectedTaggablePlugin == null) return@inner
 
                         Text("Tagger:", fontWeight = FontWeight.Bold)
 
@@ -157,7 +157,7 @@ fun DiffViewerWindow(
                                 }
                                 else Modifier))
 
-                            Checkbox(checked = selected, onCheckedChange = { selected = it })
+                            Checkbox(checked = pluginSelected, onCheckedChange = { pluginSelected = it })
                         }
 
                         DropdownMenu(
@@ -181,7 +181,7 @@ fun DiffViewerWindow(
                     }
 
                     Box(modifier = Modifier.fillMaxSize()) {
-                        if (selected) {
+                        if (pluginSelected) {
                             TagView(
                                 selectedRows,
                                 viewFilter,

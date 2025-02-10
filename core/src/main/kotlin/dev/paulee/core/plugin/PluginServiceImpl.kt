@@ -3,29 +3,23 @@ package dev.paulee.core.plugin
 import dev.paulee.api.data.*
 import dev.paulee.api.data.provider.IStorageProvider
 import dev.paulee.api.plugin.*
-import dev.paulee.core.Logger
 import dev.paulee.core.normalizeDataSource
+import org.slf4j.LoggerFactory.getLogger
 import java.net.URLClassLoader
 import java.nio.file.Path
 import java.util.jar.JarFile
-import kotlin.io.path.ExperimentalPathApi
 import kotlin.io.path.extension
 import kotlin.io.path.isDirectory
 import kotlin.io.path.walk
 import kotlin.reflect.KClass
-import kotlin.reflect.full.declaredFunctions
-import kotlin.reflect.full.findAnnotation
-import kotlin.reflect.full.functions
-import kotlin.reflect.full.hasAnnotation
-import kotlin.reflect.full.valueParameters
+import kotlin.reflect.full.*
 
 class PluginServiceImpl : IPluginService {
 
-    private val logger = Logger.getLogger("PluginService")
+    private val logger = getLogger(PluginServiceImpl::class.java)
 
     private val plugins = mutableListOf<IPlugin>()
 
-    @OptIn(ExperimentalPathApi::class)
     override fun loadFromDirectory(path: Path): Int {
         if (!path.isDirectory()) {
             this.logger.warn("$path is not a directory.")
@@ -51,7 +45,7 @@ class PluginServiceImpl : IPluginService {
 
             if (entryPoint == null) {
                 this.logger.warn("Plugin '$path' entrypoint is missing.")
-                return null
+                return@use null
             }
 
             val plugin = entryPoint.let { runCatching { Class.forName(it, true, classLoader) }.getOrNull() }
@@ -60,39 +54,39 @@ class PluginServiceImpl : IPluginService {
 
             if (plugin == null) {
                 this.logger.warn("'$path' is not a plugin.")
-                return null
+                return@use null
             }
 
             if (this.invalidInitFunc(plugin::class)) {
                 this.logger.warn("Invalid function structure.")
-                return null
+                return@use null
             }
 
             this.collectClasses(path).filter { it != entryPoint }
                 .forEach { runCatching { Class.forName(it, true, classLoader) } }
 
-            val metadata = plugin::class.findAnnotation<PluginMetadata>()
+            val metadata = this.getPluginMetadata(plugin)
 
             if (metadata == null) {
                 this.logger.warn("Plugin '$path' is missing PluginMetadata.")
-                return null
+                return@use null
             }
 
             if (metadata.name.isBlank() || metadata.version.isBlank()) {
                 this.logger.warn("Plugin '$path' is missing name and/or version.")
-                return null
+                return@use null
             }
 
-            if (plugin::class.findAnnotation<RequiresData>()?.name.isNullOrBlank()) {
+            if (this.getDataInfo(plugin)?.name.isNullOrBlank()) {
                 this.logger.warn("Plugin '$path' is missing data info annotation.")
-                return null
+                return@use null
             }
 
             this.plugins.add(plugin)
 
             this.logger.info("Loaded plugin (${metadata.name}).")
 
-            return plugin
+            return@use plugin
         }
     }
 
@@ -108,7 +102,11 @@ class PluginServiceImpl : IPluginService {
 
             val provider = dataService.createStorageProvider(dataInfo, path.resolve(dataInfo.name)) ?: return@forEach
 
-            runCatching { it.init(provider) }.getOrElse { e -> this.logger.exception(e) }
+            runCatching { it.init(provider) }.getOrElse { e ->
+                this.logger.error(
+                    "Exception: Failed to initialize plugin.", e
+                )
+            }
         }
 
         this.logger.info("Initialized plugins.")
@@ -118,14 +116,12 @@ class PluginServiceImpl : IPluginService {
 
     override fun getAllDataInfos(): Set<RequiresData> = this.plugins.mapNotNull { this.getDataInfo(it) }.toSet()
 
-    override fun getDataSources(datInfo: String): Set<String> {
+    override fun getDataSources(dataInfo: String): Set<String> {
         val dataSources = mutableSetOf<String>()
 
-        this.plugins.mapNotNull { this.getDataInfo(it) }
-            .filter { it.name == datInfo }
-            .map { it.sources }
-            .forEach {
-                it.forEach { clazz ->
+        this.plugins.mapNotNull { this.getDataInfo(it) }.filter { it.name == dataInfo }.map { it.sources }
+            .forEach { sources ->
+                sources.forEach { clazz ->
                     clazz.findAnnotation<DataSource>()?.file?.let { dataSources.add(normalizeDataSource(it)) }
                 }
             }
@@ -136,26 +132,22 @@ class PluginServiceImpl : IPluginService {
     override fun getViewFilter(plugin: IPlugin): ViewFilter? {
         val taggable = plugin as? Taggable ?: return null
 
-        val func = taggable::class.functions.find { it.name == "tag" } ?: return null
-
-        return func.findAnnotation<ViewFilter>()
+        return taggable::class.functions.find { it.name == "tag" }?.findAnnotation<ViewFilter>()
     }
 
-    override fun getVariants(dataInfo: RequiresData?): Set<String> =
-        dataInfo?.sources.orEmpty().mapNotNull {
-            val dataSource = it.findAnnotation<DataSource>() ?: return@mapNotNull null
+    override fun getVariants(dataInfo: RequiresData?): Set<String> = dataInfo?.sources.orEmpty().mapNotNull {
+        val dataSource = it.findAnnotation<DataSource>() ?: return@mapNotNull null
 
-            if (it.hasAnnotation<Variant>()) dataSource.file
-            else null
-        }.toSet()
+        if (it.hasAnnotation<Variant>()) dataSource.file
+        else null
+    }.toSet()
 
-    override fun getPreFilters(dataInfo: RequiresData?): Set<String> =
-        dataInfo?.sources.orEmpty().mapNotNull {
-            val dataSource = it.findAnnotation<DataSource>() ?: return@mapNotNull null
+    override fun getPreFilters(dataInfo: RequiresData?): Set<String> = dataInfo?.sources.orEmpty().mapNotNull {
+        val dataSource = it.findAnnotation<DataSource>() ?: return@mapNotNull null
 
-            if (it.hasAnnotation<PreFilter>()) dataSource.file
-            else null
-        }.toSet()
+        if (it.hasAnnotation<PreFilter>()) dataSource.file
+        else null
+    }.toSet()
 
     private fun getPluginEntryPoint(path: Path): String? =
         JarFile(path.toFile()).use { return it.manifest.mainAttributes.getValue("Main-Class") }

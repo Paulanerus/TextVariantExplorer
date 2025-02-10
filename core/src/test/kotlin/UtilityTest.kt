@@ -1,5 +1,3 @@
-import dev.paulee.core.toCamelCase
-import dev.paulee.core.toSnakeCase
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
@@ -24,19 +22,5 @@ class UtilityTest {
         assertEquals("file_1", dev.paulee.core.normalizeDataSource(sourceOne))
 
         assertEquals("file_2", dev.paulee.core.normalizeDataSource(sourceTwo))
-    }
-
-    @Test
-    fun toSnakeCase() {
-        val str = "myFunction"
-
-        assertEquals("my_function", str.toSnakeCase())
-    }
-
-    @Test
-    fun toCamelCase() {
-        val str = "my_function"
-
-        assertEquals("MyFunction", str.toCamelCase())
     }
 }

@@ -2,14 +2,14 @@ package dev.paulee.core.data.provider
 
 import dev.paulee.api.data.RequiresData
 import dev.paulee.api.data.provider.IStorageProvider
-import dev.paulee.core.Logger
 import dev.paulee.core.data.sql.Database
+import org.slf4j.LoggerFactory.getLogger
 import java.nio.file.Path
 import kotlin.io.path.exists
 
 internal class SQLiteProvider : IStorageProvider {
 
-    private val logger = Logger.getLogger("SQLite StorageProvider")
+    private val logger = getLogger(SQLiteProvider::class.java)
 
     private lateinit var database: Database
 
@@ -28,7 +28,7 @@ internal class SQLiteProvider : IStorageProvider {
 
         runCatching { this.database.connect() }
             .getOrElse { e ->
-                this.logger.exception(e)
+                this.logger.error("Exception: Failed to connect to DB.", e)
                 return -1
             }
 
@@ -76,8 +76,8 @@ internal class SQLiteProvider : IStorageProvider {
         whereClause: List<String>,
         filter: List<String>,
     ): MutableMap<String, List<String>>? {
-        var entries = whereClause.filter { it.contains(":") }.groupBy { it.substringBefore(":") }
-            .mapValues { it.value.map { it.substringAfter(":") } }.toMutableMap()
+        val entries = whereClause.filter { it.contains(":") }.groupBy { it.substringBefore(":") }
+            .mapValues { entry -> entry.value.map { it.substringAfter(":") } }.toMutableMap()
 
         val primaryKey = this.database.primaryKeyOf(name)
 
@@ -90,7 +90,7 @@ internal class SQLiteProvider : IStorageProvider {
 
         if (filter.isNotEmpty()) {
             val groupedFilters = filter.filter { it.contains(":") }.groupBy { it.substringBefore(":") }
-                .mapValues { it.value.map { it.substringAfter(":") } }.toMutableMap()
+                .mapValues { entry -> entry.value.map { it.substringAfter(":") } }.toMutableMap()
 
             if (entries.isEmpty()) return groupedFilters
 

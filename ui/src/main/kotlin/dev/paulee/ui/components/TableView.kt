@@ -1,6 +1,7 @@
 package dev.paulee.ui.components
 
 import androidx.compose.foundation.*
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -15,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -32,7 +34,7 @@ var widthLimitWrapper by mutableStateOf(Config.noWidthRestriction)
 fun TableView(
     modifier: Modifier = Modifier,
     pool: String,
-    indexStrings: Set<String> = emptySet<String>(),
+    indexStrings: Set<String> = emptySet(),
     columns: List<String>,
     data: List<List<String>>,
     links: Map<String, List<Map<String, String>>> = emptyMap(),
@@ -164,46 +166,58 @@ fun TableView(
                     LazyColumn(state = verticalScrollState) {
                         items(data.size) { rowIndex ->
                             val row = data[rowIndex]
-                            SelectionContainer {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().clickable {
-                                        val selected = if (selectedRows.contains(rowIndex)) {
-                                            selectedRows - rowIndex
-                                        } else {
-                                            selectedRows + rowIndex
-                                        }
-                                        selectedRows = selected
-                                        onRowSelect(selected.map { rowIdx -> columns.zip(data[rowIdx]).toMap() })
-                                    }
-                                        .background(if (selectedRows.contains(rowIndex)) Color.LightGray else Color.Transparent)
-                                        .padding(vertical = 8.dp),
-                                ) {
-                                    row.forEachIndexed { colIndex, cell ->
-                                        if (hiddenColumns.contains(colIndex)) return@forEachIndexed
-
-                                        val col = columns[colIndex]
-
-                                        val link = links[col]?.find { it[col] == cell }
-
-                                        TooltipArea(
-                                            tooltip = {
-                                                if (link == null) return@TooltipArea
-
-                                                Surface(
-                                                    color = Color.Gray, shape = RoundedCornerShape(4.dp)
-                                                ) {
-                                                    Text(
-                                                        text = link.toString(), modifier = Modifier.padding(10.dp)
-                                                    )
+                            Row(
+                                modifier = Modifier.fillMaxWidth().pointerInput(rowIndex) {
+                                    detectTapGestures(
+                                        onTap = {
+                                            val newSelection =
+                                                if (selectedRows.contains(rowIndex)) {
+                                                    selectedRows - rowIndex
+                                                } else {
+                                                    selectedRows + rowIndex
                                                 }
-                                            }) {
+                                            selectedRows = newSelection
+                                            onRowSelect(
+                                                newSelection.map { idx ->
+                                                    columns.zip(data[idx]).toMap()
+                                                }
+                                            )
+                                        }
+                                    )
+                                }
+                                    .background(if (selectedRows.contains(rowIndex)) Color.LightGray else Color.Transparent)
+                                    .padding(vertical = 8.dp),
+                            ) {
+                                row.forEachIndexed { colIndex, cell ->
+                                    if (hiddenColumns.contains(colIndex)) return@forEachIndexed
+
+                                    val col = columns[colIndex]
+
+                                    val link = links[col]?.find { it[col] == cell }
+
+                                    TooltipArea(
+                                        tooltip = {
+                                            if (link == null) return@TooltipArea
+
+                                            Surface(
+                                                color = Color.Gray, shape = RoundedCornerShape(4.dp)
+                                            ) {
+                                                Text(
+                                                    text = link.toString(), modifier = Modifier.padding(10.dp)
+                                                )
+                                            }
+                                        }) {
+                                        SelectionContainer {
                                             MarkedText(
                                                 modifier = Modifier.width(columnWidths[colIndex])
                                                     .padding(horizontal = 4.dp),
                                                 textDecoration = if (link == null) TextDecoration.None else TextDecoration.Underline,
                                                 text = cell,
-                                                highlights = if (indexStrings.isEmpty()) emptyMap() else indexStrings.associate {
-                                                    it to Tag("", java.awt.Color.green)
+                                                highlights = if (indexStrings.isEmpty()) emptyMap() else indexStrings.associateWith {
+                                                    Tag(
+                                                        "",
+                                                        java.awt.Color.green
+                                                    )
                                                 })
                                         }
                                     }

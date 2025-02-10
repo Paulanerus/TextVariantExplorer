@@ -122,9 +122,8 @@ fun HeatmapText(
                         }
 
                         token.startsWith("**") && token.endsWith("**") -> {
-                            val trimmedToken = token.removeSurrounding("**")
                             withStyle(style = SpanStyle(background = Color.Green.copy(alpha = 0.3f))) {
-                                append(trimmedToken)
+                                append(token.trim('*'))
                             }
                             ""
                         }
@@ -154,6 +153,7 @@ fun invokeDrawable(drawable: Drawable, entries: List<Map<String, String>>) {
             when {
                 it.hasNoParameters() -> (it.call(drawable) as? (@Composable () -> Unit))?.invoke()
                 it.hasEntryParameter() -> (it.call(drawable, entries) as? (@Composable () -> Unit))?.invoke()
+                else -> {}
             }
         }
 }

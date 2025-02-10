@@ -2,12 +2,12 @@ package dev.paulee.core.data
 
 import dev.paulee.api.data.*
 import dev.paulee.api.data.provider.IStorageProvider
-import dev.paulee.core.Logger
 import dev.paulee.core.data.analysis.Indexer
 import dev.paulee.core.data.io.BufferedCSVReader
 import dev.paulee.core.data.provider.StorageProvider
 import dev.paulee.core.normalizeDataSource
 import dev.paulee.core.splitStr
+import org.slf4j.LoggerFactory.getLogger
 import java.nio.file.Path
 import kotlin.io.path.createDirectories
 import kotlin.io.path.exists
@@ -16,19 +16,20 @@ import kotlin.math.ceil
 import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.primaryConstructor
 
-private val logger = Logger.getLogger("DataService")
+private val logger = getLogger(DataServiceImpl::class.java)
 
 typealias PageResult = Pair<List<Map<String, String>>, Map<String, List<Map<String, String>>>>
 
 private data class IndexSearchResult(
-    val ids: Set<Long> = emptySet<Long>(),
-    val tokens: List<String> = emptyList<String>(),
-    val indexedValues: Set<String> = emptySet<String>(),
+    val ids: Set<Long> = emptySet(),
+    val tokens: List<String> = emptyList(),
+    val indexedValues: Set<String> = emptySet(),
 ) {
     fun isEmpty(): Boolean = ids.isEmpty() && tokens.isEmpty()
 }
 
 private class DataPool(val indexer: Indexer, dataInfo: RequiresData, val storageProvider: IStorageProvider) {
+
     var fields = mutableMapOf<String, Boolean>()
 
     var identifier = mutableMapOf<String, String>()
@@ -53,8 +54,8 @@ private class DataPool(val indexer: Indexer, dataInfo: RequiresData, val storage
 
             val normalized = normalizeDataSource(file)
 
-            clazz.primaryConstructor?.parameters.orEmpty().forEach { param ->
-                val name = param.name ?: return@forEach
+            clazz.primaryConstructor?.parameters.orEmpty().forEach inner@{ param ->
+                val name = param.name ?: return@inner
 
                 val key = "$normalized.$name"
                 fields[key] = false
@@ -162,11 +163,17 @@ private class DataPool(val indexer: Indexer, dataInfo: RequiresData, val storage
 
 class DataServiceImpl : IDataService {
 
+    companion object {
+        private const val PAGE_SIZE = 50
+
+        private val variantPattern = Regex("@([^:]+):(\\S+)")
+
+        private val preFilterPattern = Regex("@[^:\\s]+:[^:\\s]+:[^:\\s]+")
+    }
+
     private var currentPool: String? = null
 
     private var currentField: String? = null
-
-    private val pageSize = 50
 
     private val pageCache = object : LinkedHashMap<Pair<Int, String>, PageResult>(3, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Pair<Int, String>, PageResult>?): Boolean {
@@ -194,7 +201,7 @@ class DataServiceImpl : IDataService {
                 storageProvider = storageProvider
             )
         }.getOrElse { e ->
-            logger.exception(e)
+            logger.error("Exception: Failed to create data pool.", e)
             return false
         }
 
@@ -317,12 +324,12 @@ class DataServiceImpl : IDataService {
             indexResult.ids,
             indexResult.tokens,
             filter,
-            offset = pageCount * this.pageSize,
-            limit = pageSize
+            offset = pageCount * PAGE_SIZE,
+            limit = PAGE_SIZE
         )
 
         val links = mutableMapOf<String, List<Map<String, String>>>()
-        dataPool.links.forEach { key, value ->
+        dataPool.links.forEach { (key, value) ->
             val keyField = key.substringAfter('.')
 
             val (valSource, valField) = value.split('.', limit = 2)
@@ -353,13 +360,13 @@ class DataServiceImpl : IDataService {
 
         val indexResult = dataPool.search(this.handleReplacements(dataPool.metadata, filterQuery))
 
-        if (filter.isEmpty() && indexResult.isEmpty()) return return Pair(0, emptySet())
+        if (filter.isEmpty() && indexResult.isEmpty()) return Pair(0, emptySet())
 
         val count = dataPool.storageProvider.count(
             this.currentField!!, indexResult.ids, indexResult.tokens, filter
         )
 
-        return Pair(ceil(count / pageSize.toDouble()).toLong(), indexResult.indexedValues)
+        return Pair(ceil(count / PAGE_SIZE.toDouble()).toLong(), indexResult.indexedValues)
     }
 
     override fun createStorageProvider(dataInfo: RequiresData, path: Path): IStorageProvider? {
@@ -391,9 +398,7 @@ class DataServiceImpl : IDataService {
     private fun handleReplacements(replacements: Map<String, Any>, query: String): String {
         val dataPool = this.dataPools[this.currentPool] ?: return query
 
-        val pattern = Regex("@([^:]+):(\\S+)")
-
-        return pattern.replace(query) {
+        return variantPattern.replace(query) {
             val key = it.groupValues[1]
             val value = it.groupValues[2]
 
@@ -408,11 +413,9 @@ class DataServiceImpl : IDataService {
     }
 
     private fun getPreFilter(query: String): Pair<String, List<String>> {
-        val regex = Regex("@[^:\\s]+:[^:\\s]+:[^:\\s]+")
-
         val dataPool = this.dataPools[this.currentPool] ?: return Pair(query, emptyList())
 
-        val filters = regex.findAll(query).map { it.value }.toSet()
+        val filters = preFilterPattern.findAll(query).map { it.value }.toSet()
 
         val queryWithoutFilter = filters.fold(query) { acc, filter -> acc.replace(filter, "") }.trim()
 

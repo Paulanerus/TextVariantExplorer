@@ -4,7 +4,6 @@ import dev.paulee.api.data.DataSource
 import dev.paulee.api.data.Index
 import dev.paulee.api.data.Language
 import dev.paulee.api.data.Unique
-import dev.paulee.core.Logger
 import dev.paulee.core.normalizeDataSource
 import org.apache.lucene.analysis.Analyzer
 import org.apache.lucene.analysis.en.EnglishAnalyzer
@@ -23,6 +22,7 @@ import org.apache.lucene.search.IndexSearcher
 import org.apache.lucene.store.BaseDirectory
 import org.apache.lucene.store.FSDirectory
 import org.apache.lucene.store.NIOFSDirectory
+import org.slf4j.LoggerFactory.getLogger
 import java.io.Closeable
 import java.nio.file.Path
 import kotlin.reflect.KClass
@@ -32,7 +32,7 @@ import kotlin.reflect.full.primaryConstructor
 
 class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
 
-    private val logger = Logger.getLogger("Indexer")
+    private val logger = getLogger(Indexer::class.java)
 
     private val directory: BaseDirectory
 
@@ -60,15 +60,16 @@ class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
             ) return@forEach
 
             it.primaryConstructor?.parameters.orEmpty()
-                .forEach { param ->
-                    val paramName = param.name ?: return@forEach
+                .forEach inner@{ param ->
+                    val paramName = param.name ?: return@inner
 
                     param.findAnnotation<Index>()?.also { index ->
                         this.mappedAnalyzer["$normalized.$paramName"] = LangAnalyzer.new(index.lang)
                     }
 
-                    param.findAnnotation<Unique>()?.takeIf { param.type.classifier == Long::class && it.identify }
-                        ?.also { unique -> this.idFields.add("$normalized.$paramName") }
+                    param.findAnnotation<Unique>()
+                        ?.takeIf { unique -> param.type.classifier == Long::class && unique.identify }
+                        ?.also { this.idFields.add("$normalized.$paramName") }
                 }
 
             this.idFields.add("${normalized}_ag_id")
@@ -94,11 +95,22 @@ class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
     fun indexEntries(name: String, entries: List<Map<String, String>>) {
         if (this.mappedAnalyzer.isEmpty() || entries.isEmpty()) return
 
+        var hasChanges = false
+
         entries.forEach {
             val fieldName = idFields.find { it.startsWith(name) } ?: return@forEach
             val fieldValue = it[fieldName.substringAfter("$name.")] ?: return@forEach
 
             this.writer.updateDocument(Term(fieldName, fieldValue), this.createDoc(name, it))
+
+            hasChanges = true
+        }
+
+        if (hasChanges) runCatching { this.writer.commit() }.getOrElse { e ->
+            this.logger.error(
+                "Exception: Failed to commit changes.",
+                e
+            )
         }
     }
 
@@ -136,7 +148,7 @@ class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
         operator.entries.fold(query) { acc, entry -> acc.replace(entry.key.toRegex(), entry.value) }
 
     private fun createDoc(name: String, map: Map<String, String>): Document = Document().apply {
-        map.forEach { key, value ->
+        map.forEach { (key, value) ->
             val id = "$name.$key"
 
             if (idFields.contains(id) || idFields.contains(key)) {

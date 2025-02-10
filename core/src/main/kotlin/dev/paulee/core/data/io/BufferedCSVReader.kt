@@ -1,15 +1,15 @@
 package dev.paulee.core.data.io
 
-import dev.paulee.core.Logger
 import dev.paulee.core.splitStr
+import org.slf4j.LoggerFactory.getLogger
 import java.nio.file.Path
 import kotlin.io.path.bufferedReader
 
 internal class BufferedCSVReader(private val path: Path, private val delimiter: Char = ',') {
 
-    private val logger = Logger.getLogger("CSVReader")
+    private val logger = getLogger(BufferedCSVReader::class.java)
 
-    var errorCount: Long = 0
+    private var errorCount: Long = 0
 
     private var reader = path.bufferedReader()
 
@@ -57,7 +57,7 @@ internal class BufferedCSVReader(private val path: Path, private val delimiter: 
     private fun readLine(): String? {
         val line = runCatching { this.reader.readLine() }
             .getOrElse { e ->
-                this.logger.exception(e)
+                this.logger.error("Exception: Failed to read line.", e)
                 null
             } ?: return null
 
@@ -67,7 +67,7 @@ internal class BufferedCSVReader(private val path: Path, private val delimiter: 
 
         while ((this.getDelimiterCount(fullLine) + 1) < this.headSize) {
             fullLine += runCatching { this.reader.readLine() }.getOrElse { e ->
-                this.logger.exception(e)
+                this.logger.error("Exception: Failed to read line (while).", e)
                 null
             }?.trim() ?: ""
         }
