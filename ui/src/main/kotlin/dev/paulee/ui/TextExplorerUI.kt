@@ -74,6 +74,7 @@ class TextExplorerUI(
         var showPopup by remember { mutableStateOf(false) }
         var isOpened by remember { mutableStateOf(false) }
         var totalPages by remember { mutableStateOf(0L) }
+        var amount by remember { mutableStateOf(0L) }
         var currentPage by remember { mutableStateOf(0) }
 
         var selectedText = remember(this.poolSelected) {
@@ -182,7 +183,9 @@ class TextExplorerUI(
                         IconButton(
                             onClick = {
                                 currentPage = 0
-                                val (pages, indexed) = dataService.getPageCount(text)
+                                val (count, pages, indexed) = dataService.getPageCount(text)
+
+                                amount = count
 
                                 totalPages = pages
 
@@ -235,7 +238,10 @@ class TextExplorerUI(
                                 onRowSelect = { selectedRows = it },
                                 clicked = { displayDiffWindow = true })
 
-                            if (totalPages < 2) return@inner
+                            if (totalPages < 2){
+                                Text("Total: $amount", modifier = Modifier.align(Alignment.CenterHorizontally))
+                                return@inner
+                            }
 
                             Spacer(modifier = Modifier.height(8.dp))
 
@@ -260,7 +266,7 @@ class TextExplorerUI(
                                     Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Left")
                                 }
 
-                                Text("Page ${currentPage + 1} of $totalPages")
+                                Text("Page ${currentPage + 1} of $totalPages (Total: $amount)")
 
                                 IconButton(
                                     onClick = {

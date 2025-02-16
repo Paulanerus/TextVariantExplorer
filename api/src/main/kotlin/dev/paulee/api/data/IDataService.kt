@@ -20,7 +20,7 @@ interface IDataService : Closeable {
 
     fun getPage(query: String, pageCount: Int): Pair<List<Map<String, String>>, Map<String, List<Map<String, String>>>>
 
-    fun getPageCount(query: String): Pair<Long, Set<String>>
+    fun getPageCount(query: String): Triple<Long, Long, Set<String>>
 
     fun createStorageProvider(dataInfo: RequiresData, path: Path): IStorageProvider?
 }
