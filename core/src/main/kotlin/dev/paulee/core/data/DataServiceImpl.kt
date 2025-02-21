@@ -350,23 +350,30 @@ class DataServiceImpl : IDataService {
         return result
     }
 
-    override fun getPageCount(query: String): Pair<Long, Set<String>> {
+    override fun getPageCount(query: String): Triple<Long, Long, Set<String>> {
 
-        if (this.currentPool == null || this.currentField == null) return Pair(-1, emptySet())
+        if (this.currentPool == null || this.currentField == null) return Triple(-1, -1, emptySet())
 
-        val dataPool = this.dataPools[this.currentPool] ?: return Pair(-1, emptySet())
+        val dataPool = this.dataPools[this.currentPool] ?: return Triple(-1, -1, emptySet())
 
         val (filterQuery, filter) = this.getPreFilter(query)
 
         val indexResult = dataPool.search(this.handleReplacements(dataPool.metadata, filterQuery))
 
-        if (filter.isEmpty() && indexResult.isEmpty()) return Pair(0, emptySet())
+        if (filter.isEmpty() && indexResult.isEmpty()) return Triple(0, 0, emptySet())
 
         val count = dataPool.storageProvider.count(
             this.currentField!!, indexResult.ids, indexResult.tokens, filter
         )
 
-        return Pair(ceil(count / PAGE_SIZE.toDouble()).toLong(), indexResult.indexedValues)
+        val indexedValues =
+            indexResult.indexedValues
+                .flatMap { splitStr(it, ' ') }
+                .map { it.trim('(', ')') }
+                .mapNotNull { flattenToken(it) }
+                .toSet()
+
+        return Triple(count, ceil(count / PAGE_SIZE.toDouble()).toLong(), indexedValues)
     }
 
     override fun createStorageProvider(dataInfo: RequiresData, path: Path): IStorageProvider? {
@@ -446,4 +453,14 @@ class DataServiceImpl : IDataService {
                     }
             }.distinct()
     }
+
+    private fun flattenToken(token: String): String? {
+        return if (token.equals("and", false) || token.equals("not", false) || token.equals(
+                "or",
+                false
+            ) || token.isBlank() || token.length < 2
+        ) null
+        else token.trim()
+    }
 }
+    

@@ -200,11 +200,16 @@ fun TableView(
                                             if (link == null) return@TooltipArea
 
                                             Surface(
-                                                color = Color.Gray, shape = RoundedCornerShape(4.dp)
+                                                color = Color.LightGray, shape = RoundedCornerShape(4.dp)
                                             ) {
-                                                Text(
-                                                    text = link.toString(), modifier = Modifier.padding(10.dp)
-                                                )
+                                                Column(modifier = Modifier.padding(8.dp)) {
+                                                    link.filter { !it.key.endsWith("_ag_id") }.forEach { entry ->
+                                                        Row {
+                                                            Text(text = entry.key, fontWeight = FontWeight.Bold)
+                                                            Text(text = ": ${entry.value}")
+                                                        }
+                                                    }
+                                                }
                                             }
                                         }) {
                                         SelectionContainer {

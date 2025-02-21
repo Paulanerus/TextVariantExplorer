@@ -35,7 +35,7 @@ fun MarkedText(
 ) {
     val allMatches = remember(text, highlights) {
         buildList {
-            highlights.filter { it.key.isNotBlank() }.forEach { (word, tagAndColor) ->
+            highlights.filter { it.key.isNotBlank() && it.key.length > 1 }.forEach { (word, tagAndColor) ->
                 val (tag, color) = tagAndColor
 
                 var searchIndex = 0
@@ -54,22 +54,34 @@ fun MarkedText(
                             color = color.toComposeColor()
                         )
                     )
-
-                    searchIndex = foundIndex + word.length
+                    searchIndex = foundIndex + 1
                 }
             }
-        }.sortedBy { it.start }
+        }.sortedWith(compareBy({ it.start }, { -it.end }))
     }
 
-    val annotatedString = remember(text, allMatches) {
+    val selectedMatches = remember(allMatches) {
+        buildList {
+            var lastEnd = 0
+
+            allMatches.forEach {
+                if (it.start < lastEnd) return@forEach
+
+                add(it)
+                lastEnd = it.end
+            }
+        }
+    }
+
+    val annotatedString = remember(text, selectedMatches) {
         buildAnnotatedString {
             var currentIndex = 0
 
-            allMatches.forEach {
+            selectedMatches.forEach {
                 if (it.start > currentIndex) append(text.substring(currentIndex, it.start))
 
                 withStyle(style = SpanStyle(background = it.color.copy(alpha = 0.3f))) {
-                    append("${it.word} ")
+                    append(it.word)
                 }
 
                 if (it.tag.isNotEmpty()) {
@@ -80,6 +92,8 @@ fun MarkedText(
                     ) {
                         append(" ${it.tag} ")
                     }
+
+                    append(" ")
                 }
 
                 currentIndex = it.end
