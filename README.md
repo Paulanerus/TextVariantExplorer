@@ -10,7 +10,7 @@ This is a tool designed for the exploration and comparison of variants of textua
    - Get the [latest release](https://github.com/Paulanerus/TextExplorer/releases/latest) of the application and install it on your system
 
 2. **Obtain a Plugin and Dataset**
-   - Download a demo plugin along with its [corresponding dataset](https://zenodo.org/records/12723324), or create your own
+   - Download a demo plugin from the release page along with its [corresponding dataset](https://zenodo.org/records/12723324), or create your own
 
 3. **Load the Plugin**
    - Start the application
