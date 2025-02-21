@@ -455,6 +455,12 @@ class DataServiceImpl : IDataService {
     }
 
     private fun flattenToken(token: String): String? {
-        return token.trim()
+        return if (token.equals("and", false) || token.equals("not", false) || token.equals(
+                "or",
+                false
+            ) || token.isBlank() || token.length < 2
+        ) null
+        else token.trim()
     }
 }
+    
