@@ -56,6 +56,32 @@ jobs:
       - name: Upload API
         run: gh release upload v${{ env.VERSION }} api/build/libs/api-${{ env.API_VERSION }}.jar --clobber
 
+  build-plugin:
+    needs: create-release
+
+    runs-on: ubuntu-latest
+
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ needs.create-release.outputs.version }}
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4.5.0
+        with:
+          java-version: '21'
+          distribution: 'corretto'
+          cache: 'gradle'
+
+      - name: Build Demo Plugin
+        run: ./gradlew :plugins:demo:jar
+
+      - name: Upload Demo Plugin
+        run: gh release upload v${{ env.VERSION }} plugins/demo/build/libs/demo-1.0.jar --clobber
+
   build:
     needs: create-release
 
