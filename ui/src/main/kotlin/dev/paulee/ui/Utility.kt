@@ -92,6 +92,8 @@ fun MarkedText(
                     ) {
                         append(" ${it.tag} ")
                     }
+
+                    append(" ")
                 }
 
                 currentIndex = it.end
