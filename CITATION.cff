@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+title: TextExplorer
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Paulanerus
+repository-code: 'https://github.com/Paulanerus/TextExplorer'
+url: 'https://paulee.dev/textexplorer/'
+repository-artifact: >-
+  https://github.com/Paulanerus/TextExplorer/releases/tag/v1.9.3
+abstract: >-
+  A tool designed for the exploration, analysis, and
+  comparison of textual data variants.
+license: GPL-3.0
+commit: ce81dce
+version: 1.9.3
+date-released: '2025-02-21'
