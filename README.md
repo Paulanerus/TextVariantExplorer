@@ -38,6 +38,10 @@ This is a tool designed for the exploration and comparison of variants of textua
 
 To create plugins for TextExplorer, see the [API ReadMe](api/README.md) for details.
 
+## Citation
+
+If you use TextExplorer in your research, please cite it using the information provided in the [CITATION.cff](CITATION.cff) file.
+
 ## Support
 
 If you have any problems or questions about this project, please get in touch. You can
