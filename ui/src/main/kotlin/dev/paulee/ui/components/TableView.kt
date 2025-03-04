@@ -167,7 +167,7 @@ fun TableView(
                         items(data.size) { rowIndex ->
                             val row = data[rowIndex]
                             Row(
-                                modifier = Modifier.fillMaxWidth().pointerInput(rowIndex) {
+                                modifier = Modifier.fillMaxWidth().pointerInput(rowIndex, selectedRows) {
                                     detectTapGestures(
                                         onTap = {
                                             val newSelection =
