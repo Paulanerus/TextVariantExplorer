@@ -9,11 +9,11 @@ authors:
 repository-code: 'https://github.com/Paulanerus/TextExplorer'
 url: 'https://paulee.dev/textexplorer/'
 repository-artifact: >-
-  https://github.com/Paulanerus/TextExplorer/releases/tag/v1.9.3
+  https://github.com/Paulanerus/TextExplorer/releases/tag/v1.0.0
 abstract: >-
   A tool designed for the exploration, analysis, and
   comparison of textual data variants.
 license: GPL-3.0
-commit: ce81dce
-version: 1.9.3
-date-released: '2025-02-21'
+commit: 4656267
+version: 1.0.0
+date-released: '2025-03-04'
