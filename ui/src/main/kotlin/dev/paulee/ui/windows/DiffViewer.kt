@@ -90,8 +90,7 @@ fun DiffViewerWindow(
             .flatMap { filter -> filter.fields.filter { it.isNotBlank() }.toList().distinct() }
     }
 
-    val windowState =
-        rememberWindowState(position = WindowPosition.Aligned(Alignment.Center))
+    val windowState = rememberWindowState(position = WindowPosition.Aligned(Alignment.Center))
 
     Window(state = windowState, onCloseRequest = onClose, title = "DiffViewer") {
         MaterialTheme {
@@ -219,7 +218,7 @@ private fun TagView(
     taggable: Taggable?,
     modifier: Modifier = Modifier,
 ) {
-    var entries by remember { mutableStateOf(initialEntries) }
+    val entries by remember { mutableStateOf(initialEntries) }
 
     val allFieldsGrouped =
         entries.flatMap { it.entries }.groupBy({ it.key }, { it.value }).filterValues { it.isNotEmpty() }
@@ -252,8 +251,8 @@ private fun TagView(
             Box(modifier = Modifier.padding(horizontal = 32.dp)) {
                 Column(
                     verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    if (columns.isEmpty()) return@Column
+                ) inner@{
+                    if (columns.isEmpty()) return@inner
 
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         IconButton(
@@ -349,8 +348,8 @@ private fun DiffView(
             Box(modifier = Modifier.padding(horizontal = 32.dp)) {
                 Column(
                     verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    if (columns.isEmpty()) return@Column
+                ) inner@{
+                    if (columns.isEmpty()) return@inner
 
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         IconButton(
