@@ -233,7 +233,7 @@ internal class Database(path: Path) : Closeable {
 
                 tables.add(table)
             }
-        }.getOrElse { e -> logger.error("TODO", e) }
+        }.getOrElse { e -> logger.error("Exception: Failed to create table for class '${klass.simpleName}' due to an unexpected error.", e) }
     }
 
     fun primaryKeyOf(name: String): String? = tables.find { it.name == name }?.primaryKey?.name
@@ -253,7 +253,7 @@ internal class Database(path: Path) : Closeable {
                 table.selectAll(this, whereClause, offset, limit)
             }
         }.getOrElse { e ->
-            logger.error("TODO", e)
+            logger.error("Exception: Failed to retrieve entries from table '$name' due to an unexpected error.", e)
             emptyList()
         }
     }
@@ -268,7 +268,7 @@ internal class Database(path: Path) : Closeable {
                 table.count(this, whereClause)
             }
         }.getOrElse { e ->
-            logger.error("TODO", e)
+            logger.error("Exception: Failed to count entries in table '$name' due to an unexpected error.", e)
             0
         }
     }
