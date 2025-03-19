@@ -1,4 +1,4 @@
-package dev.paulee.ui.components
+package dev.paulee.ui.windows
 
 import androidx.compose.foundation.VerticalScrollbar
 import androidx.compose.foundation.layout.*
@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.rememberWindowState
 import dev.paulee.api.data.RequiresData
 import dev.paulee.api.plugin.IPluginService
@@ -26,7 +27,7 @@ fun PluginInfoWindow(pluginService: IPluginService, onClose: () -> Unit) {
     val scrollState = rememberScrollState()
 
     val windowState =
-        rememberWindowState(size = DpSize(500.dp, 600.dp))
+        rememberWindowState(position = WindowPosition.Aligned(Alignment.Center), size = DpSize(500.dp, 600.dp))
 
     Window(state = windowState, onCloseRequest = onClose, title = "Plugin Info") {
         MaterialTheme {

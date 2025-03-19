@@ -25,9 +25,22 @@ import androidx.compose.ui.window.rememberWindowState
 import dev.paulee.api.data.DiffService
 import dev.paulee.api.data.IDataService
 import dev.paulee.api.plugin.IPluginService
-import dev.paulee.ui.components.*
+import dev.paulee.ui.components.DropDownMenu
+import dev.paulee.ui.components.FileDialog
+import dev.paulee.ui.components.TableView
+import dev.paulee.ui.components.widthLimitWrapper
+import dev.paulee.ui.windows.DiffViewerWindow
+import dev.paulee.ui.windows.PluginInfoWindow
 import java.nio.file.Path
 import kotlin.io.path.*
+
+enum class Window {
+    NONE,
+    LOAD_PLUGIN,
+    LOAD_DATA,
+    DIFF,
+    PLUGIN_INFO
+}
 
 class TextExplorerUI(
     private val pluginService: IPluginService,
@@ -68,11 +81,9 @@ class TextExplorerUI(
     private fun content() {
         var text by remember { mutableStateOf("") }
         var selectedRows by remember { mutableStateOf(listOf<Map<String, String>>()) }
-        var pluginInfoWindow by remember { mutableStateOf(false) }
-        var displayDiffWindow by remember { mutableStateOf(false) }
+        var openWindow by remember { mutableStateOf(Window.NONE) }
         var showTable by remember { mutableStateOf(false) }
         var showPopup by remember { mutableStateOf(false) }
-        var isOpened by remember { mutableStateOf(false) }
         var totalPages by remember { mutableStateOf(0L) }
         var amount by remember { mutableStateOf(0L) }
         var currentPage by remember { mutableStateOf(0) }
@@ -127,26 +138,21 @@ class TextExplorerUI(
 
                 DropDownMenu(
                     modifier = Modifier.align(Alignment.TopEnd),
-                    items = listOf("Load Plugin", "Width Limit", "Plugin Info"),
+                    items = listOf("Load Plugin", "Load Data", "Width Limit", "Plugin Info"),
                     clicked = {
                         when (it) {
-                            "Load Plugin" -> isOpened = true
+                            "Load Plugin" -> openWindow = Window.LOAD_PLUGIN
+                            "Load Data" -> openWindow = Window.LOAD_DATA
+
                             "Width Limit" -> {
                                 Config.noWidthRestriction = !Config.noWidthRestriction
                                 widthLimitWrapper = !widthLimitWrapper
                             }
 
-                            "Plugin Info" -> pluginInfoWindow = true
+                            "Plugin Info" -> openWindow = Window.PLUGIN_INFO
                         }
-                    })
-
-                if (isOpened) {
-                    FileDialog { paths ->
-                        isOpened = false
-
-                        paths.filter { it.extension == "jar" }.forEach { loadPlugin(it) }
                     }
-                }
+                )
 
                 Column(
                     modifier = Modifier.fillMaxSize().padding(16.dp),
@@ -236,9 +242,9 @@ class TextExplorerUI(
                                 data = data,
                                 links = links,
                                 onRowSelect = { selectedRows = it },
-                                clicked = { displayDiffWindow = true })
+                                clicked = { openWindow = Window.DIFF })
 
-                            if (totalPages < 2){
+                            if (totalPages < 2) {
                                 Text("Total: $amount", modifier = Modifier.align(Alignment.CenterHorizontally))
                                 return@inner
                             }
@@ -255,10 +261,10 @@ class TextExplorerUI(
                                         if (currentPage > 0) {
                                             currentPage--
 
-                                            dataService.getPage(text, currentPage).let {
-                                                data = it.first.map { it.values.toList() }
+                                            dataService.getPage(text, currentPage).let { result ->
+                                                data = result.first.map { it.values.toList() }
 
-                                                links = it.second
+                                                links = result.second
                                             }
                                         }
                                     }, enabled = currentPage > 0
@@ -273,10 +279,10 @@ class TextExplorerUI(
                                         if (currentPage < totalPages - 1) {
                                             currentPage++
 
-                                            dataService.getPage(text, currentPage).let {
-                                                data = it.first.map { it.values.toList() }
+                                            dataService.getPage(text, currentPage).let { result ->
+                                                data = result.first.map { it.values.toList() }
 
-                                                links = it.second
+                                                links = result.second
                                             }
                                         }
                                     }, enabled = currentPage < totalPages - 1
@@ -295,12 +301,23 @@ class TextExplorerUI(
                     color = Color.LightGray
                 )
 
-                if (pluginInfoWindow) PluginInfoWindow(pluginService) { pluginInfoWindow = false }
+                when (openWindow) {
+                    Window.PLUGIN_INFO -> PluginInfoWindow(pluginService) { openWindow = Window.NONE }
+                    Window.DIFF -> DiffViewerWindow(
+                        diffService,
+                        pluginService,
+                        dataService.getSelectedPool(),
+                        selectedRows
+                    ) { openWindow = Window.NONE }
 
-                if (displayDiffWindow) {
-                    DiffViewerWindow(
-                        diffService, pluginService, dataService.getSelectedPool(), selectedRows
-                    ) { displayDiffWindow = false }
+                    Window.LOAD_PLUGIN -> FileDialog { paths ->
+                        openWindow = Window.NONE
+
+                        paths.filter { it.extension == "jar" }.forEach { loadPlugin(it) }
+                    }
+
+                    Window.LOAD_DATA -> {}
+                    else -> {}
                 }
             }
         }

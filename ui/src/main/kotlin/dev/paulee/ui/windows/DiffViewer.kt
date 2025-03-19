@@ -1,4 +1,4 @@
-package dev.paulee.ui.components
+package dev.paulee.ui.windows
 
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
@@ -19,6 +19,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.WindowPosition
+import androidx.compose.ui.window.rememberWindowState
 import dev.paulee.api.data.DiffService
 import dev.paulee.api.plugin.Drawable
 import dev.paulee.api.plugin.IPlugin
@@ -26,6 +28,7 @@ import dev.paulee.api.plugin.IPluginService
 import dev.paulee.api.plugin.Taggable
 import dev.paulee.ui.HeatmapText
 import dev.paulee.ui.MarkedText
+import dev.paulee.ui.components.TwoSegmentButton
 import dev.paulee.ui.invokeDrawable
 
 @Composable
@@ -87,7 +90,10 @@ fun DiffViewerWindow(
             .flatMap { filter -> filter.fields.filter { it.isNotBlank() }.toList().distinct() }
     }
 
-    Window(onCloseRequest = onClose, title = "DiffViewer") {
+    val windowState =
+        rememberWindowState(position = WindowPosition.Aligned(Alignment.Center))
+
+    Window(state = windowState, onCloseRequest = onClose, title = "DiffViewer") {
         MaterialTheme {
             Box(modifier = Modifier.fillMaxSize()) {
                 if (drawablePlugins.isNotEmpty()) {
