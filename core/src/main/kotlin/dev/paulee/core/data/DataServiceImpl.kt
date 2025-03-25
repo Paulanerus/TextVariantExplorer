@@ -69,18 +69,12 @@ private class DataPool(val indexer: Indexer, val dataInfo: DataInfo, val storage
                     }
 
                     is UniqueField -> if (field.identify) identifier[normalized] = "$normalized.$fieldName"
+                    is LinkField -> {
+                        if(dataInfo.sources.any { link -> link.name == field.source && link.fields.any { it.name == field.name } }) links[key] = "${field.source}.$fieldName"
+                        else logger.warn("Link '${field.source}' is not present and will be ignored.")
+                    }
                     else -> {}
                 }
-
-                /*
-                param.findAnnotation<Link>()?.let { link ->
-                    link.clazz.findAnnotation<DataSource>()?.file?.let { linkFile ->
-
-                        if (dataInfo.sources.contains(link.clazz)) links[key] = "$linkFile.$fieldName"
-                        else logger.warn("Link '$linkFile' was not specified in the plugin main and will be ignored.")
-                    }
-                }
-                */
             }
         }
 
