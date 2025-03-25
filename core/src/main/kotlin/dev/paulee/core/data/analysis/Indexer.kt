@@ -1,9 +1,9 @@
 package dev.paulee.core.data.analysis
 
-import dev.paulee.api.data.DataSource
-import dev.paulee.api.data.Index
+import dev.paulee.api.data.IndexField
 import dev.paulee.api.data.Language
-import dev.paulee.api.data.Unique
+import dev.paulee.api.data.Source
+import dev.paulee.api.data.UniqueField
 import dev.paulee.core.normalizeDataSource
 import org.apache.lucene.analysis.Analyzer
 import org.apache.lucene.analysis.en.EnglishAnalyzer
@@ -25,12 +25,8 @@ import org.apache.lucene.store.NIOFSDirectory
 import org.slf4j.LoggerFactory.getLogger
 import java.io.Closeable
 import java.nio.file.Path
-import kotlin.reflect.KClass
-import kotlin.reflect.full.findAnnotation
-import kotlin.reflect.full.hasAnnotation
-import kotlin.reflect.full.primaryConstructor
 
-class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
+class Indexer(path: Path, sources: List<Source>) : Closeable {
 
     private val logger = getLogger(Indexer::class.java)
 
@@ -51,26 +47,19 @@ class Indexer(path: Path, sources: Array<KClass<*>>) : Closeable {
         this.directory = if (this.isWindows()) FSDirectory.open(path) else NIOFSDirectory.open(path)
 
         sources.forEach {
-            val name = it.findAnnotation<DataSource>()?.file ?: return@forEach
+            val normalized = normalizeDataSource(it.name)
 
-            val normalized = normalizeDataSource(name)
+            if (it.fields.none { field -> field is IndexField }) return@forEach
 
-            if (it.primaryConstructor?.parameters.orEmpty()
-                    .none { param -> param.hasAnnotation<Index>() }
-            ) return@forEach
+            it.fields.forEach { field ->
+                val fieldName = field.name
 
-            it.primaryConstructor?.parameters.orEmpty()
-                .forEach inner@{ param ->
-                    val paramName = param.name ?: return@inner
-
-                    param.findAnnotation<Index>()?.also { index ->
-                        this.mappedAnalyzer["$normalized.$paramName"] = LangAnalyzer.new(index.lang)
-                    }
-
-                    param.findAnnotation<Unique>()
-                        ?.takeIf { unique -> param.type.classifier == Long::class && unique.identify }
-                        ?.also { this.idFields.add("$normalized.$paramName") }
+                when (field) {
+                    is IndexField -> this.mappedAnalyzer["$normalized.$fieldName"] = LangAnalyzer.new(field.lang)
+                    is UniqueField -> if (field.identify) this.idFields.add("$normalized.$fieldName")
+                    else -> {}
                 }
+            }
 
             this.idFields.add("${normalized}_ag_id")
         }

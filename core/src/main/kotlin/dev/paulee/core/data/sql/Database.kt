@@ -1,34 +1,25 @@
 package dev.paulee.core.data.sql
 
-import dev.paulee.api.data.DataSource
-import dev.paulee.api.data.Unique
+import dev.paulee.api.data.FieldType
+import dev.paulee.api.data.Source
+import dev.paulee.api.data.UniqueField
 import dev.paulee.core.normalizeDataSource
-import org.jetbrains.annotations.Nullable
 import org.slf4j.LoggerFactory.getLogger
 import java.io.Closeable
 import java.nio.file.Path
 import java.sql.Connection
 import java.sql.DriverManager
 import kotlin.io.path.createDirectories
-import kotlin.reflect.KClass
-import kotlin.reflect.KClassifier
-import kotlin.reflect.full.findAnnotation
-import kotlin.reflect.full.hasAnnotation
-import kotlin.reflect.full.primaryConstructor
 
 private enum class ColumnType {
     TEXT, INTEGER, REAL, NUMERIC, UNKNOWN
 }
 
-private fun typeToColumnType(type: KClassifier): ColumnType = when (type) {
-    String::class -> ColumnType.TEXT
-    Char::class -> ColumnType.TEXT
-    Short::class -> ColumnType.INTEGER
-    Int::class -> ColumnType.INTEGER
-    Long::class -> ColumnType.INTEGER
-    Float::class -> ColumnType.REAL
-    Double::class -> ColumnType.REAL
-    Boolean::class -> ColumnType.NUMERIC
+private fun typeToColumnType(type: FieldType): ColumnType = when (type) {
+    FieldType.TEXT -> ColumnType.TEXT
+    FieldType.INT -> ColumnType.INTEGER
+    FieldType.FLOAT -> ColumnType.REAL
+    FieldType.BOOLEAN -> ColumnType.NUMERIC
     else -> ColumnType.UNKNOWN
 }
 
@@ -199,8 +190,8 @@ internal class Database(path: Path) : Closeable {
         this.connection = DriverManager.getConnection(dbPath)
     }
 
-    fun createTables(klasses: Array<KClass<*>>) {
-        klasses.forEach { createTable(it) }
+    fun createTables(sources: List<Source>) {
+        sources.forEach { createTable(it) }
     }
 
     fun insert(name: String, entries: List<Map<String, String>>) {
@@ -209,23 +200,18 @@ internal class Database(path: Path) : Closeable {
         table.insert(this.connection ?: return, entries)
     }
 
-    fun createTable(klass: KClass<*>) {
+    fun createTable(source: Source) {
         if (hasNoSQLModule) return
 
-        val tableName = klass.findAnnotation<DataSource>()?.file ?: return
+        val columns = source.fields.map { field ->
+            val isNullable = false //param.hasAnnotation<Nullable>()
 
-        val columns = klass.primaryConstructor?.parameters.orEmpty().mapNotNull { param ->
-            val name = param.name ?: return@mapNotNull null
-            val type = param.type.classifier ?: return@mapNotNull null
+            val isPrimary = (field is UniqueField) // && !isNullable
 
-            val isNullable = param.hasAnnotation<Nullable>()
-
-            val isPrimary = param.hasAnnotation<Unique>() && !isNullable
-
-            Column(name, typeToColumnType(type), isPrimary, isNullable)
+            Column(field.name, typeToColumnType(field.fieldType), isPrimary, isNullable)
         }
 
-        val table = Table(normalizeDataSource(tableName), columns)
+        val table = Table(normalizeDataSource(source.name), columns)
 
         runCatching {
             transaction {
@@ -233,7 +219,12 @@ internal class Database(path: Path) : Closeable {
 
                 tables.add(table)
             }
-        }.getOrElse { e -> logger.error("Exception: Failed to create table for class '${klass.simpleName}' due to an unexpected error.", e) }
+        }.getOrElse { e ->
+            logger.error(
+                "Exception: Failed to create table for class '${source.name}' due to an unexpected error.",
+                e
+            )
+        }
     }
 
     fun primaryKeyOf(name: String): String? = tables.find { it.name == name }?.primaryKey?.name

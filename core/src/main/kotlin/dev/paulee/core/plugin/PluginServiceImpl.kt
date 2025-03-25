@@ -1,9 +1,11 @@
 package dev.paulee.core.plugin
 
-import dev.paulee.api.data.*
+import dev.paulee.api.data.DataInfo
+import dev.paulee.api.data.IDataService
+import dev.paulee.api.data.RequiresData
+import dev.paulee.api.data.ViewFilter
 import dev.paulee.api.data.provider.IStorageProvider
 import dev.paulee.api.plugin.*
-import dev.paulee.core.normalizeDataSource
 import org.slf4j.LoggerFactory.getLogger
 import java.net.URLClassLoader
 import java.nio.file.Path
@@ -12,7 +14,10 @@ import kotlin.io.path.extension
 import kotlin.io.path.isDirectory
 import kotlin.io.path.walk
 import kotlin.reflect.KClass
-import kotlin.reflect.full.*
+import kotlin.reflect.full.declaredFunctions
+import kotlin.reflect.full.findAnnotation
+import kotlin.reflect.full.functions
+import kotlin.reflect.full.valueParameters
 
 class PluginServiceImpl : IPluginService {
 
@@ -77,7 +82,7 @@ class PluginServiceImpl : IPluginService {
                 return@use null
             }
 
-            if (this.getDataInfo(plugin)?.name.isNullOrBlank()) {
+            if (this.getDataInfo(plugin).isNullOrBlank()) {
                 this.logger.warn("Plugin '$path' is missing data info annotation.")
                 return@use null
             }
@@ -92,7 +97,7 @@ class PluginServiceImpl : IPluginService {
 
     override fun getPluginMetadata(plugin: IPlugin): PluginMetadata? = plugin::class.findAnnotation<PluginMetadata>()
 
-    override fun getDataInfo(plugin: IPlugin): RequiresData? = plugin::class.findAnnotation<RequiresData>()
+    override fun getDataInfo(plugin: IPlugin): String? = plugin::class.findAnnotation<RequiresData>()?.name
 
     override fun initAll(dataService: IDataService, path: Path) {
         this.plugins.sortBy { it::class.findAnnotation<PluginOrder>()?.order ?: 0 }
@@ -100,7 +105,7 @@ class PluginServiceImpl : IPluginService {
         this.plugins.forEach {
             val dataInfo = this.getDataInfo(it) ?: return@forEach
 
-            val provider = dataService.createStorageProvider(dataInfo, path.resolve(dataInfo.name)) ?: return@forEach
+            val provider = dataService.createStorageProvider(dataInfo, path.resolve(dataInfo)) ?: return@forEach
 
             runCatching { it.init(provider) }.getOrElse { e ->
                 this.logger.error(
@@ -114,39 +119,31 @@ class PluginServiceImpl : IPluginService {
 
     override fun getPlugins(): List<IPlugin> = this.plugins.toList()
 
-    override fun getAllDataInfos(): Set<RequiresData> = this.plugins.mapNotNull { this.getDataInfo(it) }.toSet()
-
-    override fun getDataSources(dataInfo: String): Set<String> {
-        val dataSources = mutableSetOf<String>()
-
-        this.plugins.mapNotNull { this.getDataInfo(it) }.filter { it.name == dataInfo }.map { it.sources }
-            .forEach { sources ->
-                sources.forEach { clazz ->
-                    clazz.findAnnotation<DataSource>()?.file?.let { dataSources.add(normalizeDataSource(it)) }
-                }
-            }
-
-        return dataSources
-    }
-
     override fun getViewFilter(plugin: IPlugin): ViewFilter? {
         val taggable = plugin as? Taggable ?: return null
 
         return taggable::class.functions.find { it.name == "tag" }?.findAnnotation<ViewFilter>()
     }
 
-    override fun getVariants(dataInfo: RequiresData?): Set<String> = dataInfo?.sources.orEmpty().mapNotNull {
+    override fun getVariants(dataInfo: DataInfo?): Set<String> = dataInfo?.sources.orEmpty().mapNotNull {
+        /*
         val dataSource = it.findAnnotation<DataSource>() ?: return@mapNotNull null
 
         if (it.hasAnnotation<Variant>()) dataSource.file
         else null
+
+         */
+        null
     }.toSet()
 
-    override fun getPreFilters(dataInfo: RequiresData?): Set<String> = dataInfo?.sources.orEmpty().mapNotNull {
+    override fun getPreFilters(dataInfo: DataInfo?): Set<String> = dataInfo?.sources.orEmpty().mapNotNull {
+        /*
         val dataSource = it.findAnnotation<DataSource>() ?: return@mapNotNull null
 
         if (it.hasAnnotation<PreFilter>()) dataSource.file
         else null
+        */
+        null
     }.toSet()
 
     private fun getPluginEntryPoint(path: Path): String? =

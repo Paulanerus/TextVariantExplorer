@@ -9,12 +9,8 @@ import dev.paulee.core.normalizeDataSource
 import dev.paulee.core.splitStr
 import org.slf4j.LoggerFactory.getLogger
 import java.nio.file.Path
-import kotlin.io.path.createDirectories
-import kotlin.io.path.exists
-import kotlin.io.path.isDirectory
+import kotlin.io.path.*
 import kotlin.math.ceil
-import kotlin.reflect.full.findAnnotation
-import kotlin.reflect.full.primaryConstructor
 
 private val logger = getLogger(DataServiceImpl::class.java)
 
@@ -28,7 +24,7 @@ private data class IndexSearchResult(
     fun isEmpty(): Boolean = ids.isEmpty() && tokens.isEmpty()
 }
 
-private class DataPool(val indexer: Indexer, dataInfo: RequiresData, val storageProvider: IStorageProvider) {
+private class DataPool(val indexer: Indexer, val dataInfo: DataInfo, val storageProvider: IStorageProvider) {
 
     var fields = mutableMapOf<String, Boolean>()
 
@@ -45,43 +41,46 @@ private class DataPool(val indexer: Indexer, dataInfo: RequiresData, val storage
     private val keyValueRgx = "\\w+:\\w+|\\w+:\"[^\"]*\"".toRegex()
 
     init {
-        dataInfo.sources.forEach { clazz ->
-            val file = clazz.findAnnotation<DataSource>()?.file ?: return@forEach
+        dataInfo.sources.forEach { source ->
+            val sourceName = source.name
 
-            clazz.findAnnotation<Variant>()?.let { metadata[file] = it }
+            //clazz.findAnnotation<Variant>()?.let { metadata[file] = it }
 
-            clazz.findAnnotation<PreFilter>()?.let { metadata[file] = it }
+            //clazz.findAnnotation<PreFilter>()?.let { metadata[file] = it }
 
-            val normalized = normalizeDataSource(file)
+            val normalized = normalizeDataSource(sourceName)
 
-            clazz.primaryConstructor?.parameters.orEmpty().forEach inner@{ param ->
-                val name = param.name ?: return@inner
+            source.fields.forEach inner@{ field ->
+                val fieldName = field.name
 
-                val key = "$normalized.$name"
+                val key = "$normalized.$fieldName"
                 fields[key] = false
 
+                when (field) {
+                    is IndexField -> {
+                        fields[key] = true
+
+                        identifier.putIfAbsent(normalized, "${normalized}_ag_id")
+
+                        if (field.default && defaultIndexField.isNullOrEmpty()) {
+                            defaultIndexField = "$normalized.$fieldName"
+                            defaultClass = normalized
+                        }
+                    }
+
+                    is UniqueField -> if (field.identify) identifier[normalized] = "$normalized.$fieldName"
+                    else -> {}
+                }
+
+                /*
                 param.findAnnotation<Link>()?.let { link ->
                     link.clazz.findAnnotation<DataSource>()?.file?.let { linkFile ->
 
-                        if (dataInfo.sources.contains(link.clazz)) links[key] = "$linkFile.$name"
+                        if (dataInfo.sources.contains(link.clazz)) links[key] = "$linkFile.$fieldName"
                         else logger.warn("Link '$linkFile' was not specified in the plugin main and will be ignored.")
                     }
                 }
-
-                param.findAnnotation<Index>()?.let { index ->
-                    fields[key] = true
-
-                    identifier.putIfAbsent(normalized, "${normalized}_ag_id")
-
-                    if (index.default && defaultIndexField.isNullOrEmpty()) {
-                        defaultIndexField = "$normalized.$name"
-                        defaultClass = normalized
-                    }
-                }
-
-                param.findAnnotation<Unique>()?.identify?.let {
-                    if (it && param.type.classifier == Long::class) identifier[normalized] = "$normalized.$name"
-                }
+                */
             }
         }
 
@@ -185,10 +184,10 @@ class DataServiceImpl : IDataService {
 
     private val dataPools = mutableMapOf<String, DataPool>()
 
-    override fun createDataPool(dataInfo: RequiresData, path: Path): Boolean {
+    override fun createDataPool(dataInfo: DataInfo, path: Path): Boolean {
         val poolPath = path.resolve(dataInfo.name)
 
-        val storageProvider = StorageProvider.of(dataInfo.storage)
+        val storageProvider = StorageProvider.of(dataInfo.storageType)
 
         val initStatus = storageProvider.init(dataInfo, poolPath)
 
@@ -205,11 +204,11 @@ class DataServiceImpl : IDataService {
             return false
         }
 
-        dataInfo.sources.forEach { clazz ->
-            val file = clazz.findAnnotation<DataSource>()?.file
+        dataInfo.sources.forEach { source ->
+            val file = source.name
 
-            if (file.isNullOrEmpty()) {
-                logger.warn("No data source provided for ${clazz.simpleName}.")
+            if (file.isEmpty()) {
+                logger.warn("No data source provided for ${file}.")
                 return@forEach
             }
 
@@ -240,31 +239,35 @@ class DataServiceImpl : IDataService {
         return true
     }
 
-    override fun loadDataPools(path: Path, dataInfo: Set<RequiresData>): Int {
+    override fun loadDataPools(path: Path): Int {
         if (!path.exists()) path.createDirectories()
 
-        dataInfo.forEach {
-            val poolPath = path.resolve(it.name)
+        path.forEachDirectoryEntry { child ->
+            if (!child.isDirectory()) return@forEachDirectoryEntry
 
-            if (poolPath.exists() && poolPath.isDirectory()) {
-                val storageProvider = StorageProvider.of(it.storage)
+            val jsonFile = child.listDirectoryEntries().firstOrNull { it.extension == "json" }
 
-                storageProvider.init(it, poolPath)
+            if (jsonFile == null) {
+                logger.warn("Data pool '${child.name}' has no json specification.")
+                return@forEachDirectoryEntry
+            }
 
-                dataPools[it.name] = DataPool(
-                    indexer = Indexer(poolPath.resolve("index"), it.sources),
-                    dataInfo = it,
-                    storageProvider = storageProvider
-                )
+            val dataInfo = FileService.fromJson(runCatching { jsonFile.readText() }.getOrDefault(""))
+                ?: return@forEachDirectoryEntry
 
-                logger.info("Loaded ${it.name} data pool.")
+            val storageProvider = StorageProvider.of(dataInfo.storageType)
+
+            if (storageProvider.init(dataInfo, child) == 0) {
+                dataPools[dataInfo.name] =
+                    DataPool(Indexer(child.resolve("index"), dataInfo.sources), dataInfo, storageProvider)
+
+                logger.info("Loaded ${dataInfo.name} data pool.")
             } else {
-                if (!this.createDataPool(it, path)) logger.warn("Failed to create data pool.")
+                if (!this.createDataPool(dataInfo, path)) logger.warn("Failed to create data pool.")
             }
         }
 
         val amount = dataPools.size
-
         if (amount == 1) {
             val pool = dataPools.entries.first()
 
@@ -275,7 +278,7 @@ class DataServiceImpl : IDataService {
             else logger.info("Set selected data pool to $currentPool.$currentField")
         }
 
-        if (amount > 0) logger.info("Loaded ${dataInfo.size} data ${if (amount == 1) "pool" else "pools"}.")
+        if (amount > 0) logger.info("Loaded $amount data ${if (amount == 1) "pool" else "pools"}.")
         else logger.info("No data pools in '$path' available.")
 
         return dataPools.size
@@ -376,15 +379,16 @@ class DataServiceImpl : IDataService {
         return Triple(count, ceil(count / PAGE_SIZE.toDouble()).toLong(), indexedValues)
     }
 
-    override fun createStorageProvider(dataInfo: RequiresData, path: Path): IStorageProvider? {
-        val name = dataInfo.name
+    override fun createStorageProvider(infoName: String, path: Path): IStorageProvider? {
+        val dataInfo = this.dataPools[infoName]?.dataInfo ?: return null
 
-        if (this.storageProvider[name] == null) this.storageProvider[name] = StorageProvider.of(dataInfo.storage)
+        if (this.storageProvider[infoName] == null) this.storageProvider[infoName] =
+            StorageProvider.of(dataInfo.storageType)
 
-        val provider = this.storageProvider[name]
+        val provider = this.storageProvider[infoName]
 
         if (provider == null) {
-            logger.error("Failed to create StorageProvider of type: ${dataInfo.storage.name}")
+            logger.error("Failed to create StorageProvider of type: ${dataInfo.storageType.name}")
             return null
         }
 

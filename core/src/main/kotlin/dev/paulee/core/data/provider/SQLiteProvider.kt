@@ -1,6 +1,6 @@
 package dev.paulee.core.data.provider
 
-import dev.paulee.api.data.RequiresData
+import dev.paulee.api.data.DataInfo
 import dev.paulee.api.data.provider.IStorageProvider
 import dev.paulee.core.data.sql.Database
 import org.slf4j.LoggerFactory.getLogger
@@ -17,7 +17,7 @@ internal class SQLiteProvider : IStorageProvider {
 
     private var lock = false
 
-    override fun init(dataInfo: RequiresData, path: Path, lock: Boolean): Int {
+    override fun init(dataInfo: DataInfo, path: Path, lock: Boolean): Int {
         val dbPath = path.resolve("${dataInfo.name}.db")
 
         if (initialized) return -1
