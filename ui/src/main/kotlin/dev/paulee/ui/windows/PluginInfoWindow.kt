@@ -18,7 +18,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.rememberWindowState
-import dev.paulee.api.data.RequiresData
+import dev.paulee.api.data.DataInfo
 import dev.paulee.api.plugin.IPluginService
 import dev.paulee.api.plugin.PluginMetadata
 
@@ -42,7 +42,8 @@ fun PluginInfoWindow(pluginService: IPluginService, onClose: () -> Unit) {
                     pluginService.getPlugins().forEach {
                         val metadata = pluginService.getPluginMetadata(it) ?: return@forEach
 
-                        val dataInfo = pluginService.getDataInfo(it)
+                        val dataInfo = DataInfo("", emptyList())//pluginService.getDataInfo(it)
+                        println("TODO: retrieve actual dat info object.")
 
                         PluginInfo(
                             metadata,
@@ -65,7 +66,7 @@ fun PluginInfoWindow(pluginService: IPluginService, onClose: () -> Unit) {
 @Composable
 private fun PluginInfo(
     metadata: PluginMetadata,
-    dataInfo: RequiresData?,
+    dataInfo: DataInfo?,
     variants: Set<String>,
     preFilters: Set<String>,
 ) {
@@ -96,7 +97,7 @@ private fun PluginInfo(
             dataInfo?.sources.orEmpty().takeIf { it.isNotEmpty() }?.let {
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("Sources:", fontWeight = FontWeight.Bold)
-                    Text(it.joinToString(", ") { it.simpleName ?: "" })
+                    Text(it.joinToString(", ") { it.name })
                 }
             }
         }

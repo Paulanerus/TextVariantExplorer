@@ -66,7 +66,7 @@ fun DiffViewerWindow(
 
     val pool = selected.substringBefore(".")
 
-    val associatedPlugins = pluginService.getPlugins().filter { pluginService.getDataInfo(it)?.name == pool }
+    val associatedPlugins = pluginService.getPlugins().filter { pluginService.getDataInfo(it) == pool }
 
     val tagPlugins = associatedPlugins.mapNotNull { it as? Taggable }
     var selectedTaggablePlugin = tagPlugins.firstOrNull()

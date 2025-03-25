@@ -29,6 +29,7 @@ import dev.paulee.ui.components.DropDownMenu
 import dev.paulee.ui.components.FileDialog
 import dev.paulee.ui.components.TableView
 import dev.paulee.ui.components.widthLimitWrapper
+import dev.paulee.ui.windows.DataLoaderWindow
 import dev.paulee.ui.windows.DiffViewerWindow
 import dev.paulee.ui.windows.PluginInfoWindow
 import java.nio.file.Path
@@ -70,7 +71,7 @@ class TextExplorerUI(
         Config.load(this.appDir)
 
         this.pluginService.loadFromDirectory(this.pluginsDir)
-        this.dataService.loadDataPools(this.dataDir, this.pluginService.getAllDataInfos())
+        this.dataService.loadDataPools(this.dataDir)
 
         this.pluginService.initAll(this.dataService, this.dataDir)
 
@@ -337,8 +338,6 @@ class TextExplorerUI(
     }
 
     private fun loadPlugin(path: Path): Boolean {
-        val parentPath = path.parent
-
         val pluginPath = pluginsDir.resolve(path.name)
 
         if (pluginPath.exists()) return true
@@ -346,35 +345,13 @@ class TextExplorerUI(
         val plugin = this.pluginService.loadPlugin(path) ?: return false
 
         this.pluginService.getDataInfo(plugin)?.let { dataInfo ->
-            if (dataInfo.sources.isEmpty()) return@let
-
-            this.pluginService.getDataSources(dataInfo.name).forEach {
-                val name = it.let { if (it.endsWith(".csv")) it else "$it.csv" }
-
-                val dataSourcePath = parentPath.resolve(name)
-
-                if (dataSourcePath.exists()) dataSourcePath.copyTo(this.dataDir.resolve(name), true)
-            }
-
-            val poolsEmpty = this.dataService.getAvailablePools().isEmpty()
-
-            if (this.dataService.createDataPool(dataInfo, this.dataDir)) {
-                this.dataService.getAvailablePools().firstOrNull()?.let inner@{
-                    if (!poolsEmpty) return@inner
-
-                    this.dataService.selectDataPool(it)
-                    this.poolSelected = !this.poolSelected
-                }
-
-            }
-
             val provider =
-                this.dataService.createStorageProvider(dataInfo, this.dataDir.resolve(dataInfo.name)) ?: return true
+                this.dataService.createStorageProvider(dataInfo, this.dataDir.resolve(dataInfo)) ?: return true
 
             plugin.init(provider)
-
-            path.copyTo(pluginPath)
         }
+
+        path.copyTo(pluginPath)
 
         return true
     }
