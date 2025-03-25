@@ -29,7 +29,6 @@ import dev.paulee.ui.components.DropDownMenu
 import dev.paulee.ui.components.FileDialog
 import dev.paulee.ui.components.TableView
 import dev.paulee.ui.components.widthLimitWrapper
-import dev.paulee.ui.windows.DataLoaderWindow
 import dev.paulee.ui.windows.DiffViewerWindow
 import dev.paulee.ui.windows.PluginInfoWindow
 import java.nio.file.Path
