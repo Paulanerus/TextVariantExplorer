@@ -63,9 +63,6 @@ annotation class RequiresData(val name: String)
 @Target(AnnotationTarget.VALUE_PARAMETER)
 annotation class NullValue(val values: Array<String>)
 
-@Target(AnnotationTarget.VALUE_PARAMETER)
-annotation class Link(val clazz: KClass<*>)
-
 @Target(AnnotationTarget.FUNCTION)
 annotation class ViewFilter(
     val name: String,
@@ -90,6 +87,7 @@ enum class FieldType {
 @JsonSubTypes(
     JsonSubTypes.Type(value = BasicField::class, name = "basic"),
     JsonSubTypes.Type(value = IndexField::class, name = "index"),
+    JsonSubTypes.Type(value = LinkField::class, name = "link"),
 )
 sealed interface SourceField {
     val name: String
@@ -105,6 +103,8 @@ data class IndexField(
     val lang: Language,
     val default: Boolean = false
 ) : SourceField
+
+data class LinkField(override val name: String, override val fieldType: FieldType, val source: String) : SourceField
 
 data class UniqueField(override val name: String, override val fieldType: FieldType, val identify: Boolean = false) :
     SourceField
