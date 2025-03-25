@@ -1,6 +1,6 @@
 package dev.paulee.api.data.provider
 
-import dev.paulee.api.data.RequiresData
+import dev.paulee.api.data.DataInfo
 import java.io.Closeable
 import java.nio.file.Path
 
@@ -10,7 +10,7 @@ enum class StorageType {
 
 interface IStorageProvider : Closeable {
 
-    fun init(dataInfo: RequiresData, path: Path, lock: Boolean = false): Int
+    fun init(dataInfo: DataInfo, path: Path, lock: Boolean = false): Int
 
     fun insert(name: String, entries: List<Map<String, String>>)
 
