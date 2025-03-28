@@ -70,9 +70,11 @@ private class DataPool(val indexer: Indexer, val dataInfo: DataInfo, val storage
 
                     is UniqueField -> if (field.identify) identifier[normalized] = "$normalized.$fieldName"
                     is LinkField -> {
-                        if(dataInfo.sources.any { link -> link.name == field.source && link.fields.any { it.name == field.name } }) links[key] = "${field.source}.$fieldName"
+                        if (dataInfo.sources.any { link -> link.name == field.source && link.fields.any { it.name == field.name } }) links[key] =
+                            "${field.source}.$fieldName"
                         else logger.warn("Link '${field.source}' is not present and will be ignored.")
                     }
+
                     else -> {}
                 }
             }
@@ -297,6 +299,8 @@ class DataServiceImpl : IDataService {
         dataPools.filter { it.value.fields.any { it.value } }.flatMap { entry ->
             entry.value.fields.filter { it.value }.map { "${entry.key}.${it.key.substringBefore(".")}" }
         }.toSet()
+
+    override fun getAvailableDataInfo(): Set<DataInfo> = this.dataPools.values.map { it.dataInfo }.toSet()
 
     override fun getPage(query: String, pageCount: Int): PageResult {
 

@@ -18,6 +18,8 @@ interface IDataService : Closeable {
 
     fun getAvailablePools(): Set<String>
 
+    fun getAvailableDataInfo(): Set<DataInfo>
+
     fun getPage(query: String, pageCount: Int): Pair<List<Map<String, String>>, Map<String, List<Map<String, String>>>>
 
     fun getPageCount(query: String): Triple<Long, Long, Set<String>>
