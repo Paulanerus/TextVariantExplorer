@@ -1,6 +1,5 @@
 package dev.paulee.core.plugin
 
-import dev.paulee.api.data.DataInfo
 import dev.paulee.api.data.IDataService
 import dev.paulee.api.data.RequiresData
 import dev.paulee.api.data.ViewFilter
@@ -124,27 +123,6 @@ class PluginServiceImpl : IPluginService {
 
         return taggable::class.functions.find { it.name == "tag" }?.findAnnotation<ViewFilter>()
     }
-
-    override fun getVariants(dataInfo: DataInfo?): Set<String> = dataInfo?.sources.orEmpty().mapNotNull {
-        /*
-        val dataSource = it.findAnnotation<DataSource>() ?: return@mapNotNull null
-
-        if (it.hasAnnotation<Variant>()) dataSource.file
-        else null
-
-         */
-        null
-    }.toSet()
-
-    override fun getPreFilters(dataInfo: DataInfo?): Set<String> = dataInfo?.sources.orEmpty().mapNotNull {
-        /*
-        val dataSource = it.findAnnotation<DataSource>() ?: return@mapNotNull null
-
-        if (it.hasAnnotation<PreFilter>()) dataSource.file
-        else null
-        */
-        null
-    }.toSet()
 
     private fun getPluginEntryPoint(path: Path): String? =
         JarFile(path.toFile()).use { return it.manifest.mainAttributes.getValue("Main-Class") }

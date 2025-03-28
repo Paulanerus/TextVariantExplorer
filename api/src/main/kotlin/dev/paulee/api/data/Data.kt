@@ -1,9 +1,9 @@
 package dev.paulee.api.data
 
+import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonSubTypes
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 import dev.paulee.api.data.provider.StorageType
-import kotlin.reflect.KClass
 
 enum class Language {
     ARABIC,
@@ -50,12 +50,6 @@ enum class Language {
     TURKISH,
     UKRAINIAN
 }
-
-@Target(AnnotationTarget.CLASS)
-annotation class Variant(val base: String, val variants: Array<String>)
-
-@Target(AnnotationTarget.CLASS)
-annotation class PreFilter(val key: String, val linkKey: String, val value: String)
 
 @Target(AnnotationTarget.CLASS)
 annotation class RequiresData(val name: String)
@@ -109,6 +103,16 @@ data class LinkField(override val name: String, override val fieldType: FieldTyp
 data class UniqueField(override val name: String, override val fieldType: FieldType, val identify: Boolean = false) :
     SourceField
 
-data class Source(val name: String, val fields: List<SourceField>)
+data class VariantMapping(val base: String, val variants: List<String>)
+
+data class PreFilter(val key: String, val linkKey: String, val value: String)
+
+@JsonInclude(JsonInclude.Include.NON_NULL)
+data class Source(
+    val name: String,
+    val fields: List<SourceField>,
+    val variantMapping: VariantMapping? = null,
+    val preFilter: PreFilter? = null
+)
 
 data class DataInfo(val name: String, val sources: List<Source>, val storageType: StorageType = StorageType.SQLITE)
