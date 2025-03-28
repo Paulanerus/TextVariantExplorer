@@ -45,12 +45,7 @@ fun PluginInfoWindow(pluginService: IPluginService, onClose: () -> Unit) {
                         val dataInfo = DataInfo("", emptyList())//pluginService.getDataInfo(it)
                         println("TODO: retrieve actual dat info object.")
 
-                        PluginInfo(
-                            metadata,
-                            dataInfo,
-                            pluginService.getVariants(dataInfo),
-                            pluginService.getPreFilters(dataInfo)
-                        )
+                        PluginInfo(metadata, dataInfo)
                     }
                 }
 
@@ -64,12 +59,7 @@ fun PluginInfoWindow(pluginService: IPluginService, onClose: () -> Unit) {
 }
 
 @Composable
-private fun PluginInfo(
-    metadata: PluginMetadata,
-    dataInfo: DataInfo?,
-    variants: Set<String>,
-    preFilters: Set<String>,
-) {
+private fun PluginInfo(metadata: PluginMetadata, dataInfo: DataInfo?) {
     Column(modifier = Modifier.padding(start = 6.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("${metadata.name} (${metadata.version})", fontSize = 18.sp, fontWeight = FontWeight.Bold)
@@ -102,24 +92,22 @@ private fun PluginInfo(
             }
         }
 
-        variants.takeIf { it.isNotEmpty() }?.let {
-            Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(8.dp))
 
-            Column {
-                Text("Variants:", fontWeight = FontWeight.Bold)
+        Column {
+            Text("Variants:", fontWeight = FontWeight.Bold)
 
-                variants.forEach { Text(it, modifier = Modifier.padding(start = 4.dp)) }
-            }
+            dataInfo?.sources.orEmpty().filter { it.variantMapping != null }.map { it.name }
+                .forEach { Text(it, modifier = Modifier.padding(start = 4.dp)) }
         }
 
-        preFilters.takeIf { it.isNotEmpty() }?.let {
-            Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(8.dp))
 
-            Column {
-                Text("Pre filters:", fontWeight = FontWeight.Bold)
+        Column {
+            Text("Pre filters:", fontWeight = FontWeight.Bold)
 
-                preFilters.forEach { Text(it, modifier = Modifier.padding(start = 4.dp)) }
-            }
+            dataInfo?.sources.orEmpty().filter { it.preFilter != null }.map { it.name }
+                .forEach { Text(it, modifier = Modifier.padding(start = 4.dp)) }
         }
     }
 }
