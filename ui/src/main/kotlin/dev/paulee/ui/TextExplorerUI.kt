@@ -303,7 +303,7 @@ class TextExplorerUI(
                 )
 
                 when (openWindow) {
-                    Window.PLUGIN_INFO -> PluginInfoWindow(pluginService) { openWindow = Window.NONE }
+                    Window.PLUGIN_INFO -> PluginInfoWindow(pluginService, dataService.getAvailableDataInfo()) { openWindow = Window.NONE }
                     Window.DIFF -> DiffViewerWindow(
                         diffService,
                         pluginService,

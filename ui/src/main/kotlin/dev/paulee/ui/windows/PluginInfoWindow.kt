@@ -23,7 +23,7 @@ import dev.paulee.api.plugin.IPluginService
 import dev.paulee.api.plugin.PluginMetadata
 
 @Composable
-fun PluginInfoWindow(pluginService: IPluginService, onClose: () -> Unit) {
+fun PluginInfoWindow(pluginService: IPluginService, allDataInfo: Set<DataInfo>, onClose: () -> Unit) {
     val scrollState = rememberScrollState()
 
     val windowState =
@@ -42,8 +42,9 @@ fun PluginInfoWindow(pluginService: IPluginService, onClose: () -> Unit) {
                     pluginService.getPlugins().forEach {
                         val metadata = pluginService.getPluginMetadata(it) ?: return@forEach
 
-                        val dataInfo = DataInfo("", emptyList())//pluginService.getDataInfo(it)
-                        println("TODO: retrieve actual dat info object.")
+                        val dataInfoName = pluginService.getDataInfo(it) ?: return@forEach
+
+                        val dataInfo = allDataInfo.firstOrNull { info -> info.name == dataInfoName }
 
                         PluginInfo(metadata, dataInfo)
                     }
@@ -92,22 +93,28 @@ private fun PluginInfo(metadata: PluginMetadata, dataInfo: DataInfo?) {
             }
         }
 
-        Spacer(Modifier.height(8.dp))
+        dataInfo?.sources.orEmpty().filter { it.variantMapping != null }.map { it.name }.takeIf { it.isNotEmpty() }
+            ?.let {
+                Spacer(Modifier.height(8.dp))
 
-        Column {
-            Text("Variants:", fontWeight = FontWeight.Bold)
+                Column {
+                    Text("Variants:", fontWeight = FontWeight.Bold)
 
-            dataInfo?.sources.orEmpty().filter { it.variantMapping != null }.map { it.name }
-                .forEach { Text(it, modifier = Modifier.padding(start = 4.dp)) }
-        }
 
-        Spacer(Modifier.height(8.dp))
+                    it.forEach { Text(it, modifier = Modifier.padding(start = 4.dp)) }
+                }
+            }
 
-        Column {
-            Text("Pre filters:", fontWeight = FontWeight.Bold)
+        dataInfo?.sources.orEmpty().filter { it.preFilter != null }.map { it.name }.takeIf { it.isNotEmpty() }
+            ?.let {
+                Spacer(Modifier.height(8.dp))
 
-            dataInfo?.sources.orEmpty().filter { it.preFilter != null }.map { it.name }
-                .forEach { Text(it, modifier = Modifier.padding(start = 4.dp)) }
-        }
+                Column {
+                    Text("Pre filters:", fontWeight = FontWeight.Bold)
+
+
+                    it.forEach { Text(it, modifier = Modifier.padding(start = 4.dp)) }
+                }
+            }
     }
 }
