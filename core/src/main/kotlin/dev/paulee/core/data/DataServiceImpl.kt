@@ -44,9 +44,9 @@ private class DataPool(val indexer: Indexer, val dataInfo: DataInfo, val storage
         dataInfo.sources.forEach { source ->
             val sourceName = source.name
 
-            //clazz.findAnnotation<Variant>()?.let { metadata[file] = it }
+            source.variantMapping?.let { metadata[sourceName] = it }
 
-            //clazz.findAnnotation<PreFilter>()?.let { metadata[file] = it }
+            source.preFilter?.let { metadata[sourceName] = it }
 
             val normalized = normalizeDataSource(sourceName)
 
@@ -409,7 +409,7 @@ class DataServiceImpl : IDataService {
 
             val transform = replacements[key] ?: return@replace it.value
 
-            if (transform is Variant) {
+            if (transform is VariantMapping) {
                 dataPool.storageProvider.get(key, whereClause = listOf("${transform.base}:$value"))
                     .flatMap { map -> transform.variants.mapNotNull { key -> map[key] } }.toSet()
                     .joinToString(" or ", prefix = "(", postfix = ")")
