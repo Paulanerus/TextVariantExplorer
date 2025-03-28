@@ -1,6 +1,5 @@
 package dev.paulee.api.plugin
 
-import dev.paulee.api.data.DataInfo
 import dev.paulee.api.data.IDataService
 import dev.paulee.api.data.ViewFilter
 import java.nio.file.Path
@@ -20,8 +19,4 @@ interface IPluginService {
     fun getPlugins(): List<IPlugin>
 
     fun getViewFilter(plugin: IPlugin): ViewFilter?
-
-    fun getVariants(dataInfo: DataInfo?): Set<String>
-
-    fun getPreFilters(dataInfo: DataInfo?): Set<String>
 }
