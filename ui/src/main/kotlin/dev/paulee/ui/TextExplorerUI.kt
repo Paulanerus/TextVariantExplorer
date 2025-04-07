@@ -15,6 +15,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.*
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -101,6 +102,32 @@ class TextExplorerUI(
         var data by remember { mutableStateOf(listOf<List<String>>()) }
         var links by remember { mutableStateOf(mapOf<String, List<Map<String, String>>>()) }
 
+        val performSearch: () -> Unit = {
+            currentPage = 0
+            val (count, pages, indexed) = dataService.getPageCount(text)
+
+            amount = count
+
+            totalPages = pages
+
+            indexStrings = indexed
+
+            if (totalPages > 0) {
+                dataService.getPage(text, currentPage).let { (pageEntries, pageLinks) ->
+
+                    val first = pageEntries.firstOrNull() ?: return@let
+
+                    header = first.keys.toList()
+
+                    data = pageEntries.map { it.values.toList() }
+
+                    links = pageLinks
+                }
+            }
+
+            showTable = true
+        }
+
         MaterialTheme {
             Box(modifier = Modifier.fillMaxSize()) {
                 Box(modifier = Modifier.align(Alignment.TopStart).padding(25.dp)) {
@@ -172,12 +199,21 @@ class TextExplorerUI(
                             modifier = Modifier.width(600.dp).background(
                                 color = Color.LightGray,
                                 shape = RoundedCornerShape(24.dp),
-                            ),
+                            ).onKeyEvent { event ->
+                                if (text.isNotBlank() && event.key == Key.Enter && event.type == KeyEventType.KeyUp) {
+                                    performSearch()
+
+                                    return@onKeyEvent true
+                                }
+
+                                false
+                            },
                             colors = TextFieldDefaults.textFieldColors(
                                 backgroundColor = Color.Transparent,
                                 focusedIndicatorColor = Color.Transparent,
                                 unfocusedIndicatorColor = Color.Transparent
                             ),
+                            singleLine = true,
                             trailingIcon = {
                                 IconButton(onClick = {
                                     text = ""
@@ -188,31 +224,7 @@ class TextExplorerUI(
                             })
 
                         IconButton(
-                            onClick = {
-                                currentPage = 0
-                                val (count, pages, indexed) = dataService.getPageCount(text)
-
-                                amount = count
-
-                                totalPages = pages
-
-                                indexStrings = indexed
-
-                                if (totalPages > 0) {
-                                    dataService.getPage(text, currentPage).let { (pageEntries, pageLinks) ->
-
-                                        val first = pageEntries.firstOrNull() ?: return@let
-
-                                        header = first.keys.toList()
-
-                                        data = pageEntries.map { it.values.toList() }
-
-                                        links = pageLinks
-                                    }
-                                }
-
-                                showTable = true
-                            },
+                            onClick = { performSearch() },
                             modifier = Modifier.height(70.dp).padding(horizontal = 10.dp),
                             enabled = text.isNotBlank() && dataService.hasSelectedPool()
                         ) {
@@ -303,7 +315,11 @@ class TextExplorerUI(
                 )
 
                 when (openWindow) {
-                    Window.PLUGIN_INFO -> PluginInfoWindow(pluginService, dataService.getAvailableDataInfo()) { openWindow = Window.NONE }
+                    Window.PLUGIN_INFO -> PluginInfoWindow(
+                        pluginService,
+                        dataService.getAvailableDataInfo()
+                    ) { openWindow = Window.NONE }
+
                     Window.DIFF -> DiffViewerWindow(
                         diffService,
                         pluginService,
