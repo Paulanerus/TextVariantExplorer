@@ -56,10 +56,10 @@ private class DataPool(val indexer: Indexer, val dataInfo: DataInfo, val storage
                 val key = "$normalized.$fieldName"
                 fields[key] = false
 
-                if (field.source.isNotBlank()) {
-                    if (dataInfo.sources.any { link -> link.name == field.source && link.fields.any { it.name == field.name } }) {
-                        links[key] = "${field.source}.$fieldName"
-                    } else logger.warn("Link '${field.source}' is not present and will be ignored.")
+                if (field.sourceLink.isNotBlank()) {
+                    if (dataInfo.sources.any { link -> link.name == field.sourceLink && link.fields.any { it.name == field.name } }) {
+                        links[key] = "${field.sourceLink}.$fieldName"
+                    } else logger.warn("Link '${field.sourceLink}' is not present and will be ignored.")
                 }
 
                 when (field) {
