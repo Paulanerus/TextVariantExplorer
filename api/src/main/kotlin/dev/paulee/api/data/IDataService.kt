@@ -25,4 +25,6 @@ interface IDataService : Closeable {
     fun getPageCount(query: String): Triple<Long, Long, Set<String>>
 
     fun createStorageProvider(infoName: String, path: Path): IStorageProvider?
+
+    fun dataInfoToString(dataInfo: DataInfo): String?
 }

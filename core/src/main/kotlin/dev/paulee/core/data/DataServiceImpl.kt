@@ -395,6 +395,8 @@ class DataServiceImpl : IDataService {
         return provider
     }
 
+    override fun dataInfoToString(dataInfo: DataInfo): String? = FileService.toJson(dataInfo)
+
     override fun close() {
         this.storageProvider.forEach { it.value.close() }
 
