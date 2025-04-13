@@ -81,27 +81,32 @@ enum class FieldType {
 @JsonSubTypes(
     JsonSubTypes.Type(value = BasicField::class, name = "basic"),
     JsonSubTypes.Type(value = IndexField::class, name = "index"),
-    JsonSubTypes.Type(value = LinkField::class, name = "link"),
 )
 sealed interface SourceField {
     val name: String
 
     val fieldType: FieldType
+
+    val source: String
 }
 
-data class BasicField(override val name: String, override val fieldType: FieldType) : SourceField
+data class BasicField(override val name: String, override val fieldType: FieldType, override val source: String = "") :
+    SourceField
 
 data class IndexField(
     override val name: String,
     override val fieldType: FieldType,
+    override val source: String = "",
     val lang: Language,
     val default: Boolean = false
 ) : SourceField
 
-data class LinkField(override val name: String, override val fieldType: FieldType, val source: String) : SourceField
-
-data class UniqueField(override val name: String, override val fieldType: FieldType, val identify: Boolean = false) :
-    SourceField
+data class UniqueField(
+    override val name: String,
+    override val fieldType: FieldType,
+    override val source: String = "",
+    val identify: Boolean = false
+) : SourceField
 
 data class VariantMapping(val base: String, val variants: List<String>)
 
