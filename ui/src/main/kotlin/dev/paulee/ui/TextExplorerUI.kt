@@ -333,7 +333,7 @@ class TextExplorerUI(
                         paths.filter { it.extension == "jar" }.forEach { loadPlugin(it) }
                     }
 
-                    Window.LOAD_DATA -> DataLoaderWindow { openWindow = Window.NONE }
+                    Window.LOAD_DATA -> DataLoaderWindow(dataService) { openWindow = Window.NONE }
                     else -> {}
                 }
             }

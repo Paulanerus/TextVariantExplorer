@@ -1,82 +1,431 @@
 package dev.paulee.ui.windows
 
-import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.onClick
-import androidx.compose.material.Button
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.Text
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.rememberWindowState
+import dev.paulee.api.data.*
+import dev.paulee.ui.components.DialogType
 import dev.paulee.ui.components.FileDialog
 import java.nio.file.Path
-import kotlin.io.path.name
+import kotlin.io.path.bufferedReader
+import kotlin.io.path.extension
+import kotlin.io.path.nameWithoutExtension
+import kotlin.io.path.writeText
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun DataLoaderWindow(onClose: () -> Unit) {
-    val windowState =
-        rememberWindowState(position = WindowPosition.Aligned(Alignment.Center), size = DpSize(700.dp, 500.dp))
+fun DataLoaderWindow(dataService: IDataService, onClose: () -> Unit) {
+    val windowState = rememberWindowState(
+        position = WindowPosition.Aligned(Alignment.Center), size = DpSize(1100.dp, 700.dp)
+    )
 
-    var toggleDialog by remember { mutableStateOf(false) }
-    val files = remember { mutableStateListOf<Path>() }
-    var selectedFile by remember { mutableStateOf<Path?>(null) }
+    var showAddDialog by remember { mutableStateOf(false) }
+    var showExportDialog by remember { mutableStateOf(false) }
+    val sources = remember { mutableStateListOf<Source>() }
+    var selectedSource by remember { mutableStateOf<Source?>(null) }
 
     Window(state = windowState, onCloseRequest = onClose, title = "Data Import") {
         MaterialTheme {
-            Box(modifier = Modifier.fillMaxSize()) {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.align(Alignment.Center)) {
-                    files.forEach { file ->
-                        Text(
-                            file.asName(),
-                            modifier = Modifier.onClick { selectedFile = file },
-                            fontWeight = if (file == selectedFile) FontWeight.Bold else FontWeight.Normal
-                        )
+            Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+                Row(modifier = Modifier.fillMaxSize()) {
+                    Column(modifier = Modifier.width(250.dp)) {
+                        Text("Imported Sources", style = MaterialTheme.typography.h6)
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        LazyColumn(
+                            modifier = Modifier.weight(1f).fillMaxWidth()
+                        ) {
+                            items(sources) { source ->
+                                val bgColor = if (source == selectedSource) Color.LightGray else Color.Transparent
+
+                                Box(
+                                    modifier = Modifier.fillMaxWidth().background(bgColor)
+                                        .clickable { selectedSource = source }.padding(8.dp)
+                                ) {
+                                    Text(source.name)
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Button(
+                            onClick = { showAddDialog = true }, modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Add")
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Button(
+                            onClick = {
+                                val srcToRemove = selectedSource
+                                srcToRemove?.let { sources.remove(it) }
+                                selectedSource = null
+                            }, enabled = selectedSource != null, modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Remove")
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Button(
+                            onClick = { println("Import") }, modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Import")
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Button(
+                            onClick = { showExportDialog = true },
+                            enabled = sources.isNotEmpty(),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Export")
+                        }
+
+                        Spacer(modifier = Modifier.height(18.dp))
+
+                        Button(
+                            onClick = { println("Load") },
+                            enabled = false, //sources.isNotEmpty(),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Load")
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(16.dp))
+
+                    Column(modifier = Modifier.fillMaxSize().weight(1f)) {
+                        Text("Source Details", style = MaterialTheme.typography.h6)
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        if (selectedSource != null) {
+                            Text("Source: ${selectedSource!!.name}", style = MaterialTheme.typography.subtitle1)
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                                items(selectedSource?.fields ?: emptyList()) { field ->
+                                    val initialVariant = when (field) {
+                                        is UniqueField -> "Unique"
+                                        is IndexField -> "Index"
+                                        else -> "Basic"
+                                    }
+
+                                    var variant by remember(selectedSource, field) { mutableStateOf(initialVariant) }
+                                    var fieldType by remember(selectedSource, field) { mutableStateOf(field.fieldType) }
+
+                                    var uniqueIdentify by remember(selectedSource, field) {
+                                        mutableStateOf(
+                                            (field as? UniqueField)?.identify ?: false
+                                        )
+
+                                    }
+                                    var indexLang by remember(selectedSource, field) {
+                                        mutableStateOf(
+                                            (field as? IndexField)?.lang ?: Language.ENGLISH
+                                        )
+                                    }
+
+                                    var indexDefault by remember(selectedSource, field) {
+                                        mutableStateOf(
+                                            (field as? IndexField)?.default ?: false
+                                        )
+                                    }
+
+                                    var linkSource by remember(
+                                        selectedSource,
+                                        field
+                                    ) { mutableStateOf(field.sourceLink) }
+
+                                    LaunchedEffect(
+                                        variant,
+                                        fieldType,
+                                        uniqueIdentify,
+                                        indexLang,
+                                        indexDefault,
+                                        linkSource
+                                    ) {
+                                        if ((fieldType != FieldType.INT && variant == "Unique") || (fieldType != FieldType.TEXT && variant == "Index"))
+                                            variant = "Basic"
+
+                                        val sourceContainingField = selectedSource
+
+                                        sourceContainingField?.let { currentSource ->
+                                            val fieldIndex = currentSource.fields.indexOf(field)
+
+                                            if (fieldIndex != -1) {
+                                                val newField: SourceField = when (variant) {
+                                                    "Unique" -> UniqueField(
+                                                        field.name,
+                                                        fieldType,
+                                                        linkSource,
+                                                        uniqueIdentify
+                                                    )
+
+                                                    "Index" -> IndexField(
+                                                        field.name,
+                                                        fieldType,
+                                                        linkSource,
+                                                        indexLang,
+                                                        indexDefault
+                                                    )
+
+                                                    else -> BasicField(field.name, fieldType, linkSource)
+                                                }
+
+                                                if (newField != currentSource.fields[fieldIndex]) {
+                                                    val updatedFields = currentSource.fields.toMutableList().apply {
+                                                        this[fieldIndex] = newField
+                                                    }
+
+                                                    val updatedSource = currentSource.copy(fields = updatedFields)
+
+                                                    val sourceIndex =
+                                                        sources.indexOfFirst { it.name == currentSource.name }
+
+                                                    if (sourceIndex != -1) {
+                                                        sources[sourceIndex] = updatedSource
+
+                                                        if (selectedSource?.name == updatedSource.name)
+                                                            selectedSource = updatedSource
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    Box(
+                                        modifier = Modifier.fillMaxWidth().background(Color(0xFFF0F0F0))
+                                            .padding(horizontal = 8.dp)
+                                    ) {
+                                        Column inner@{
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                var typeExpanded by remember { mutableStateOf(false) }
+
+                                                Text(
+                                                    "Field: ${field.name}",
+                                                    style = MaterialTheme.typography.subtitle1,
+                                                    modifier = Modifier.weight(1f)
+                                                )
+
+                                                Box {
+                                                    Button(onClick = { typeExpanded = true }) {
+                                                        Text(fieldType.name)
+                                                    }
+
+                                                    DropdownMenu(
+                                                        expanded = typeExpanded,
+                                                        onDismissRequest = { typeExpanded = false }) {
+                                                        FieldType.entries.forEach { type ->
+                                                            DropdownMenuItem(onClick = {
+                                                                fieldType = type
+                                                                typeExpanded = false
+                                                            }) {
+                                                                Text(type.name)
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+
+                                            if (fieldType == FieldType.INT || fieldType == FieldType.TEXT) {
+                                                Spacer(modifier = Modifier.height(4.dp))
+
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Text("Variant: ", modifier = Modifier.width(70.dp))
+
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        RadioButton(
+                                                            selected = variant == "Basic",
+                                                            onClick = { variant = "Basic" })
+                                                        Text("Basic")
+                                                    }
+
+                                                    if (fieldType == FieldType.INT) {
+                                                        Spacer(modifier = Modifier.width(8.dp))
+
+                                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                                            RadioButton(
+                                                                selected = variant == "Unique",
+                                                                onClick = { variant = "Unique" })
+                                                            Text("Unique")
+                                                        }
+                                                    }
+
+                                                    if (fieldType == FieldType.TEXT) {
+                                                        Spacer(modifier = Modifier.width(8.dp))
+
+                                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                                            RadioButton(
+                                                                selected = variant == "Index",
+                                                                onClick = { variant = "Index" })
+                                                            Text("Index")
+                                                        }
+                                                    }
+                                                }
+                                            }
+
+                                            Spacer(modifier = Modifier.height(4.dp))
+
+                                            if (variant == "Unique") {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Checkbox(
+                                                        checked = uniqueIdentify,
+                                                        onCheckedChange = { uniqueIdentify = it })
+                                                    Text("Identifiable")
+                                                }
+                                            }
+
+                                            if (variant == "Index") {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    var langExpanded by remember { mutableStateOf(false) }
+
+                                                    Text("Language:", modifier = Modifier.width(80.dp))
+
+                                                    Box {
+                                                        Button(onClick = { langExpanded = true }) {
+                                                            Text(indexLang.name)
+                                                        }
+
+                                                        DropdownMenu(
+                                                            expanded = langExpanded,
+                                                            onDismissRequest = { langExpanded = false }) {
+                                                            Language.entries.forEach { lang ->
+                                                                DropdownMenuItem(onClick = {
+                                                                    indexLang = lang
+                                                                    langExpanded = false
+                                                                }) {
+                                                                    Text(lang.name)
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+
+                                                    Spacer(modifier = Modifier.width(16.dp))
+
+                                                    Checkbox(
+                                                        checked = indexDefault, onCheckedChange = { indexDefault = it })
+
+                                                    Text("Default")
+                                                }
+                                            }
+
+                                            if (sources.size < 2) return@inner
+
+                                            Spacer(modifier = Modifier.height(4.dp))
+
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text("Link Source:", modifier = Modifier.width(100.dp))
+
+                                                var linkDropdownExpanded by remember { mutableStateOf(false) }
+
+                                                Box {
+                                                    Button(onClick = { linkDropdownExpanded = true }) {
+                                                        Text(linkSource.ifEmpty { "None" })
+                                                    }
+
+                                                    DropdownMenu(
+                                                        expanded = linkDropdownExpanded,
+                                                        onDismissRequest = { linkDropdownExpanded = false }) {
+                                                        DropdownMenuItem(onClick = {
+                                                            linkSource = ""
+                                                            linkDropdownExpanded = false
+                                                        }) {
+                                                            Text("None")
+                                                        }
+
+                                                        sources.filter { source -> source.name != selectedSource!!.name }
+                                                            .forEach { source ->
+                                                                DropdownMenuItem(onClick = {
+                                                                    linkSource = source.name
+                                                                    linkDropdownExpanded = false
+                                                                }) {
+                                                                    Text(source.name)
+                                                                }
+                                                            }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                }
+                            }
+                        } else Text("Select a source to see its details.")
                     }
                 }
 
-                Column(modifier = Modifier.align(Alignment.TopEnd).padding(all = 16.dp)) {
-                    Button(onClick = { toggleDialog = true }, modifier = Modifier.width(100.dp)) {
-                        Text("Add")
-                    }
-
-                    Button(
-                        onClick = {
-                            selectedFile?.let { file -> files.remove(file) }
-                            selectedFile = null
-                        },
-                        enabled = selectedFile != null,
-                        modifier = Modifier.width(100.dp)
-                    ) {
-                        Text("Remove")
-                    }
-
-                    Spacer(Modifier.height(16.dp))
-
-                    Button(onClick = { println("Import") }, modifier = Modifier.width(100.dp)) {
-                        Text("Import")
-                    }
-
-                    Button(onClick = { println("Export") }, enabled = false, modifier = Modifier.width(100.dp)) {
-                        Text("Export")
+                if (showAddDialog) {
+                    FileDialog { paths ->
+                        paths.let {
+                            val newSources =
+                                it.filter { path -> sources.none { src -> src.name == path.nameWithoutExtension } }
+                                    .mapNotNull { path -> parseSourceFromFile(path) }
+                            sources.addAll(newSources)
+                        }
+                        showAddDialog = false
                     }
                 }
-            }
 
-            if (toggleDialog) {
-                FileDialog { paths ->
-                    files.addAll(paths.filter { it !in files }).also { toggleDialog = false }
+                if (showExportDialog) {
+                    FileDialog(dialogType = DialogType.SAVE, extension = "json") { paths ->
+                        if (paths.isNotEmpty()) {
+                            val savePath = paths.first()
+
+                            val dataInfo = DataInfo(savePath.nameWithoutExtension, sources)
+
+                            dataService.dataInfoToString(dataInfo)?.let { savePath.writeText(it) }
+                        }
+
+                        showExportDialog = false
+                    }
                 }
             }
         }
     }
 }
 
-private fun Path.asName(): String = this.name.substringBeforeLast(".")
+private fun getType(value: String?): FieldType {
+    if (value == null) return FieldType.TEXT
+
+    value.toIntOrNull()?.let { return FieldType.INT }
+    value.toFloatOrNull()?.let { return FieldType.FLOAT }
+    value.lowercase().toBooleanStrictOrNull()?.let { return FieldType.BOOLEAN }
+
+    return FieldType.TEXT
+}
+
+private fun parseSourceFromFile(path: Path): Source? {
+    if (path.extension != "csv") return null
+
+    return path.bufferedReader().use { reader ->
+        val header = runCatching { reader.readLine() }.getOrNull() ?: return null
+
+        val values = runCatching { reader.readLine() }.getOrNull()?.split(",")
+
+        val headerFields = header.split(",").mapIndexed { idx, field -> BasicField(field, getType(values?.get(idx))) }
+
+        return@use Source(name = path.nameWithoutExtension, fields = headerFields)
+    }
+}
