@@ -333,7 +333,23 @@ class TextExplorerUI(
                         paths.filter { it.extension == "jar" }.forEach { loadPlugin(it) }
                     }
 
-                    Window.LOAD_DATA -> DataLoaderWindow(dataService) { openWindow = Window.NONE }
+                    Window.LOAD_DATA -> DataLoaderWindow(dataService, dataDir) { dataInfo ->
+                        openWindow = Window.NONE
+
+                        if (true) return@DataLoaderWindow
+
+                        val poolsEmpty = dataService.getAvailablePools().isEmpty()
+
+                        if (dataService.createDataPool(dataInfo!!, dataDir)) {
+                            dataService.getAvailablePools().firstOrNull()?.let inner@{
+                                if (!poolsEmpty) return@inner
+
+                                dataService.selectDataPool(it)
+                                poolSelected = !poolSelected
+                            }
+                        }
+                    }
+
                     else -> {}
                 }
             }

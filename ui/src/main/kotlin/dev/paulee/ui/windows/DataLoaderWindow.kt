@@ -16,16 +16,16 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.rememberWindowState
 import dev.paulee.api.data.*
+import dev.paulee.ui.components.CustomInputDialog
 import dev.paulee.ui.components.DialogType
 import dev.paulee.ui.components.FileDialog
+import java.nio.file.Files
 import java.nio.file.Path
-import kotlin.io.path.bufferedReader
-import kotlin.io.path.extension
-import kotlin.io.path.nameWithoutExtension
-import kotlin.io.path.writeText
+import java.nio.file.StandardCopyOption
+import kotlin.io.path.*
 
 @Composable
-fun DataLoaderWindow(dataService: IDataService, onClose: () -> Unit) {
+fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInfo?) -> Unit) {
     val windowState = rememberWindowState(
         position = WindowPosition.Aligned(Alignment.Center), size = DpSize(1100.dp, 700.dp)
     )
@@ -33,9 +33,12 @@ fun DataLoaderWindow(dataService: IDataService, onClose: () -> Unit) {
     var showAddDialog by remember { mutableStateOf(false) }
     var showExportDialog by remember { mutableStateOf(false) }
     val sources = remember { mutableStateListOf<Source>() }
+    val sourcePaths = remember { mutableStateListOf<Path>() }
     var selectedSource by remember { mutableStateOf<Source?>(null) }
+    var showNameDialog by remember { mutableStateOf(false) }
+    var dataInfoName by remember { mutableStateOf("") }
 
-    Window(state = windowState, onCloseRequest = onClose, title = "Data Import") {
+    Window(state = windowState, onCloseRequest = { onClose(null) }, title = "Data Import") {
         MaterialTheme {
             Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
                 Row(modifier = Modifier.fillMaxSize()) {
@@ -72,7 +75,11 @@ fun DataLoaderWindow(dataService: IDataService, onClose: () -> Unit) {
                         Button(
                             onClick = {
                                 val srcToRemove = selectedSource
-                                srcToRemove?.let { sources.remove(it) }
+                                srcToRemove?.let { src ->
+                                    sources.remove(src)
+                                    sourcePaths.removeIf { it.nameWithoutExtension == src.name }
+                                }
+
                                 selectedSource = null
                             }, enabled = selectedSource != null, modifier = Modifier.fillMaxWidth()
                         ) {
@@ -82,7 +89,7 @@ fun DataLoaderWindow(dataService: IDataService, onClose: () -> Unit) {
                         Spacer(modifier = Modifier.height(4.dp))
 
                         Button(
-                            onClick = { println("Import") }, modifier = Modifier.fillMaxWidth()
+                            onClick = { println("Import") }, enabled = false, modifier = Modifier.fillMaxWidth()
                         ) {
                             Text("Import")
                         }
@@ -100,8 +107,8 @@ fun DataLoaderWindow(dataService: IDataService, onClose: () -> Unit) {
                         Spacer(modifier = Modifier.height(18.dp))
 
                         Button(
-                            onClick = { println("Load") },
-                            enabled = false, //sources.isNotEmpty(),
+                            onClick = { showNameDialog = true },
+                            enabled = sources.isNotEmpty(),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text("Load")
@@ -132,35 +139,23 @@ fun DataLoaderWindow(dataService: IDataService, onClose: () -> Unit) {
                                     var fieldType by remember(selectedSource, field) { mutableStateOf(field.fieldType) }
 
                                     var uniqueIdentify by remember(selectedSource, field) {
-                                        mutableStateOf(
-                                            (field as? UniqueField)?.identify ?: false
-                                        )
-
+                                        mutableStateOf((field as? UniqueField)?.identify == true)
                                     }
+
                                     var indexLang by remember(selectedSource, field) {
-                                        mutableStateOf(
-                                            (field as? IndexField)?.lang ?: Language.ENGLISH
-                                        )
+                                        mutableStateOf((field as? IndexField)?.lang ?: Language.ENGLISH)
                                     }
 
                                     var indexDefault by remember(selectedSource, field) {
-                                        mutableStateOf(
-                                            (field as? IndexField)?.default ?: false
-                                        )
+                                        mutableStateOf((field as? IndexField)?.default == true)
                                     }
 
                                     var linkSource by remember(
-                                        selectedSource,
-                                        field
+                                        selectedSource, field
                                     ) { mutableStateOf(field.sourceLink) }
 
                                     LaunchedEffect(
-                                        variant,
-                                        fieldType,
-                                        uniqueIdentify,
-                                        indexLang,
-                                        indexDefault,
-                                        linkSource
+                                        variant, fieldType, uniqueIdentify, indexLang, indexDefault, linkSource
                                     ) {
                                         if ((fieldType != FieldType.INT && variant == "Unique") || (fieldType != FieldType.TEXT && variant == "Index"))
                                             variant = "Basic"
@@ -173,18 +168,11 @@ fun DataLoaderWindow(dataService: IDataService, onClose: () -> Unit) {
                                             if (fieldIndex != -1) {
                                                 val newField: SourceField = when (variant) {
                                                     "Unique" -> UniqueField(
-                                                        field.name,
-                                                        fieldType,
-                                                        linkSource,
-                                                        uniqueIdentify
+                                                        field.name, fieldType, linkSource, uniqueIdentify
                                                     )
 
                                                     "Index" -> IndexField(
-                                                        field.name,
-                                                        fieldType,
-                                                        linkSource,
-                                                        indexLang,
-                                                        indexDefault
+                                                        field.name, fieldType, linkSource, indexLang, indexDefault
                                                     )
 
                                                     else -> BasicField(field.name, fieldType, linkSource)
@@ -376,12 +364,35 @@ fun DataLoaderWindow(dataService: IDataService, onClose: () -> Unit) {
                     }
                 }
 
+                if (showNameDialog) {
+                    CustomInputDialog(
+                        title = "Enter a name",
+                        placeholder = "Name",
+                        onDismissRequest = { showNameDialog = false },
+                        onConfirmClick = {
+                            if (dataInfoName.isNotEmpty()) {
+                                showNameDialog = false
+
+                                sourcePaths.forEach { path ->
+                                    Files.copy(path, dataDir.resolve(path.name), StandardCopyOption.REPLACE_EXISTING)
+                                }
+                                onClose(DataInfo(dataInfoName, sources.toList()))
+                            }
+                        },
+                        textFieldValue = dataInfoName,
+                        onTextFieldValueChange = { dataInfoName = it })
+                }
+
                 if (showAddDialog) {
                     FileDialog { paths ->
                         paths.let {
                             val newSources =
                                 it.filter { path -> sources.none { src -> src.name == path.nameWithoutExtension } }
-                                    .mapNotNull { path -> parseSourceFromFile(path) }
+                                    .mapNotNull { path ->
+                                        val source = parseSourceFromFile(path) ?: return@mapNotNull null
+                                        sourcePaths.add(path)
+                                        source
+                                    }
                             sources.addAll(newSources)
                         }
                         showAddDialog = false
@@ -393,7 +404,7 @@ fun DataLoaderWindow(dataService: IDataService, onClose: () -> Unit) {
                         if (paths.isNotEmpty()) {
                             val savePath = paths.first()
 
-                            val dataInfo = DataInfo(savePath.nameWithoutExtension, sources)
+                            val dataInfo = DataInfo(savePath.nameWithoutExtension, sources.toList())
 
                             dataService.dataInfoToString(dataInfo)?.let { savePath.writeText(it) }
                         }
