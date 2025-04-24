@@ -336,11 +336,11 @@ class TextExplorerUI(
                     Window.LOAD_DATA -> DataLoaderWindow(dataService, dataDir) { dataInfo ->
                         openWindow = Window.NONE
 
-                        if (true) return@DataLoaderWindow
+                        if (dataInfo == null) return@DataLoaderWindow
 
                         val poolsEmpty = dataService.getAvailablePools().isEmpty()
 
-                        if (dataService.createDataPool(dataInfo!!, dataDir)) {
+                        if (dataService.createDataPool(dataInfo, dataDir)) {
                             dataService.getAvailablePools().firstOrNull()?.let inner@{
                                 if (!poolsEmpty) return@inner
 
