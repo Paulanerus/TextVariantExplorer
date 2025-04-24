@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -16,6 +17,8 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.rememberWindowState
 import dev.paulee.api.data.*
+import dev.paulee.ui.Hint
+import dev.paulee.ui.SimpleTextField
 import dev.paulee.ui.components.CustomInputDialog
 import dev.paulee.ui.components.DialogType
 import dev.paulee.ui.components.FileDialog
@@ -37,6 +40,23 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
     var selectedSource by remember { mutableStateOf<Source?>(null) }
     var showNameDialog by remember { mutableStateOf(false) }
     var dataInfoName by remember { mutableStateOf("") }
+
+    fun updateSource(
+        selectedSource: Source?,
+        transform: (Source) -> Source,
+        onSelect: (Source) -> Unit
+    ) {
+        selectedSource?.let { current ->
+            val updated = transform(current)
+
+            val idx = sources.indexOfFirst { it.name == current.name }
+
+            if (idx != -1 && updated != current) {
+                sources[idx] = updated
+                onSelect(updated)
+            }
+        }
+    }
 
     Window(state = windowState, onCloseRequest = { onClose(null) }, title = "Data Import") {
         MaterialTheme {
@@ -125,239 +145,439 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                         if (selectedSource != null) {
                             Text("Source: ${selectedSource!!.name}", style = MaterialTheme.typography.subtitle1)
 
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(16.dp))
 
-                            LazyColumn(modifier = Modifier.fillMaxWidth()) {
-                                items(selectedSource?.fields ?: emptyList()) { field ->
-                                    val initialVariant = when (field) {
-                                        is UniqueField -> "Unique"
-                                        is IndexField -> "Index"
-                                        else -> "Basic"
-                                    }
+                            var selectedTab by remember { mutableStateOf(0) }
+                            val tabs = listOf("Fields", "Filter", "Variant Mapping")
 
-                                    var variant by remember(selectedSource, field) { mutableStateOf(initialVariant) }
-                                    var fieldType by remember(selectedSource, field) { mutableStateOf(field.fieldType) }
-
-                                    var uniqueIdentify by remember(selectedSource, field) {
-                                        mutableStateOf((field as? UniqueField)?.identify == true)
-                                    }
-
-                                    var indexLang by remember(selectedSource, field) {
-                                        mutableStateOf((field as? IndexField)?.lang ?: Language.ENGLISH)
-                                    }
-
-                                    var indexDefault by remember(selectedSource, field) {
-                                        mutableStateOf((field as? IndexField)?.default == true)
-                                    }
-
-                                    var linkSource by remember(
-                                        selectedSource, field
-                                    ) { mutableStateOf(field.sourceLink) }
-
-                                    LaunchedEffect(
-                                        variant, fieldType, uniqueIdentify, indexLang, indexDefault, linkSource
-                                    ) {
-                                        if ((fieldType != FieldType.INT && variant == "Unique") || (fieldType != FieldType.TEXT && variant == "Index"))
-                                            variant = "Basic"
-
-                                        val sourceContainingField = selectedSource
-
-                                        sourceContainingField?.let { currentSource ->
-                                            val fieldIndex = currentSource.fields.indexOf(field)
-
-                                            if (fieldIndex != -1) {
-                                                val newField: SourceField = when (variant) {
-                                                    "Unique" -> UniqueField(
-                                                        field.name, fieldType, linkSource, uniqueIdentify
-                                                    )
-
-                                                    "Index" -> IndexField(
-                                                        field.name, fieldType, linkSource, indexLang, indexDefault
-                                                    )
-
-                                                    else -> BasicField(field.name, fieldType, linkSource)
-                                                }
-
-                                                if (newField != currentSource.fields[fieldIndex]) {
-                                                    val updatedFields = currentSource.fields.toMutableList().apply {
-                                                        this[fieldIndex] = newField
-                                                    }
-
-                                                    val updatedSource = currentSource.copy(fields = updatedFields)
-
-                                                    val sourceIndex =
-                                                        sources.indexOfFirst { it.name == currentSource.name }
-
-                                                    if (sourceIndex != -1) {
-                                                        sources[sourceIndex] = updatedSource
-
-                                                        if (selectedSource?.name == updatedSource.name)
-                                                            selectedSource = updatedSource
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
+                            Row(
+                                modifier = Modifier.fillMaxWidth()
+                                    .background(Color(0xFFF5F5F5), RoundedCornerShape(8.dp)).padding(4.dp)
+                            ) {
+                                tabs.forEachIndexed { index, title ->
+                                    val isSelected = selectedTab == index
 
                                     Box(
-                                        modifier = Modifier.fillMaxWidth().background(Color(0xFFF0F0F0))
-                                            .padding(horizontal = 8.dp)
+                                        modifier = Modifier.weight(1f).background(
+                                            color = if (isSelected) Color.White else Color.Transparent,
+                                            shape = RoundedCornerShape(6.dp)
+                                        ).clickable { selectedTab = index }.padding(vertical = 10.dp),
+                                        contentAlignment = Alignment.Center
                                     ) {
-                                        Column inner@{
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                verticalAlignment = Alignment.CenterVertically
+                                        Text(
+                                            text = title,
+                                            style = MaterialTheme.typography.body1,
+                                            color = if (isSelected) MaterialTheme.colors.primary else Color.Gray
+                                        )
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            when (selectedTab) {
+                                0 -> {
+                                    LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                                        items(selectedSource?.fields ?: emptyList()) { field ->
+                                            val initialVariant = when (field) {
+                                                is UniqueField -> "Unique"
+                                                is IndexField -> "Index"
+                                                else -> "Basic"
+                                            }
+
+                                            var variant by remember(selectedSource, field) {
+                                                mutableStateOf(initialVariant)
+                                            }
+
+                                            var fieldType by remember(selectedSource, field) {
+                                                mutableStateOf(field.fieldType)
+                                            }
+
+                                            var uniqueIdentify by remember(selectedSource, field) {
+                                                mutableStateOf((field as? UniqueField)?.identify == true)
+                                            }
+
+                                            var indexLang by remember(selectedSource, field) {
+                                                mutableStateOf((field as? IndexField)?.lang ?: Language.ENGLISH)
+                                            }
+
+                                            var indexDefault by remember(selectedSource, field) {
+                                                mutableStateOf((field as? IndexField)?.default == true)
+                                            }
+
+                                            var linkSource by remember(
+                                                selectedSource, field
+                                            ) { mutableStateOf(field.sourceLink) }
+
+                                            LaunchedEffect(
+                                                variant, fieldType, uniqueIdentify, indexLang, indexDefault, linkSource
                                             ) {
-                                                var typeExpanded by remember { mutableStateOf(false) }
+                                                if ((fieldType != FieldType.INT && variant == "Unique") || (fieldType != FieldType.TEXT && variant == "Index")) variant =
+                                                    "Basic"
 
-                                                Text(
-                                                    "Field: ${field.name}",
-                                                    style = MaterialTheme.typography.subtitle1,
-                                                    modifier = Modifier.weight(1f)
-                                                )
+                                                val sourceContainingField = selectedSource
 
-                                                Box {
-                                                    Button(onClick = { typeExpanded = true }) {
-                                                        Text(fieldType.name)
-                                                    }
+                                                sourceContainingField?.let { currentSource ->
+                                                    val fieldIndex = currentSource.fields.indexOf(field)
 
-                                                    DropdownMenu(
-                                                        expanded = typeExpanded,
-                                                        onDismissRequest = { typeExpanded = false }) {
-                                                        FieldType.entries.forEach { type ->
-                                                            DropdownMenuItem(onClick = {
-                                                                fieldType = type
-                                                                typeExpanded = false
-                                                            }) {
-                                                                Text(type.name)
+                                                    if (fieldIndex != -1) {
+                                                        val newField: SourceField = when (variant) {
+                                                            "Unique" -> UniqueField(
+                                                                field.name, fieldType, linkSource, uniqueIdentify
+                                                            )
+
+                                                            "Index" -> IndexField(
+                                                                field.name,
+                                                                fieldType,
+                                                                linkSource,
+                                                                indexLang,
+                                                                indexDefault
+                                                            )
+
+                                                            else -> BasicField(field.name, fieldType, linkSource)
+                                                        }
+
+                                                        if (newField != currentSource.fields[fieldIndex]) {
+                                                            val updatedFields =
+                                                                currentSource.fields.toMutableList().apply {
+                                                                    this[fieldIndex] = newField
+                                                                }
+
+                                                            val updatedSource =
+                                                                currentSource.copy(fields = updatedFields)
+
+                                                            val sourceIndex =
+                                                                sources.indexOfFirst { it.name == currentSource.name }
+
+                                                            if (sourceIndex != -1) {
+                                                                sources[sourceIndex] = updatedSource
+
+                                                                if (selectedSource?.name == updatedSource.name) selectedSource =
+                                                                    updatedSource
                                                             }
                                                         }
                                                     }
                                                 }
                                             }
 
-                                            if (fieldType == FieldType.INT || fieldType == FieldType.TEXT) {
-                                                Spacer(modifier = Modifier.height(4.dp))
+                                            Box(
+                                                modifier = Modifier.fillMaxWidth().background(Color(0xFFF0F0F0))
+                                                    .padding(horizontal = 8.dp)
+                                            ) {
+                                                Column inner@{
+                                                    Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        var typeExpanded by remember { mutableStateOf(false) }
 
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Text("Variant: ", modifier = Modifier.width(70.dp))
+                                                        Text(
+                                                            "Field: ${field.name}",
+                                                            style = MaterialTheme.typography.subtitle1,
+                                                            modifier = Modifier.weight(1f)
+                                                        )
+
+                                                        Box {
+                                                            Button(onClick = { typeExpanded = true }) {
+                                                                Text(fieldType.name)
+                                                            }
+
+                                                            DropdownMenu(
+                                                                expanded = typeExpanded,
+                                                                onDismissRequest = { typeExpanded = false }) {
+                                                                FieldType.entries.forEach { type ->
+                                                                    DropdownMenuItem(onClick = {
+                                                                        fieldType = type
+                                                                        typeExpanded = false
+                                                                    }) {
+                                                                        Text(type.name)
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+
+                                                    if (fieldType == FieldType.INT || fieldType == FieldType.TEXT) {
+                                                        Spacer(modifier = Modifier.height(4.dp))
+
+                                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                                            Text("Variant: ", modifier = Modifier.width(70.dp))
+
+                                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                                RadioButton(
+                                                                    selected = variant == "Basic",
+                                                                    onClick = { variant = "Basic" })
+                                                                Text("Basic")
+                                                            }
+
+                                                            if (fieldType == FieldType.INT) {
+                                                                Spacer(modifier = Modifier.width(8.dp))
+
+                                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                                    RadioButton(
+                                                                        selected = variant == "Unique",
+                                                                        onClick = { variant = "Unique" })
+                                                                    Text("Unique")
+                                                                }
+                                                            }
+
+                                                            if (fieldType == FieldType.TEXT) {
+                                                                Spacer(modifier = Modifier.width(8.dp))
+
+                                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                                    RadioButton(
+                                                                        selected = variant == "Index",
+                                                                        onClick = { variant = "Index" })
+                                                                    Text("Index")
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+
+                                                    Spacer(modifier = Modifier.height(4.dp))
+
+                                                    if (variant == "Unique") {
+                                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                                            Checkbox(
+                                                                checked = uniqueIdentify,
+                                                                onCheckedChange = { uniqueIdentify = it })
+                                                            Text("Identifiable")
+                                                        }
+                                                    }
+
+                                                    if (variant == "Index") {
+                                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                                            var langExpanded by remember { mutableStateOf(false) }
+
+                                                            Text("Language:", modifier = Modifier.width(80.dp))
+
+                                                            Box {
+                                                                Button(onClick = { langExpanded = true }) {
+                                                                    Text(indexLang.name)
+                                                                }
+
+                                                                DropdownMenu(
+                                                                    expanded = langExpanded,
+                                                                    onDismissRequest = { langExpanded = false }) {
+                                                                    Language.entries.forEach { lang ->
+                                                                        DropdownMenuItem(onClick = {
+                                                                            indexLang = lang
+                                                                            langExpanded = false
+                                                                        }) {
+                                                                            Text(lang.name)
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+
+                                                            Spacer(modifier = Modifier.width(16.dp))
+
+                                                            Checkbox(
+                                                                checked = indexDefault,
+                                                                onCheckedChange = { indexDefault = it })
+
+                                                            Text("Default")
+                                                        }
+                                                    }
+
+                                                    if (sources.size < 2) return@inner
+
+                                                    Spacer(modifier = Modifier.height(4.dp))
 
                                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                                        RadioButton(
-                                                            selected = variant == "Basic",
-                                                            onClick = { variant = "Basic" })
-                                                        Text("Basic")
-                                                    }
+                                                        Text("Link Source:", modifier = Modifier.width(100.dp))
 
-                                                    if (fieldType == FieldType.INT) {
-                                                        Spacer(modifier = Modifier.width(8.dp))
+                                                        var linkDropdownExpanded by remember { mutableStateOf(false) }
 
-                                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                                            RadioButton(
-                                                                selected = variant == "Unique",
-                                                                onClick = { variant = "Unique" })
-                                                            Text("Unique")
-                                                        }
-                                                    }
-
-                                                    if (fieldType == FieldType.TEXT) {
-                                                        Spacer(modifier = Modifier.width(8.dp))
-
-                                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                                            RadioButton(
-                                                                selected = variant == "Index",
-                                                                onClick = { variant = "Index" })
-                                                            Text("Index")
-                                                        }
-                                                    }
-                                                }
-                                            }
-
-                                            Spacer(modifier = Modifier.height(4.dp))
-
-                                            if (variant == "Unique") {
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Checkbox(
-                                                        checked = uniqueIdentify,
-                                                        onCheckedChange = { uniqueIdentify = it })
-                                                    Text("Identifiable")
-                                                }
-                                            }
-
-                                            if (variant == "Index") {
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    var langExpanded by remember { mutableStateOf(false) }
-
-                                                    Text("Language:", modifier = Modifier.width(80.dp))
-
-                                                    Box {
-                                                        Button(onClick = { langExpanded = true }) {
-                                                            Text(indexLang.name)
-                                                        }
-
-                                                        DropdownMenu(
-                                                            expanded = langExpanded,
-                                                            onDismissRequest = { langExpanded = false }) {
-                                                            Language.entries.forEach { lang ->
-                                                                DropdownMenuItem(onClick = {
-                                                                    indexLang = lang
-                                                                    langExpanded = false
-                                                                }) {
-                                                                    Text(lang.name)
-                                                                }
+                                                        Box {
+                                                            Button(onClick = { linkDropdownExpanded = true }) {
+                                                                Text(linkSource.ifEmpty { "None" })
                                                             }
-                                                        }
-                                                    }
 
-                                                    Spacer(modifier = Modifier.width(16.dp))
-
-                                                    Checkbox(
-                                                        checked = indexDefault, onCheckedChange = { indexDefault = it })
-
-                                                    Text("Default")
-                                                }
-                                            }
-
-                                            if (sources.size < 2) return@inner
-
-                                            Spacer(modifier = Modifier.height(4.dp))
-
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Text("Link Source:", modifier = Modifier.width(100.dp))
-
-                                                var linkDropdownExpanded by remember { mutableStateOf(false) }
-
-                                                Box {
-                                                    Button(onClick = { linkDropdownExpanded = true }) {
-                                                        Text(linkSource.ifEmpty { "None" })
-                                                    }
-
-                                                    DropdownMenu(
-                                                        expanded = linkDropdownExpanded,
-                                                        onDismissRequest = { linkDropdownExpanded = false }) {
-                                                        DropdownMenuItem(onClick = {
-                                                            linkSource = ""
-                                                            linkDropdownExpanded = false
-                                                        }) {
-                                                            Text("None")
-                                                        }
-
-                                                        sources.filter { source -> source.name != selectedSource!!.name }
-                                                            .forEach { source ->
+                                                            DropdownMenu(
+                                                                expanded = linkDropdownExpanded,
+                                                                onDismissRequest = { linkDropdownExpanded = false }) {
                                                                 DropdownMenuItem(onClick = {
-                                                                    linkSource = source.name
+                                                                    linkSource = ""
                                                                     linkDropdownExpanded = false
                                                                 }) {
-                                                                    Text(source.name)
+                                                                    Text("None")
                                                                 }
+
+                                                                sources.filter { source -> source.name != selectedSource!!.name }
+                                                                    .forEach { source ->
+                                                                        DropdownMenuItem(onClick = {
+                                                                            linkSource = source.name
+                                                                            linkDropdownExpanded = false
+                                                                        }) {
+                                                                            Text(source.name)
+                                                                        }
+                                                                    }
                                                             }
+                                                        }
                                                     }
                                                 }
                                             }
+
+                                            Spacer(modifier = Modifier.height(8.dp))
                                         }
                                     }
+                                }
 
-                                    Spacer(modifier = Modifier.height(8.dp))
+                                1 -> {
+                                    val preFilter = selectedSource!!.preFilter
+                                    var pfKey by remember(selectedSource) { mutableStateOf(preFilter?.key ?: "") }
+                                    var pfLinkKey by remember(selectedSource) {
+                                        mutableStateOf(
+                                            preFilter?.linkKey ?: ""
+                                        )
+                                    }
+                                    var pfValue by remember(selectedSource) { mutableStateOf(preFilter?.value ?: "") }
+
+                                    LaunchedEffect(pfKey, pfLinkKey, pfValue) {
+                                        val updatedPreFilter =
+                                            if (pfKey.isNotBlank() || pfLinkKey.isNotBlank() || pfValue.isNotBlank()) {
+                                                PreFilter(pfKey, pfLinkKey, pfValue)
+                                            } else {
+                                                null
+                                            }
+
+                                        updateSource(
+                                            selectedSource,
+                                            transform = { it.copy(preFilter = updatedPreFilter) },
+                                            onSelect = { selectedSource = it }
+                                        )
+                                    }
+
+                                    Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text("Filter Configuration", style = MaterialTheme.typography.h6)
+
+                                            TextButton(
+                                                onClick = {
+                                                    pfKey = ""
+                                                    pfLinkKey = ""
+                                                    pfValue = ""
+                                                },
+                                                enabled = pfKey.isNotBlank() || pfLinkKey.isNotBlank() || pfValue.isNotBlank()
+                                            ) {
+                                                Text("Clear")
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.height(16.dp))
+
+                                        SimpleTextField(
+                                            textValue = pfKey,
+                                            onTextValueChange = { pfKey = it },
+                                            placeholderText = "Key",
+                                            Modifier.fillMaxWidth(),
+                                            singleLine = true
+                                        )
+
+                                        Spacer(modifier = Modifier.height(12.dp))
+
+                                        SimpleTextField(
+                                            textValue = pfLinkKey,
+                                            onTextValueChange = { pfLinkKey = it },
+                                            placeholderText = "Link Key",
+                                            Modifier.fillMaxWidth(),
+                                            singleLine = true
+                                        )
+
+                                        Spacer(modifier = Modifier.height(12.dp))
+
+                                        SimpleTextField(
+                                            textValue = pfValue,
+                                            onTextValueChange = { pfValue = it },
+                                            placeholderText = "Value",
+                                            Modifier.fillMaxWidth(),
+                                            singleLine = true
+                                        )
+
+                                        Spacer(modifier = Modifier.height(16.dp))
+
+                                        Hint("TODO", Modifier.fillMaxWidth())
+                                    }
+                                }
+
+                                2 -> {
+                                    val variantMapping = selectedSource!!.variantMapping
+                                    var vmBase by remember(selectedSource) {
+                                        mutableStateOf(
+                                            variantMapping?.base ?: ""
+                                        )
+                                    }
+                                    var vmVariantsText by remember(selectedSource) {
+                                        mutableStateOf(variantMapping?.variants?.joinToString(", ") ?: "")
+                                    }
+
+                                    LaunchedEffect(vmBase, vmVariantsText) {
+                                        val variants =
+                                            vmVariantsText.split(",").map { it.trim() }.filter { it.isNotBlank() }
+
+                                        val updatedMapping = if (vmBase.isNotBlank() && variants.isNotEmpty()) {
+                                            VariantMapping(vmBase, variants)
+                                        } else {
+                                            null
+                                        }
+
+                                        updateSource(
+                                            selectedSource,
+                                            transform = { it.copy(variantMapping = updatedMapping) },
+                                            onSelect = { selectedSource = it }
+                                        )
+                                    }
+
+                                    Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text("Variant Mapping Configuration", style = MaterialTheme.typography.h6)
+
+                                            TextButton(
+                                                onClick = {
+                                                    vmBase = ""
+                                                    vmVariantsText = ""
+                                                }, enabled = vmBase.isNotBlank() || vmVariantsText.isNotBlank()
+                                            ) {
+                                                Text("Clear")
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.height(16.dp))
+
+                                        SimpleTextField(
+                                            textValue = vmBase,
+                                            onTextValueChange = { vmBase = it },
+                                            placeholderText = "Base Field",
+                                            Modifier.fillMaxWidth(),
+                                            singleLine = true
+                                        )
+
+                                        Spacer(modifier = Modifier.height(12.dp))
+
+                                        SimpleTextField(
+                                            textValue = vmVariantsText,
+                                            onTextValueChange = { vmVariantsText = it },
+                                            placeholderText = "Variants (comma-separated)",
+                                            Modifier.fillMaxWidth(),
+                                            singleLine = true
+                                        )
+
+                                        Spacer(modifier = Modifier.height(16.dp))
+
+                                        Hint(
+                                            "Variant Mapping allows you to map variant field names to a base field. This is useful when you have multiple fields that represent the same data.",
+                                            Modifier.fillMaxWidth()
+                                        )
+                                    }
                                 }
                             }
                         } else Text("Select a source to see its details.")
