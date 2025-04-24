@@ -501,7 +501,10 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
 
                                         Spacer(modifier = Modifier.height(16.dp))
 
-                                        Hint("TODO", Modifier.fillMaxWidth())
+                                        Hint(
+                                            "Filters can be used to select objects matching a condition before searching with the initial query. They act on datasets, resembling a bridge between two data sets. Example: @source:key:value",
+                                            Modifier.fillMaxWidth()
+                                        )
                                     }
                                 }
 
@@ -574,7 +577,7 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                                         Spacer(modifier = Modifier.height(16.dp))
 
                                         Hint(
-                                            "Variant Mapping allows you to map variant field names to a base field. This is useful when you have multiple fields that represent the same data.",
+                                            "Variant Mapping allows you to map variant field names to a base field. This is useful when you have multiple fields that represent the same data. Example: @source:key",
                                             Modifier.fillMaxWidth()
                                         )
                                     }
