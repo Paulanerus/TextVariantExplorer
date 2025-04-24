@@ -1,15 +1,14 @@
 package dev.paulee.ui.components
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.AwtWindow
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import dev.paulee.ui.SimpleTextField
 import java.awt.FileDialog
 import java.awt.Frame
 import java.io.FilenameFilter
@@ -87,18 +86,12 @@ fun CustomInputDialog(
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
 
-                TextField(
-                    value = textFieldValue,
-                    onValueChange = onTextFieldValueChange,
+                SimpleTextField(
+                    textValue = textFieldValue,
+                    onTextValueChange = onTextFieldValueChange,
+                    placeholderText = placeholder,
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text(placeholder) },
-                    colors = TextFieldDefaults.textFieldColors(
-                        backgroundColor = Color(0xFFF0F0F0),
-                        unfocusedIndicatorColor = Color.Transparent,
-                        focusedIndicatorColor = Color.Transparent,
-                    ),
-                    shape = RoundedCornerShape(4.dp),
-                    singleLine = true
+                    singleLine = true,
                 )
 
                 Spacer(modifier = Modifier.height(24.dp))
