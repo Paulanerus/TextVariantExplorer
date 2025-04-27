@@ -33,6 +33,7 @@ import dev.paulee.ui.components.widthLimitWrapper
 import dev.paulee.ui.windows.DataLoaderWindow
 import dev.paulee.ui.windows.DiffViewerWindow
 import dev.paulee.ui.windows.PluginInfoWindow
+import kotlinx.coroutines.launch
 import java.nio.file.Path
 import kotlin.io.path.*
 
@@ -101,6 +102,9 @@ class TextExplorerUI(
         var indexStrings by remember { mutableStateOf(emptySet<String>()) }
         var data by remember { mutableStateOf(listOf<List<String>>()) }
         var links by remember { mutableStateOf(mapOf<String, List<Map<String, String>>>()) }
+
+        var loadState by remember { mutableStateOf<LoadState>(LoadState.Idle) }
+        val scope = rememberCoroutineScope()
 
         val performSearch: () -> Unit = {
             currentPage = 0
@@ -314,6 +318,13 @@ class TextExplorerUI(
                     color = Color.LightGray
                 )
 
+                when (loadState) {
+                    is LoadState.Loading -> {}
+                    is LoadState.Error -> {}
+                    is LoadState.Success -> {}
+                    else -> {}
+                }
+
                 when (openWindow) {
                     Window.PLUGIN_INFO -> PluginInfoWindow(
                         pluginService,
@@ -336,17 +347,28 @@ class TextExplorerUI(
                     Window.LOAD_DATA -> DataLoaderWindow(dataService, dataDir) { dataInfo ->
                         openWindow = Window.NONE
 
-                        if (dataInfo == null) return@DataLoaderWindow
+                        scope.launch {
+                            loadState = LoadState.Loading("Loading data pool...")
 
-                        val poolsEmpty = dataService.getAvailablePools().isEmpty()
-
-                        if (dataService.createDataPool(dataInfo, dataDir)) {
-                            dataService.getAvailablePools().firstOrNull()?.let inner@{
-                                if (!poolsEmpty) return@inner
-
-                                dataService.selectDataPool(it)
-                                poolSelected = !poolSelected
+                            if (dataInfo == null) {
+                                loadState = LoadState.Error("Data info is null.")
+                                return@launch
                             }
+
+                            val poolsEmpty = dataService.getAvailablePools().isEmpty()
+
+                            val success = dataService.createDataPool(dataInfo, dataDir)
+
+                            loadState = if (success) {
+                                dataService.getAvailablePools().firstOrNull()?.let inner@{
+                                    if (!poolsEmpty) return@inner
+
+                                    dataService.selectDataPool(it)
+                                    poolSelected = !poolSelected
+                                }
+
+                                LoadState.Success("Successfully loaded data pool '${dataInfo.name}'.")
+                            } else LoadState.Error("Failed to create data pool.")
                         }
                     }
 

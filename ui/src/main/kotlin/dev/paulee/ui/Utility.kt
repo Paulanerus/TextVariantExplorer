@@ -26,6 +26,13 @@ import kotlin.reflect.full.valueParameters
 
 fun java.awt.Color.toComposeColor() = Color(red, green, blue, alpha)
 
+internal sealed class LoadState {
+    object Idle : LoadState()
+    data class Loading(val message: String = "") : LoadState()
+    data class Success(val message: String = "") : LoadState()
+    data class Error(val message: String) : LoadState()
+}
+
 internal data class HighlightMatch(val start: Int, val end: Int, val word: String, val tag: String, val color: Color)
 
 @Composable
