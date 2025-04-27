@@ -16,7 +16,7 @@ object GlobalExceptionHandler {
     }
 }
 
-fun splitStr(str: String, delimiter: Char, quoteCharacters: Array<Char> = arrayOf('"', '\'')): List<String> {
+fun splitStr(str: String, delimiter: Char, quoteCharacters: Array<Char> = arrayOf('"')): List<String> {
     val tokens = mutableListOf<String>()
 
     var tokenStart = 0
