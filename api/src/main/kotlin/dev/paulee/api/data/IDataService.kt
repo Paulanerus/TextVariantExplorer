@@ -6,7 +6,7 @@ import java.nio.file.Path
 
 interface IDataService : Closeable {
 
-    fun createDataPool(dataInfo: DataInfo, path: Path): Boolean
+    suspend fun createDataPool(dataInfo: DataInfo, path: Path): Boolean
 
     fun loadDataPools(path: Path): Int
 
