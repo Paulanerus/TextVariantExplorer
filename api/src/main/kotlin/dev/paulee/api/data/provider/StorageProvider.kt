@@ -8,9 +8,15 @@ enum class StorageType {
     SQLITE,
 }
 
+enum class ProviderStatus {
+    SUCCESS,
+    FAILED,
+    EXISTS,
+}
+
 interface IStorageProvider : Closeable {
 
-    fun init(dataInfo: DataInfo, path: Path, lock: Boolean = false): Int
+    fun init(dataInfo: DataInfo, path: Path, lock: Boolean = false): ProviderStatus
 
     fun insert(name: String, entries: List<Map<String, String>>)
 
