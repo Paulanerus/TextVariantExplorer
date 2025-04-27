@@ -2,13 +2,18 @@ package dev.paulee.core.data
 
 import dev.paulee.api.data.*
 import dev.paulee.api.data.provider.IStorageProvider
+import dev.paulee.api.data.provider.ProviderStatus
 import dev.paulee.core.data.analysis.Indexer
 import dev.paulee.core.data.io.BufferedCSVReader
 import dev.paulee.core.data.provider.StorageProvider
 import dev.paulee.core.normalizeDataSource
 import dev.paulee.core.splitStr
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory.getLogger
+import java.io.IOException
 import java.nio.file.Path
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.io.path.*
 import kotlin.math.ceil
 
@@ -180,61 +185,77 @@ class DataServiceImpl : IDataService {
 
     private val dataPools = mutableMapOf<String, DataPool>()
 
-    override fun createDataPool(dataInfo: DataInfo, path: Path): Boolean {
-        val poolPath = path.resolve(dataInfo.name)
+    override suspend fun createDataPool(dataInfo: DataInfo, path: Path): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val poolPath = path.resolve(dataInfo.name)
 
-        val storageProvider = StorageProvider.of(dataInfo.storageType)
+            val storageProvider = StorageProvider.of(dataInfo.storageType)
 
-        val initStatus = storageProvider.init(dataInfo, poolPath)
+            val initStatus = storageProvider.init(dataInfo, poolPath)
 
-        if (initStatus < 1) return initStatus == 0
+            if (initStatus != ProviderStatus.SUCCESS) return@withContext initStatus == ProviderStatus.EXISTS
 
-        val dataPool = runCatching {
-            DataPool(
-                indexer = Indexer(poolPath.resolve("index"), dataInfo.sources),
-                dataInfo = dataInfo,
-                storageProvider = storageProvider
-            )
-        }.getOrElse { e ->
-            logger.error("Exception: Failed to create data pool.", e)
-            return false
-        }
-
-        dataInfo.sources.forEach { source ->
-            val file = source.name
-
-            if (file.isEmpty()) {
-                logger.warn("No data source provided for ${file}.")
-                return@forEach
+            dataInfoToString(dataInfo)?.let { json ->
+                poolPath.resolve("info.json").writeText(json)
+                logger.info("Created '${dataInfo.name}' info file.")
             }
 
-            val sourcePath = path.resolve(file.let { if (it.endsWith(".csv")) it else "$it.csv" })
-
-            if (!sourcePath.exists()) {
-                logger.warn("Source file '$sourcePath' not found.")
-                return@forEach
+            val dataPool = runCatching {
+                DataPool(
+                    indexer = Indexer(poolPath.resolve("index"), dataInfo.sources),
+                    dataInfo = dataInfo,
+                    storageProvider = storageProvider
+                )
+            }.getOrElse { e ->
+                logger.error("Exception: Failed to create data pool.", e)
+                return@withContext false
             }
 
-            val idGenerator = generateSequence(1L) { it + 1 }.iterator()
+            dataInfo.sources.forEach { source ->
+                val file = source.name
 
-            BufferedCSVReader(sourcePath).readLines { lines ->
-                val entries = lines.map { line ->
-                    if (dataPool.hasIdentifier(file, line)) line
-                    else line + ("${file}_ag_id" to idGenerator.next().toString())
+                if (file.isEmpty()) {
+                    logger.warn("No data source provided for ${file}.")
+                    return@forEach
                 }
 
-                dataPool.indexer.indexEntries(file, entries)
-                storageProvider.insert(file, entries)
+                val sourcePath = path.resolve(file.let { if (it.endsWith(".csv")) it else "$it.csv" })
+
+                if (!sourcePath.exists()) {
+                    logger.warn("Source file '$sourcePath' not found.")
+                    return@forEach
+                }
+
+                val idGenerator = generateSequence(1L) { it + 1 }.iterator()
+
+                BufferedCSVReader(sourcePath).readLines { lines ->
+                    val entries = lines.map { line ->
+                        if (dataPool.hasIdentifier(file, line)) line
+                        else line + ("${file}_ag_id" to idGenerator.next().toString())
+                    }
+
+                    dataPool.indexer.indexEntries(file, entries)
+                    storageProvider.insert(file, entries)
+                }
             }
+
+            dataPools[dataInfo.name] = dataPool
+
+            logger.info("Created data pool ${dataInfo.name}.")
+
+            true
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: IOException) {
+            logger.error("Failed to create data pool ${dataInfo.name}.", e)
+            false
+        } catch (e: Exception) {
+            logger.error("Unexpected error for ${dataInfo.name}.", e)
+            false
         }
-
-        dataPools[dataInfo.name] = dataPool
-
-        logger.info("Created data pool ${dataInfo.name}.")
-
-        return true
     }
 
+    @OptIn(ExperimentalPathApi::class)
     override fun loadDataPools(path: Path): Int {
         if (!path.exists()) path.createDirectories()
 
@@ -253,13 +274,16 @@ class DataServiceImpl : IDataService {
 
             val storageProvider = StorageProvider.of(dataInfo.storageType)
 
-            if (storageProvider.init(dataInfo, child) == 0) {
+            if (storageProvider.init(dataInfo, child) == ProviderStatus.EXISTS) {
                 dataPools[dataInfo.name] =
                     DataPool(Indexer(child.resolve("index"), dataInfo.sources), dataInfo, storageProvider)
 
                 logger.info("Loaded ${dataInfo.name} data pool.")
             } else {
-                if (!this.createDataPool(dataInfo, path)) logger.warn("Failed to create data pool.")
+                logger.info("Deleting invalid or empty data pool directory '${dataInfo.name}'.")
+
+                runCatching { child.deleteRecursively() }
+                    .onFailure { e -> logger.error("Failed to delete directory ${child.fileName}.", e) }
             }
         }
 
@@ -271,7 +295,7 @@ class DataServiceImpl : IDataService {
             this.currentField = pool.value.defaultClass
 
             if (this.currentField == null) logger.warn("${this.currentPool} has no index field.")
-            else logger.info("Set selected data pool to $currentPool.$currentField")
+            else logger.info("Set selected data pool to $currentPool.$currentField.")
         }
 
         if (amount > 0) logger.info("Loaded $amount data ${if (amount == 1) "pool" else "pools"}.")
