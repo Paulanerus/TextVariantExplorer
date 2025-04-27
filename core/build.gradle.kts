@@ -34,6 +34,8 @@ dependencies {
     implementation("org.apache.logging.log4j:log4j-api:${rootProject.extra["log4j.version"]}")
     implementation("org.apache.logging.log4j:log4j-slf4j2-impl:${rootProject.extra["log4j.version"]}")
 
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
+
     testImplementation(kotlin("test"))
 }
 
