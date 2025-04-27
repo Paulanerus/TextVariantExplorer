@@ -44,7 +44,7 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
     fun updateSource(
         selectedSource: Source?,
         transform: (Source) -> Source,
-        onSelect: (Source) -> Unit
+        onSelect: (Source) -> Unit,
     ) {
         selectedSource?.let { current ->
             val updated = transform(current)
@@ -426,13 +426,18 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
 
                                 1 -> {
                                     val preFilter = selectedSource!!.preFilter
-                                    var pfKey by remember(selectedSource) { mutableStateOf(preFilter?.key ?: "") }
-                                    var pfLinkKey by remember(selectedSource) {
-                                        mutableStateOf(
-                                            preFilter?.linkKey ?: ""
-                                        )
+
+                                    var pfKey by remember(selectedSource) {
+                                        mutableStateOf(preFilter?.key ?: "")
                                     }
-                                    var pfValue by remember(selectedSource) { mutableStateOf(preFilter?.value ?: "") }
+
+                                    var pfLinkKey by remember(selectedSource) {
+                                        mutableStateOf(preFilter?.linkKey ?: "")
+                                    }
+
+                                    var pfValue by remember(selectedSource) {
+                                        mutableStateOf(preFilter?.value ?: "")
+                                    }
 
                                     LaunchedEffect(pfKey, pfLinkKey, pfValue) {
                                         val updatedPreFilter =
@@ -510,11 +515,11 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
 
                                 2 -> {
                                     val variantMapping = selectedSource!!.variantMapping
+
                                     var vmBase by remember(selectedSource) {
-                                        mutableStateOf(
-                                            variantMapping?.base ?: ""
-                                        )
+                                        mutableStateOf(variantMapping?.base ?: "")
                                     }
+
                                     var vmVariantsText by remember(selectedSource) {
                                         mutableStateOf(variantMapping?.variants?.joinToString(", ") ?: "")
                                     }
