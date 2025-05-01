@@ -26,6 +26,8 @@ import kotlin.reflect.full.valueParameters
 
 fun java.awt.Color.toComposeColor() = Color(red, green, blue, alpha)
 
+fun String.capitalize() = lowercase().replaceFirstChar { it.uppercase() }
+
 internal sealed class LoadState {
     object Idle : LoadState()
     data class Loading(val message: String = "") : LoadState()

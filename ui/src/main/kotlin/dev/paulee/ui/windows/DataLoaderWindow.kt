@@ -8,18 +8,24 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerMoveFilter
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Window
-import androidx.compose.ui.window.WindowPosition
-import androidx.compose.ui.window.rememberWindowState
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.*
 import dev.paulee.api.data.*
 import dev.paulee.ui.Hint
 import dev.paulee.ui.SimpleTextField
+import dev.paulee.ui.capitalize
 import dev.paulee.ui.components.CustomInputDialog
 import dev.paulee.ui.components.DialogType
 import dev.paulee.ui.components.FileDialog
@@ -62,6 +68,14 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
     Window(state = windowState, onCloseRequest = { onClose(null) }, title = "Data Import") {
         MaterialTheme {
             Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+
+                FieldTypeHelp(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp)
+                )
+
+
                 Row(modifier = Modifier.fillMaxSize()) {
                     Column(modifier = Modifier.width(250.dp)) {
                         Text("Imported Sources", style = MaterialTheme.typography.h6)
@@ -292,7 +306,7 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
 
                                                         Box {
                                                             Button(onClick = { typeExpanded = true }) {
-                                                                Text(fieldType.name)
+                                                                Text(fieldType.name.capitalize())
                                                             }
 
                                                             DropdownMenu(
@@ -303,7 +317,9 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                                                                         fieldType = type
                                                                         typeExpanded = false
                                                                     }) {
-                                                                        Text(type.name)
+                                                                        Text(
+                                                                            type.name.capitalize()
+                                                                        )
                                                                     }
                                                                 }
                                                             }
@@ -362,7 +378,9 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                                             var langExpanded by remember { mutableStateOf(false) }
 
-                                                            Text("Language:", modifier = Modifier.width(80.dp))
+                                                            Text("Language:")
+
+                                                            Spacer(modifier = Modifier.width(8.dp))
 
                                                             Box {
                                                                 Button(onClick = { langExpanded = true }) {
@@ -383,7 +401,7 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                                                                 }
                                                             }
 
-                                                            Spacer(modifier = Modifier.width(16.dp))
+                                                            Spacer(modifier = Modifier.width(8.dp))
 
                                                             Checkbox(
                                                                 checked = indexDefault,
@@ -680,4 +698,59 @@ private fun parseSourceFromFile(path: Path): Source? {
 
         return@use Source(name = path.nameWithoutExtension, fields = headerFields)
     }
+}
+
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+private fun FieldTypeHelp(modifier: Modifier = Modifier) {
+    var showPopup by remember { mutableStateOf(false) }
+    val maxNameLength = remember { FieldType.entries.maxOf { it.name.length } }
+
+    Icon(
+        imageVector = Icons.Filled.Info,
+        contentDescription = "Field type help",
+        tint = MaterialTheme.colors.onSurface.copy(alpha = 0.6f),
+        modifier = modifier
+            .size(24.dp)
+            .pointerMoveFilter(
+                onEnter = { showPopup = true; false },
+                onExit = { showPopup = false; false }
+            )
+    )
+
+    if (showPopup) {
+        Popup(
+            alignment = Alignment.TopEnd,
+            offset = IntOffset(-16, 24),
+            properties = PopupProperties(
+                focusable = false
+            ), content = {
+                Card(
+                    shape = RoundedCornerShape(4.dp),
+                    backgroundColor = MaterialTheme.colors.surface,
+                    elevation = 4.dp
+                ) {
+                    Column(modifier = Modifier.padding(8.dp)) {
+                        FieldType.entries.forEach { type ->
+                            Text(
+                                text = "${
+                                    type.name.capitalize().padEnd(maxNameLength)
+                                } - " + fieldTypeDescription(type),
+                                style = MaterialTheme.typography.body2.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    letterSpacing = (-0.5).sp
+                                )
+                            )
+                        }
+                    }
+                }
+            })
+    }
+}
+
+private fun fieldTypeDescription(fieldType: FieldType): String = when (fieldType) {
+    FieldType.TEXT -> "Plain text such as names, sentences or plain characters"
+    FieldType.INT -> "Whole number (e.g. 7, 42)"
+    FieldType.FLOAT -> "Decimal number (e.g. 3.14)"
+    FieldType.BOOLEAN -> "Logical values (true / false)"
 }
