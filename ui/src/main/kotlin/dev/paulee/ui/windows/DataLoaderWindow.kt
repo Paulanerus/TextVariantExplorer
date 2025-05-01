@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -271,11 +272,23 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                                                     ) {
                                                         var typeExpanded by remember { mutableStateOf(false) }
 
-                                                        Text(
-                                                            "Field: ${field.name}",
-                                                            style = MaterialTheme.typography.subtitle1,
+                                                        Row(
+                                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
                                                             modifier = Modifier.weight(1f)
-                                                        )
+                                                        ) {
+                                                            Text(
+                                                                "Field:",
+                                                                style = MaterialTheme.typography.subtitle1,
+
+                                                                )
+
+                                                            SelectionContainer {
+                                                                Text(
+                                                                    field.name,
+                                                                    style = MaterialTheme.typography.subtitle1,
+                                                                )
+                                                            }
+                                                        }
 
                                                         Box {
                                                             Button(onClick = { typeExpanded = true }) {
