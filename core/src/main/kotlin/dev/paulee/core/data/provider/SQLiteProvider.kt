@@ -1,7 +1,8 @@
 package dev.paulee.core.data.provider
 
-import dev.paulee.api.data.RequiresData
+import dev.paulee.api.data.DataInfo
 import dev.paulee.api.data.provider.IStorageProvider
+import dev.paulee.api.data.provider.ProviderStatus
 import dev.paulee.core.data.sql.Database
 import org.slf4j.LoggerFactory.getLogger
 import java.nio.file.Path
@@ -17,10 +18,10 @@ internal class SQLiteProvider : IStorageProvider {
 
     private var lock = false
 
-    override fun init(dataInfo: RequiresData, path: Path, lock: Boolean): Int {
+    override fun init(dataInfo: DataInfo, path: Path, lock: Boolean): ProviderStatus {
         val dbPath = path.resolve("${dataInfo.name}.db")
 
-        if (initialized) return -1
+        if (initialized) return ProviderStatus.FAILED
 
         val exists = dbPath.exists()
 
@@ -29,7 +30,7 @@ internal class SQLiteProvider : IStorageProvider {
         runCatching { this.database.connect() }
             .getOrElse { e ->
                 this.logger.error("Exception: Failed to connect to DB.", e)
-                return -1
+                return ProviderStatus.FAILED
             }
 
         this.database.createTables(dataInfo.sources)
@@ -40,7 +41,7 @@ internal class SQLiteProvider : IStorageProvider {
 
         this.logger.info("Initializing SQLStorageProvider (${dataInfo.name}, locked=$lock).")
 
-        return if (exists) 0 else 1
+        return if (exists) ProviderStatus.EXISTS else ProviderStatus.SUCCESS
     }
 
     override fun insert(name: String, entries: List<Map<String, String>>) {

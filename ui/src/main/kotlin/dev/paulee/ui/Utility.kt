@@ -1,6 +1,8 @@
 package dev.paulee.ui
 
-import androidx.compose.material.Text
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -11,6 +13,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.paulee.api.data.Change
 import dev.paulee.api.plugin.Drawable
@@ -22,6 +25,15 @@ import kotlin.reflect.full.hasAnnotation
 import kotlin.reflect.full.valueParameters
 
 fun java.awt.Color.toComposeColor() = Color(red, green, blue, alpha)
+
+fun String.capitalize() = lowercase().replaceFirstChar { it.uppercase() }
+
+internal sealed class LoadState {
+    object Idle : LoadState()
+    data class Loading(val message: String = "") : LoadState()
+    data class Success(val message: String = "") : LoadState()
+    data class Error(val message: String) : LoadState()
+}
 
 internal data class HighlightMatch(val start: Int, val end: Int, val word: String, val tag: String, val color: Color)
 
@@ -193,4 +205,43 @@ private fun KType.hasEntryType(): Boolean {
     val valueType = argType.arguments[1].type?.classifier
 
     return keyType == String::class && valueType == String::class
+}
+
+@Composable
+fun SimpleTextField(
+    textValue: String,
+    onTextValueChange: (String) -> Unit,
+    placeholderText: String,
+    modifier: Modifier = Modifier,
+    singleLine: Boolean = false,
+) {
+    TextField(
+        value = textValue,
+        onValueChange = onTextValueChange,
+        modifier = modifier,
+        placeholder = { Text(placeholderText) },
+        colors = TextFieldDefaults.textFieldColors(
+            backgroundColor = Color(0xFFF0F0F0),
+            unfocusedIndicatorColor = Color.Transparent,
+            focusedIndicatorColor = Color.Transparent,
+        ),
+        shape = RoundedCornerShape(8.dp),
+        singleLine = singleLine
+    )
+}
+
+@Composable
+fun Hint(text: String, modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier,
+        backgroundColor = Color(0xFFF5F5F5),
+        shape = RoundedCornerShape(8.dp),
+        elevation = 0.dp
+    ) {
+        Text(
+            text,
+            style = MaterialTheme.typography.caption,
+            modifier = Modifier.padding(12.dp)
+        )
+    }
 }

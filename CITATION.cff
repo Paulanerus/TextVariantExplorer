@@ -5,7 +5,8 @@ message: >-
   metadata from this file.
 type: software
 authors:
-  - given-names: Paulanerus
+  - given-names: Paul
+    family-names: Fröhlich
 repository-code: 'https://github.com/Paulanerus/TextExplorer'
 url: 'https://paulee.dev/textexplorer/'
 repository-artifact: >-

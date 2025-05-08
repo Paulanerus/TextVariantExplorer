@@ -9,12 +9,15 @@ import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.*
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -25,9 +28,25 @@ import androidx.compose.ui.window.rememberWindowState
 import dev.paulee.api.data.DiffService
 import dev.paulee.api.data.IDataService
 import dev.paulee.api.plugin.IPluginService
-import dev.paulee.ui.components.*
+import dev.paulee.ui.components.DropDownMenu
+import dev.paulee.ui.components.FileDialog
+import dev.paulee.ui.components.TableView
+import dev.paulee.ui.components.widthLimitWrapper
+import dev.paulee.ui.windows.DataLoaderWindow
+import dev.paulee.ui.windows.DiffViewerWindow
+import dev.paulee.ui.windows.PluginInfoWindow
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.nio.file.Path
 import kotlin.io.path.*
+
+enum class Window {
+    NONE,
+    LOAD_PLUGIN,
+    LOAD_DATA,
+    DIFF,
+    PLUGIN_INFO
+}
 
 class TextExplorerUI(
     private val pluginService: IPluginService,
@@ -57,7 +76,7 @@ class TextExplorerUI(
         Config.load(this.appDir)
 
         this.pluginService.loadFromDirectory(this.pluginsDir)
-        this.dataService.loadDataPools(this.dataDir, this.pluginService.getAllDataInfos())
+        this.dataService.loadDataPools(this.dataDir)
 
         this.pluginService.initAll(this.dataService, this.dataDir)
 
@@ -68,11 +87,9 @@ class TextExplorerUI(
     private fun content() {
         var text by remember { mutableStateOf("") }
         var selectedRows by remember { mutableStateOf(listOf<Map<String, String>>()) }
-        var pluginInfoWindow by remember { mutableStateOf(false) }
-        var displayDiffWindow by remember { mutableStateOf(false) }
+        var openWindow by remember { mutableStateOf(Window.NONE) }
         var showTable by remember { mutableStateOf(false) }
         var showPopup by remember { mutableStateOf(false) }
-        var isOpened by remember { mutableStateOf(false) }
         var totalPages by remember { mutableStateOf(0L) }
         var amount by remember { mutableStateOf(0L) }
         var currentPage by remember { mutableStateOf(0) }
@@ -88,6 +105,35 @@ class TextExplorerUI(
         var indexStrings by remember { mutableStateOf(emptySet<String>()) }
         var data by remember { mutableStateOf(listOf<List<String>>()) }
         var links by remember { mutableStateOf(mapOf<String, List<Map<String, String>>>()) }
+
+        var loadState by remember { mutableStateOf<LoadState>(LoadState.Idle) }
+        val scope = rememberCoroutineScope()
+
+        val performSearch: () -> Unit = {
+            currentPage = 0
+            val (count, pages, indexed) = dataService.getPageCount(text)
+
+            amount = count
+
+            totalPages = pages
+
+            indexStrings = indexed
+
+            if (totalPages > 0) {
+                dataService.getPage(text, currentPage).let { (pageEntries, pageLinks) ->
+
+                    val first = pageEntries.firstOrNull() ?: return@let
+
+                    header = first.keys.toList()
+
+                    data = pageEntries.map { it.values.toList() }
+
+                    links = pageLinks
+                }
+            }
+
+            showTable = true
+        }
 
         MaterialTheme {
             Box(modifier = Modifier.fillMaxSize()) {
@@ -127,26 +173,21 @@ class TextExplorerUI(
 
                 DropDownMenu(
                     modifier = Modifier.align(Alignment.TopEnd),
-                    items = listOf("Load Plugin", "Width Limit", "Plugin Info"),
+                    items = listOf("Load Plugin", "Load Data", "Width Limit", "Plugin Info"),
                     clicked = {
                         when (it) {
-                            "Load Plugin" -> isOpened = true
+                            "Load Plugin" -> openWindow = Window.LOAD_PLUGIN
+                            "Load Data" -> openWindow = Window.LOAD_DATA
+
                             "Width Limit" -> {
                                 Config.noWidthRestriction = !Config.noWidthRestriction
                                 widthLimitWrapper = !widthLimitWrapper
                             }
 
-                            "Plugin Info" -> pluginInfoWindow = true
+                            "Plugin Info" -> openWindow = Window.PLUGIN_INFO
                         }
-                    })
-
-                if (isOpened) {
-                    FileDialog { paths ->
-                        isOpened = false
-
-                        paths.filter { it.extension == "jar" }.forEach { loadPlugin(it) }
                     }
-                }
+                )
 
                 Column(
                     modifier = Modifier.fillMaxSize().padding(16.dp),
@@ -165,12 +206,21 @@ class TextExplorerUI(
                             modifier = Modifier.width(600.dp).background(
                                 color = Color.LightGray,
                                 shape = RoundedCornerShape(24.dp),
-                            ),
+                            ).onKeyEvent { event ->
+                                if (text.isNotBlank() && event.key == Key.Enter && event.type == KeyEventType.KeyUp) {
+                                    performSearch()
+
+                                    return@onKeyEvent true
+                                }
+
+                                false
+                            },
                             colors = TextFieldDefaults.textFieldColors(
                                 backgroundColor = Color.Transparent,
                                 focusedIndicatorColor = Color.Transparent,
                                 unfocusedIndicatorColor = Color.Transparent
                             ),
+                            singleLine = true,
                             trailingIcon = {
                                 IconButton(onClick = {
                                     text = ""
@@ -181,31 +231,7 @@ class TextExplorerUI(
                             })
 
                         IconButton(
-                            onClick = {
-                                currentPage = 0
-                                val (count, pages, indexed) = dataService.getPageCount(text)
-
-                                amount = count
-
-                                totalPages = pages
-
-                                indexStrings = indexed
-
-                                if (totalPages > 0) {
-                                    dataService.getPage(text, currentPage).let { (pageEntries, pageLinks) ->
-
-                                        val first = pageEntries.firstOrNull() ?: return@let
-
-                                        header = first.keys.toList()
-
-                                        data = pageEntries.map { it.values.toList() }
-
-                                        links = pageLinks
-                                    }
-                                }
-
-                                showTable = true
-                            },
+                            onClick = { performSearch() },
                             modifier = Modifier.height(70.dp).padding(horizontal = 10.dp),
                             enabled = text.isNotBlank() && dataService.hasSelectedPool()
                         ) {
@@ -236,9 +262,9 @@ class TextExplorerUI(
                                 data = data,
                                 links = links,
                                 onRowSelect = { selectedRows = it },
-                                clicked = { displayDiffWindow = true })
+                                clicked = { openWindow = Window.DIFF })
 
-                            if (totalPages < 2){
+                            if (totalPages < 2) {
                                 Text("Total: $amount", modifier = Modifier.align(Alignment.CenterHorizontally))
                                 return@inner
                             }
@@ -255,10 +281,10 @@ class TextExplorerUI(
                                         if (currentPage > 0) {
                                             currentPage--
 
-                                            dataService.getPage(text, currentPage).let {
-                                                data = it.first.map { it.values.toList() }
+                                            dataService.getPage(text, currentPage).let { result ->
+                                                data = result.first.map { it.values.toList() }
 
-                                                links = it.second
+                                                links = result.second
                                             }
                                         }
                                     }, enabled = currentPage > 0
@@ -273,10 +299,10 @@ class TextExplorerUI(
                                         if (currentPage < totalPages - 1) {
                                             currentPage++
 
-                                            dataService.getPage(text, currentPage).let {
-                                                data = it.first.map { it.values.toList() }
+                                            dataService.getPage(text, currentPage).let { result ->
+                                                data = result.first.map { it.values.toList() }
 
-                                                links = it.second
+                                                links = result.second
                                             }
                                         }
                                     }, enabled = currentPage < totalPages - 1
@@ -295,12 +321,126 @@ class TextExplorerUI(
                     color = Color.LightGray
                 )
 
-                if (pluginInfoWindow) PluginInfoWindow(pluginService) { pluginInfoWindow = false }
+                when (loadState) {
+                    is LoadState.Loading -> {
+                        Row(
+                            modifier = Modifier
+                                .align(Alignment.BottomStart)
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp
+                            )
+                            Text(text = (loadState as LoadState.Loading).message)
+                        }
+                    }
 
-                if (displayDiffWindow) {
-                    DiffViewerWindow(
-                        diffService, pluginService, dataService.getSelectedPool(), selectedRows
-                    ) { displayDiffWindow = false }
+                    is LoadState.Success -> {
+                        Row(
+                            modifier = Modifier
+                                .align(Alignment.BottomStart)
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.CheckCircle,
+                                contentDescription = "Success",
+                                tint = Color(0xFF388E3C),
+                                modifier = Modifier.size(24.dp)
+                            )
+
+                            Text(
+                                text = (loadState as LoadState.Success).message,
+                                color = Color(0xFF388E3C)
+                            )
+                        }
+                        LaunchedEffect(loadState) {
+                            delay(4000)
+                            loadState = LoadState.Idle
+                        }
+                    }
+
+                    is LoadState.Error -> {
+                        Row(
+                            modifier = Modifier
+                                .align(Alignment.BottomStart)
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Warning,
+                                contentDescription = "Error",
+                                tint = Color(0xFFD32F2F),
+                                modifier = Modifier.size(24.dp)
+                            )
+
+                            Text(
+                                text = (loadState as LoadState.Error).message,
+                                color = Color(0xFFD32F2F)
+                            )
+                        }
+                        LaunchedEffect(loadState) {
+                            delay(4000)
+                            loadState = LoadState.Idle
+                        }
+                    }
+
+                    else -> {}
+                }
+
+                when (openWindow) {
+                    Window.PLUGIN_INFO -> PluginInfoWindow(
+                        pluginService,
+                        dataService.getAvailableDataInfo()
+                    ) { openWindow = Window.NONE }
+
+                    Window.DIFF -> DiffViewerWindow(
+                        diffService,
+                        pluginService,
+                        dataService.getSelectedPool(),
+                        selectedRows
+                    ) { openWindow = Window.NONE }
+
+                    Window.LOAD_PLUGIN -> FileDialog { paths ->
+                        openWindow = Window.NONE
+
+                        paths.filter { it.extension == "jar" }.forEach { loadPlugin(it) }
+                    }
+
+                    Window.LOAD_DATA -> DataLoaderWindow(dataService, dataDir) { dataInfo ->
+                        openWindow = Window.NONE
+
+                        scope.launch {
+                            loadState = LoadState.Loading("Loading data pool")
+
+                            if (dataInfo == null) {
+                                loadState = LoadState.Error("Data info is null")
+                                return@launch
+                            }
+
+                            val poolsEmpty = dataService.getAvailablePools().isEmpty()
+
+                            val success = dataService.createDataPool(dataInfo, dataDir)
+
+                            loadState = if (success) {
+                                dataService.getAvailablePools().firstOrNull()?.let inner@{
+                                    if (!poolsEmpty) return@inner
+
+                                    dataService.selectDataPool(it)
+                                    poolSelected = !poolSelected
+                                }
+
+                                LoadState.Success("Successfully loaded data pool '${dataInfo.name}'")
+                            } else LoadState.Error("Failed to create data pool")
+                        }
+                    }
+
+                    else -> {}
                 }
             }
         }
@@ -320,8 +460,6 @@ class TextExplorerUI(
     }
 
     private fun loadPlugin(path: Path): Boolean {
-        val parentPath = path.parent
-
         val pluginPath = pluginsDir.resolve(path.name)
 
         if (pluginPath.exists()) return true
@@ -329,35 +467,13 @@ class TextExplorerUI(
         val plugin = this.pluginService.loadPlugin(path) ?: return false
 
         this.pluginService.getDataInfo(plugin)?.let { dataInfo ->
-            if (dataInfo.sources.isEmpty()) return@let
-
-            this.pluginService.getDataSources(dataInfo.name).forEach {
-                val name = it.let { if (it.endsWith(".csv")) it else "$it.csv" }
-
-                val dataSourcePath = parentPath.resolve(name)
-
-                if (dataSourcePath.exists()) dataSourcePath.copyTo(this.dataDir.resolve(name), true)
-            }
-
-            val poolsEmpty = this.dataService.getAvailablePools().isEmpty()
-
-            if (this.dataService.createDataPool(dataInfo, this.dataDir)) {
-                this.dataService.getAvailablePools().firstOrNull()?.let inner@{
-                    if (!poolsEmpty) return@inner
-
-                    this.dataService.selectDataPool(it)
-                    this.poolSelected = !this.poolSelected
-                }
-
-            }
-
             val provider =
-                this.dataService.createStorageProvider(dataInfo, this.dataDir.resolve(dataInfo.name)) ?: return true
+                this.dataService.createStorageProvider(dataInfo, this.dataDir.resolve(dataInfo)) ?: return true
 
             plugin.init(provider)
-
-            path.copyTo(pluginPath)
         }
+
+        path.copyTo(pluginPath)
 
         return true
     }
