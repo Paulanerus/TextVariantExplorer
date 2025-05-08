@@ -6,9 +6,9 @@ import java.nio.file.Path
 
 interface IDataService : Closeable {
 
-    fun createDataPool(dataInfo: RequiresData, path: Path): Boolean
+    suspend fun createDataPool(dataInfo: DataInfo, path: Path): Boolean
 
-    fun loadDataPools(path: Path, dataInfo: Set<RequiresData>): Int
+    fun loadDataPools(path: Path): Int
 
     fun selectDataPool(selection: String)
 
@@ -18,9 +18,13 @@ interface IDataService : Closeable {
 
     fun getAvailablePools(): Set<String>
 
+    fun getAvailableDataInfo(): Set<DataInfo>
+
     fun getPage(query: String, pageCount: Int): Pair<List<Map<String, String>>, Map<String, List<Map<String, String>>>>
 
     fun getPageCount(query: String): Triple<Long, Long, Set<String>>
 
-    fun createStorageProvider(dataInfo: RequiresData, path: Path): IStorageProvider?
+    fun createStorageProvider(infoName: String, path: Path): IStorageProvider?
+
+    fun dataInfoToString(dataInfo: DataInfo): String?
 }

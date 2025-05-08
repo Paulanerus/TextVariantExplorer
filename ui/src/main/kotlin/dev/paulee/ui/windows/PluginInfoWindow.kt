@@ -1,4 +1,4 @@
-package dev.paulee.ui.components
+package dev.paulee.ui.windows
 
 import androidx.compose.foundation.VerticalScrollbar
 import androidx.compose.foundation.layout.*
@@ -16,17 +16,18 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.rememberWindowState
-import dev.paulee.api.data.RequiresData
+import dev.paulee.api.data.DataInfo
 import dev.paulee.api.plugin.IPluginService
 import dev.paulee.api.plugin.PluginMetadata
 
 @Composable
-fun PluginInfoWindow(pluginService: IPluginService, onClose: () -> Unit) {
+fun PluginInfoWindow(pluginService: IPluginService, allDataInfo: Set<DataInfo>, onClose: () -> Unit) {
     val scrollState = rememberScrollState()
 
     val windowState =
-        rememberWindowState(size = DpSize(500.dp, 600.dp))
+        rememberWindowState(position = WindowPosition.Aligned(Alignment.Center), size = DpSize(500.dp, 600.dp))
 
     Window(state = windowState, onCloseRequest = onClose, title = "Plugin Info") {
         MaterialTheme {
@@ -41,14 +42,11 @@ fun PluginInfoWindow(pluginService: IPluginService, onClose: () -> Unit) {
                     pluginService.getPlugins().forEach {
                         val metadata = pluginService.getPluginMetadata(it) ?: return@forEach
 
-                        val dataInfo = pluginService.getDataInfo(it)
+                        val dataInfoName = pluginService.getDataInfo(it) ?: return@forEach
 
-                        PluginInfo(
-                            metadata,
-                            dataInfo,
-                            pluginService.getVariants(dataInfo),
-                            pluginService.getPreFilters(dataInfo)
-                        )
+                        val dataInfo = allDataInfo.firstOrNull { info -> info.name == dataInfoName }
+
+                        PluginInfo(metadata, dataInfo)
                     }
                 }
 
@@ -62,12 +60,7 @@ fun PluginInfoWindow(pluginService: IPluginService, onClose: () -> Unit) {
 }
 
 @Composable
-private fun PluginInfo(
-    metadata: PluginMetadata,
-    dataInfo: RequiresData?,
-    variants: Set<String>,
-    preFilters: Set<String>,
-) {
+private fun PluginInfo(metadata: PluginMetadata, dataInfo: DataInfo?) {
     Column(modifier = Modifier.padding(start = 6.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("${metadata.name} (${metadata.version})", fontSize = 18.sp, fontWeight = FontWeight.Bold)
@@ -95,29 +88,33 @@ private fun PluginInfo(
             dataInfo?.sources.orEmpty().takeIf { it.isNotEmpty() }?.let {
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("Sources:", fontWeight = FontWeight.Bold)
-                    Text(it.joinToString(", ") { it.simpleName ?: "" })
+                    Text(it.joinToString(", ") { it.name })
                 }
             }
         }
 
-        variants.takeIf { it.isNotEmpty() }?.let {
-            Spacer(Modifier.height(8.dp))
+        dataInfo?.sources.orEmpty().filter { it.variantMapping != null }.map { it.name }.takeIf { it.isNotEmpty() }
+            ?.let {
+                Spacer(Modifier.height(8.dp))
 
-            Column {
-                Text("Variants:", fontWeight = FontWeight.Bold)
+                Column {
+                    Text("Variants:", fontWeight = FontWeight.Bold)
 
-                variants.forEach { Text(it, modifier = Modifier.padding(start = 4.dp)) }
+
+                    it.forEach { Text(it, modifier = Modifier.padding(start = 4.dp)) }
+                }
             }
-        }
 
-        preFilters.takeIf { it.isNotEmpty() }?.let {
-            Spacer(Modifier.height(8.dp))
+        dataInfo?.sources.orEmpty().filter { it.preFilter != null }.map { it.name }.takeIf { it.isNotEmpty() }
+            ?.let {
+                Spacer(Modifier.height(8.dp))
 
-            Column {
-                Text("Pre filters:", fontWeight = FontWeight.Bold)
+                Column {
+                    Text("Pre filters:", fontWeight = FontWeight.Bold)
 
-                preFilters.forEach { Text(it, modifier = Modifier.padding(start = 4.dp)) }
+
+                    it.forEach { Text(it, modifier = Modifier.padding(start = 4.dp)) }
+                }
             }
-        }
     }
 }
