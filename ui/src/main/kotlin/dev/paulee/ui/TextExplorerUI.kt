@@ -9,8 +9,10 @@ import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,6 +35,7 @@ import dev.paulee.ui.components.widthLimitWrapper
 import dev.paulee.ui.windows.DataLoaderWindow
 import dev.paulee.ui.windows.DiffViewerWindow
 import dev.paulee.ui.windows.PluginInfoWindow
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.nio.file.Path
 import kotlin.io.path.*
@@ -319,9 +322,74 @@ class TextExplorerUI(
                 )
 
                 when (loadState) {
-                    is LoadState.Loading -> {}
-                    is LoadState.Error -> {}
-                    is LoadState.Success -> {}
+                    is LoadState.Loading -> {
+                        Row(
+                            modifier = Modifier
+                                .align(Alignment.BottomStart)
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp
+                            )
+                            Text(text = (loadState as LoadState.Loading).message)
+                        }
+                    }
+
+                    is LoadState.Success -> {
+                        Row(
+                            modifier = Modifier
+                                .align(Alignment.BottomStart)
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.CheckCircle,
+                                contentDescription = "Success",
+                                tint = Color(0xFF388E3C),
+                                modifier = Modifier.size(24.dp)
+                            )
+
+                            Text(
+                                text = (loadState as LoadState.Success).message,
+                                color = Color(0xFF388E3C)
+                            )
+                        }
+                        LaunchedEffect(loadState) {
+                            delay(4000)
+                            loadState = LoadState.Idle
+                        }
+                    }
+
+                    is LoadState.Error -> {
+                        Row(
+                            modifier = Modifier
+                                .align(Alignment.BottomStart)
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Warning,
+                                contentDescription = "Error",
+                                tint = Color(0xFFD32F2F),
+                                modifier = Modifier.size(24.dp)
+                            )
+
+                            Text(
+                                text = (loadState as LoadState.Error).message,
+                                color = Color(0xFFD32F2F)
+                            )
+                        }
+                        LaunchedEffect(loadState) {
+                            delay(4000)
+                            loadState = LoadState.Idle
+                        }
+                    }
+
                     else -> {}
                 }
 
@@ -348,10 +416,10 @@ class TextExplorerUI(
                         openWindow = Window.NONE
 
                         scope.launch {
-                            loadState = LoadState.Loading("Loading data pool...")
+                            loadState = LoadState.Loading("Loading data pool")
 
                             if (dataInfo == null) {
-                                loadState = LoadState.Error("Data info is null.")
+                                loadState = LoadState.Error("Data info is null")
                                 return@launch
                             }
 
@@ -367,8 +435,8 @@ class TextExplorerUI(
                                     poolSelected = !poolSelected
                                 }
 
-                                LoadState.Success("Successfully loaded data pool '${dataInfo.name}'.")
-                            } else LoadState.Error("Failed to create data pool.")
+                                LoadState.Success("Successfully loaded data pool '${dataInfo.name}'")
+                            } else LoadState.Error("Failed to create data pool")
                         }
                     }
 
