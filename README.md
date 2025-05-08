@@ -12,10 +12,15 @@ This is a tool designed for the exploration and comparison of variants of textua
 2. **Obtain a Plugin and Dataset**
    - Download a demo plugin from the release page along with its [corresponding dataset](https://zenodo.org/records/12723324), or create your own
 
-3. **Load the Plugin**
+3. **Load the Data**
    - Start the application
-   - Load the plugin via the menu in the top right-corner of the window
+   - Load the data via the menu in the top right-corner of the window
+   - The data layout can be configured in the new window
+   - When the configuration is complete, press the 'Import' button 
    - Depending on the size of your dataset, the loading process may take some time
+
+4. **Load the Plugin**
+   - Load the plugin via the menu in the top right-corner of the window 
 
 ### Search
 
