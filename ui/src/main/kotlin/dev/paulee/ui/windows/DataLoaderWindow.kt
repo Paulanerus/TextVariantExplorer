@@ -123,11 +123,15 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
 
                         Spacer(modifier = Modifier.height(4.dp))
 
+                        /*
+                        //FIXME: Add 'Import' button functionallity.
+
                         Button(
                             onClick = { println("Import") }, enabled = false, modifier = Modifier.fillMaxWidth()
                         ) {
                             Text("Import")
                         }
+                         */
 
                         Spacer(modifier = Modifier.height(4.dp))
 
