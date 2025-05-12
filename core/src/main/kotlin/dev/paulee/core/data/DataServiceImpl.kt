@@ -437,13 +437,16 @@ class DataServiceImpl : IDataService {
             val key = it.groupValues[1]
             val value = it.groupValues[2]
 
-            val transform = replacements[key] ?: return@replace it.value
+            val transform = replacements[key]
 
-            if (transform is VariantMapping) {
-                dataPool.storageProvider.get(key, whereClause = listOf("${transform.base}:$value"))
-                    .flatMap { map -> transform.variants.mapNotNull { key -> map[key] } }.toSet()
-                    .joinToString(" or ", prefix = "(", postfix = ")")
-            } else ""
+            when (transform) {
+                is VariantMapping -> {
+                    dataPool.storageProvider.get(key, whereClause = listOf("${transform.base}:$value"))
+                        .flatMap { map -> transform.variants.mapNotNull { key -> map[key] } }.toSet()
+                        .joinToString(" or ", prefix = "(", postfix = ")")
+                }
+                else -> ""
+            }
         }
     }
 
