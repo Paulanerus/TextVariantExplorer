@@ -29,6 +29,8 @@ import dev.paulee.ui.MarkedText
 
 var widthLimitWrapper by mutableStateOf(Config.noWidthRestriction)
 
+var exactHighlightingWrapper by mutableStateOf(Config.exactHighlighting)
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TableView(
@@ -223,7 +225,9 @@ fun TableView(
                                                         "",
                                                         java.awt.Color.green
                                                     )
-                                                })
+                                                },
+                                                exact = exactHighlightingWrapper
+                                            )
                                         }
                                     }
                                 }

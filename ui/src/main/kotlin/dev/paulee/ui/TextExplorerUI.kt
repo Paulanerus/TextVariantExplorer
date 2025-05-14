@@ -31,6 +31,7 @@ import dev.paulee.api.plugin.IPluginService
 import dev.paulee.ui.components.DropDownMenu
 import dev.paulee.ui.components.FileDialog
 import dev.paulee.ui.components.TableView
+import dev.paulee.ui.components.exactHighlightingWrapper
 import dev.paulee.ui.components.widthLimitWrapper
 import dev.paulee.ui.windows.DataLoaderWindow
 import dev.paulee.ui.windows.DiffViewerWindow
@@ -173,7 +174,7 @@ class TextExplorerUI(
 
                 DropDownMenu(
                     modifier = Modifier.align(Alignment.TopEnd),
-                    items = listOf("Load Plugin", "Load Data", "Width Limit", "Plugin Info"),
+                    items = listOf("Load Plugin", "Load Data", "Width Limit", "Exact Highlighting", "Plugin Info"),
                     clicked = {
                         when (it) {
                             "Load Plugin" -> openWindow = Window.LOAD_PLUGIN
@@ -182,6 +183,11 @@ class TextExplorerUI(
                             "Width Limit" -> {
                                 Config.noWidthRestriction = !Config.noWidthRestriction
                                 widthLimitWrapper = !widthLimitWrapper
+                            }
+
+                            "Exact Highlighting" -> {
+                                Config.exactHighlighting = !Config.exactHighlighting
+                                exactHighlightingWrapper = !exactHighlightingWrapper
                             }
 
                             "Plugin Info" -> openWindow = Window.PLUGIN_INFO

@@ -44,29 +44,41 @@ fun MarkedText(
     textAlign: TextAlign = TextAlign.Start,
     text: String,
     highlights: Map<String, Tag>,
+    exact: Boolean = false,
 ) {
-    val allMatches = remember(text, highlights) {
+    val allMatches = remember(text, highlights, exact) {
         buildList {
             highlights.filter { it.key.isNotBlank() && it.key.length > 1 }.forEach { (word, tagAndColor) ->
                 val (tag, color) = tagAndColor
 
+                val normalizedWord = word.trim('"')
+
                 var searchIndex = 0
 
                 while (true) {
-                    val foundIndex = text.indexOf(word, searchIndex)
-
+                    val foundIndex = text.indexOf(normalizedWord, searchIndex)
                     if (foundIndex == -1) break
 
-                    add(
-                        HighlightMatch(
-                            start = foundIndex,
-                            end = foundIndex + word.length,
-                            word = word,
-                            tag = tag,
-                            color = color.toComposeColor()
+                    val endIndex = foundIndex + normalizedWord.length
+
+
+                    val isStartBoundary = foundIndex == 0 || !text[foundIndex - 1].isLetterOrDigit()
+                    val isEndBoundary = endIndex == text.length || !text[endIndex].isLetterOrDigit()
+
+                    val shouldHighlight = if (exact) isStartBoundary && isEndBoundary else true
+
+                    if (shouldHighlight) {
+                        add(
+                            HighlightMatch(
+                                start = foundIndex,
+                                end = endIndex,
+                                word = normalizedWord,
+                                tag = tag,
+                                color = color.toComposeColor()
+                            )
                         )
-                    )
-                    searchIndex = foundIndex + 1
+                    }
+                    searchIndex = endIndex
                 }
             }
         }.sortedWith(compareBy({ it.start }, { -it.end }))
