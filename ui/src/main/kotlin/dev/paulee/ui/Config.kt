@@ -13,6 +13,8 @@ object Config {
 
     var noWidthRestriction = false
 
+    var exactHighlighting = true
+
     var selectedPool = ""
 
     private var configFile = "config"
