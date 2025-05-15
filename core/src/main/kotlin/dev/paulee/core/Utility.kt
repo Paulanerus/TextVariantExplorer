@@ -17,26 +17,43 @@ object GlobalExceptionHandler {
 }
 
 fun splitStr(str: String, delimiter: Char, quoteCharacters: Array<Char> = arrayOf('"')): List<String> {
-    val tokens = mutableListOf<String>()
+    val result = ArrayList<String>()
+    val sb = StringBuilder(str.length)
 
-    var tokenStart = 0
-    var insideQuotes = false
-    str.indices.forEach {
-        val c = str[it]
+    if (quoteCharacters.size == 1) {
+        val quote = quoteCharacters[0]
+        var inside = false
 
-        if (quoteCharacters.contains(c)) insideQuotes = !insideQuotes
+        for (c in str) {
+            when {
+                c == quote -> inside = !inside
+                c == delimiter && !inside -> {
+                    result.add(sb.toString())
+                    sb.setLength(0)
+                }
 
-        if (c == delimiter && !insideQuotes) {
-            if (it > tokenStart) tokens.add(str.substring(tokenStart, it))
-            else tokens.add("")
+                else -> sb.append(c)
+            }
+        }
+    } else {
+        var inside = false
 
-            tokenStart = it + 1
+        for (c in str) {
+            if (quoteCharacters.contains(c)) {
+                inside = !inside
+            } else if (c == delimiter && !inside) {
+                result.add(sb.toString())
+                sb.setLength(0)
+            } else {
+                sb.append(c)
+            }
         }
     }
 
-    if (tokenStart < str.length) tokens.add(str.substring(tokenStart))
+    if (sb.isNotBlank()) result.add(sb.toString())
 
-    return tokens
+    return result
 }
+
 
 fun normalizeDataSource(dataSource: String): String = dataSource.substringBeforeLast(".").replace(" ", "_")
