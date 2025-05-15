@@ -442,8 +442,11 @@ class DataServiceImpl : IDataService {
             when (transform) {
                 is VariantMapping -> {
                     dataPool.storageProvider.get(key, whereClause = listOf("${transform.base}:$value"))
-                        .flatMap { map -> transform.variants.mapNotNull { key -> map[key] } }.toSet()
-                        .joinToString(" or ", prefix = "(", postfix = ")")
+                        .flatMap { map -> transform.variants.mapNotNull { key -> map[key] } }
+                        .toSet()
+                        .takeIf { set -> set.isNotEmpty() }
+                        ?.joinToString(" or ", prefix = "(", postfix = ")")
+                        ?: ""
                 }
                 else -> ""
             }
