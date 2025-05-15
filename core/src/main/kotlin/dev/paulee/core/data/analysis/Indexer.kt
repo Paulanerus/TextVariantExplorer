@@ -5,6 +5,7 @@ import dev.paulee.api.data.Language
 import dev.paulee.api.data.Source
 import dev.paulee.api.data.UniqueField
 import dev.paulee.core.normalizeDataSource
+import dev.paulee.core.splitStr
 import org.apache.lucene.analysis.Analyzer
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer
 import org.apache.lucene.analysis.en.EnglishAnalyzer
@@ -22,6 +23,7 @@ import org.apache.lucene.queryparser.flexible.standard.config.StandardQueryConfi
 import org.apache.lucene.search.BooleanClause
 import org.apache.lucene.search.BooleanQuery
 import org.apache.lucene.search.IndexSearcher
+import org.apache.lucene.search.PhraseQuery
 import org.apache.lucene.search.TermQuery
 import org.apache.lucene.store.BaseDirectory
 import org.apache.lucene.store.FSDirectory
@@ -35,13 +37,12 @@ class Indexer(path: Path, sources: List<Source>) : Closeable {
     companion object {
         private val QUOTE_REGEX = Regex("\"([^\"]+?)\"")
 
-        private val OPERATOR_REGEX = Regex("(?i)\\b(or|and|not)\\b")
+        private val OPERATOR_CASCADE_REGEX =
+            Regex("(?i)\\b(AND(?:\\s+NOT)?|OR(?:\\s+NOT)?|NOT)\\b(?:\\s+(?:AND|OR|NOT)\\b)*")
 
-        private val OPERATOR_MAPPING = mapOf(
-            "or" to "OR",
-            "and" to "AND",
-            "not" to "NOT"
-        )
+        private val LEADING_REGEX = Regex("(?i)^(?:AND|OR|NOT)\\b\\s*")
+
+        private val TRAILING_REGEX = Regex("(?i)\\s*\\b(?:AND|OR|NOT)$")
     }
 
     private val logger = getLogger(Indexer::class.java)
@@ -124,11 +125,9 @@ class Indexer(path: Path, sources: List<Source>) : Closeable {
     }
 
     fun searchFieldIndex(field: String, query: String): List<Document> {
-        val exactTerms = QUOTE_REGEX.findAll(query)
-            .map { it.groupValues[1] }
-            .toList()
+        val exactTerms = QUOTE_REGEX.findAll(query).map { it.groupValues[1] }.toList()
 
-        val stripped = exactTerms.fold(query) { acc, t -> acc.replace("\"$t\"", "") }.trim()
+        val stripped = query.replace(QUOTE_REGEX, "").trim()
 
         val normalized = normalizeOperator(stripped)
 
@@ -151,11 +150,18 @@ class Indexer(path: Path, sources: List<Source>) : Closeable {
             queryBuilder.add(parser.parse(normalized, field), BooleanClause.Occur.MUST)
         }
 
-        exactTerms.forEach { rawTerm ->
-            queryBuilder.add(
-                TermQuery(Term("$field.ws", rawTerm)),
-                BooleanClause.Occur.MUST
-            )
+        exactTerms.map { splitStr(it, ' ') }.forEach { rawTerm ->
+            if (rawTerm.isEmpty()) return@forEach
+
+            if (rawTerm.size == 1) {
+                queryBuilder.add(TermQuery(Term("$field.ws", rawTerm[0])), BooleanClause.Occur.MUST)
+            } else {
+                val phraseBuilder = PhraseQuery.Builder()
+
+                rawTerm.forEach { phraseBuilder.add(Term("$field.ws", it)) }
+
+                queryBuilder.add(phraseBuilder.build(), BooleanClause.Occur.MUST)
+            }
         }
 
         val hits = searcher.search(queryBuilder.build(), Int.MAX_VALUE)
@@ -168,10 +174,9 @@ class Indexer(path: Path, sources: List<Source>) : Closeable {
     }
 
     private fun normalizeOperator(query: String): String {
-        return OPERATOR_REGEX.replace(query) { matchResult ->
-            val key = matchResult.value.lowercase()
-            OPERATOR_MAPPING[key] ?: matchResult.value
-        }
+        return OPERATOR_CASCADE_REGEX.replace(query) { it.groupValues[1].uppercase() }
+            .replace(LEADING_REGEX, "")
+            .replace(TRAILING_REGEX, "")
     }
 
     private fun createDoc(name: String, map: Map<String, String>): Document = Document().apply {
