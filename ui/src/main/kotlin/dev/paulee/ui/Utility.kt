@@ -51,15 +51,13 @@ fun MarkedText(
             highlights.filter { it.key.isNotBlank() && it.key.length > 1 }.forEach { (word, tagAndColor) ->
                 val (tag, color) = tagAndColor
 
-                val normalizedWord = word.trim('"')
-
                 var searchIndex = 0
 
                 while (true) {
-                    val foundIndex = text.indexOf(normalizedWord, searchIndex)
+                    val foundIndex = text.indexOf(word, searchIndex)
                     if (foundIndex == -1) break
 
-                    val endIndex = foundIndex + normalizedWord.length
+                    val endIndex = foundIndex + word.length
 
 
                     val isStartBoundary = foundIndex == 0 || !text[foundIndex - 1].isLetterOrDigit()
@@ -72,7 +70,7 @@ fun MarkedText(
                             HighlightMatch(
                                 start = foundIndex,
                                 end = endIndex,
-                                word = normalizedWord,
+                                word = word,
                                 tag = tag,
                                 color = color.toComposeColor()
                             )

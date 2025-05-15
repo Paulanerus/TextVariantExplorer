@@ -124,7 +124,7 @@ private class DataPool(val indexer: Indexer, val dataInfo: DataInfo, val storage
                 }
 
                 if (fields[field] == true) {
-                    val value = str.substring(colon + 1).trim('"')
+                    val value = str.substring(colon + 1)
                     val fieldClass = field.substringBefore('.')
 
                     indexedValues.add(value)
@@ -292,7 +292,7 @@ class DataServiceImpl : IDataService {
             val pool = dataPools.entries.first()
 
             this.currentPool = pool.key
-            this.currentField = pool.value.defaultClass
+            this.currentField = pool.value.defaultClass //FIXME: Select any indexable field if available.
 
             if (this.currentField == null) logger.warn("${this.currentPool} has no index field.")
             else logger.info("Set selected data pool to $currentPool.$currentField.")
