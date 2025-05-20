@@ -24,6 +24,19 @@ import kotlin.reflect.full.declaredFunctions
 import kotlin.reflect.full.hasAnnotation
 import kotlin.reflect.full.valueParameters
 
+private val NON_ALPHANUMERIC = Regex("[^A-Za-z0-9_]")
+
+private val FORBIDDEN_PREFIXES = listOf("sqlite_")
+
+fun normalizeSourceName(str: String): String {
+    val replaced = NON_ALPHANUMERIC.replace(str, "_")
+
+    val needsUnderscore =
+        replaced.firstOrNull()?.isDigit() == true || FORBIDDEN_PREFIXES.any { replaced.startsWith(it) }
+
+    return (if (needsUnderscore) "_$replaced" else replaced).trim()
+}
+
 fun java.awt.Color.toComposeColor() = Color(red, green, blue, alpha)
 
 fun String.capitalize() = lowercase().replaceFirstChar { it.uppercase() }
