@@ -11,6 +11,7 @@ import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.runtime.*
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -52,6 +53,16 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
     var selectedSource by remember { mutableStateOf<Source?>(null) }
     var dataInfoName by remember { mutableStateOf("") }
 
+    val exportButtonEnabled by derivedStateOf { sources.isNotEmpty() }
+
+    val loadButtonEnabled by derivedStateOf { sources.isNotEmpty() && sources.size == sourcePaths.size }
+
+    val otherSources by derivedStateOf {
+        selectedSource?.let { selected ->
+            sources.filter { it.name != selected.name }
+        } ?: emptyList()
+    }
+
     fun updateSource(
         selectedSource: Source?,
         transform: (Source) -> Source,
@@ -60,11 +71,13 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
         selectedSource?.let { current ->
             val updated = transform(current)
 
-            val idx = sources.indexOfFirst { it.name == current.name }
+            if (updated != current) {
+                val idx = sources.indexOfFirst { it.name == current.name }
 
-            if (idx != -1 && updated != current) {
-                sources[idx] = updated
-                onSelect(updated)
+                if (idx != -1) {
+                    sources[idx] = updated
+                    onSelect(updated)
+                }
             }
         }
     }
@@ -86,8 +99,13 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                         LazyColumn(
                             modifier = Modifier.weight(1f).fillMaxWidth()
                         ) {
-                            items(sources) { source ->
+                            items(
+                                items = sources, key = { it.name }) { source ->
                                 val bgColor = if (source == selectedSource) Color.LightGray else Color.Transparent
+
+                                val hasSourceFile by derivedStateOf {
+                                    sourcePaths.any { it.nameWithoutExtension == source.name }
+                                }
 
                                 var showPopup by remember { mutableStateOf(false) }
 
@@ -99,7 +117,7 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                                 ) {
                                     Text(source.name)
 
-                                    if (sourcePaths.any { it.nameWithoutExtension == source.name }) return@Row
+                                    if (hasSourceFile) return@Row
 
                                     Box {
                                         Icon(
@@ -149,7 +167,7 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
 
                         Button(
                             onClick = { dialogState = DialogState.Export },
-                            enabled = sources.isNotEmpty(),
+                            enabled = exportButtonEnabled,
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text("Export")
@@ -171,7 +189,7 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
 
                         Button(
                             onClick = { dialogState = DialogState.Name },
-                            enabled = sources.isNotEmpty() && sources.size == sourcePaths.size,
+                            enabled = loadButtonEnabled,
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text("Load")
@@ -221,7 +239,9 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                             when (selectedTab) {
                                 0 -> {
                                     LazyColumn(modifier = Modifier.fillMaxWidth()) {
-                                        items(selectedSource?.fields ?: emptyList()) { field ->
+                                        items(
+                                            items = selectedSource?.fields ?: emptyList(),
+                                            key = { "${selectedSource?.name}:${it.name}" }) { field ->
                                             val initialVariant = when (field) {
                                                 is UniqueField -> "Unique"
                                                 is IndexField -> "Index"
@@ -463,15 +483,14 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                                                                     Text("None")
                                                                 }
 
-                                                                sources.filter { source -> source.name != selectedSource!!.name }
-                                                                    .forEach { source ->
-                                                                        DropdownMenuItem(onClick = {
-                                                                            linkSource = source.name
-                                                                            linkDropdownExpanded = false
-                                                                        }) {
-                                                                            Text(source.name)
-                                                                        }
+                                                                otherSources.forEach { source ->
+                                                                    DropdownMenuItem(onClick = {
+                                                                        linkSource = source.name
+                                                                        linkDropdownExpanded = false
+                                                                    }) {
+                                                                        Text(source.name)
                                                                     }
+                                                                }
                                                             }
                                                         }
                                                     }
