@@ -421,6 +421,8 @@ class DataServiceImpl : IDataService {
 
     override fun dataInfoToString(dataInfo: DataInfo): String? = FileService.toJson(dataInfo)
 
+    override fun dataInfoFromString(dataInfo: String): DataInfo? = FileService.fromJson(dataInfo)
+
     override fun close() {
         this.storageProvider.forEach { it.value.close() }
 
@@ -448,6 +450,7 @@ class DataServiceImpl : IDataService {
                         ?.joinToString(" or ", prefix = "(", postfix = ")")
                         ?: ""
                 }
+
                 else -> ""
             }
         }

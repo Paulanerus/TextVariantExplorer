@@ -5,6 +5,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
@@ -13,8 +14,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import dev.paulee.api.data.Change
 import dev.paulee.api.plugin.Drawable
 import dev.paulee.api.plugin.Tag
@@ -23,6 +27,19 @@ import kotlin.reflect.KType
 import kotlin.reflect.full.declaredFunctions
 import kotlin.reflect.full.hasAnnotation
 import kotlin.reflect.full.valueParameters
+
+private val NON_ALPHANUMERIC = Regex("[^A-Za-z0-9_]")
+
+private val FORBIDDEN_PREFIXES = listOf("sqlite_")
+
+fun normalizeSourceName(str: String): String {
+    val replaced = NON_ALPHANUMERIC.replace(str, "_")
+
+    val needsUnderscore =
+        replaced.firstOrNull()?.isDigit() == true || FORBIDDEN_PREFIXES.any { replaced.startsWith(it) }
+
+    return (if (needsUnderscore) "_$replaced" else replaced).trim()
+}
 
 fun java.awt.Color.toComposeColor() = Color(red, green, blue, alpha)
 
@@ -253,5 +270,28 @@ fun Hint(text: String, modifier: Modifier = Modifier) {
             style = MaterialTheme.typography.caption,
             modifier = Modifier.padding(12.dp)
         )
+    }
+}
+
+@Composable
+fun SimplePopup(
+    modifier: Modifier = Modifier,
+    alignment: Alignment = Alignment.TopEnd,
+    offset: IntOffset = IntOffset(-16, 24),
+    content: @Composable () -> Unit,
+) {
+    Popup(
+        alignment = alignment,
+        offset = offset,
+        properties = PopupProperties(focusable = false)
+    ) {
+        Card(
+            modifier = modifier,
+            shape = RoundedCornerShape(4.dp),
+            backgroundColor = MaterialTheme.colors.surface,
+            elevation = 4.dp
+        ) {
+            content()
+        }
     }
 }
