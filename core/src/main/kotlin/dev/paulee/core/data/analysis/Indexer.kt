@@ -5,7 +5,9 @@ import dev.paulee.api.data.Language
 import dev.paulee.api.data.Source
 import dev.paulee.api.data.UniqueField
 import dev.paulee.core.normalizeDataSource
+import dev.paulee.core.splitStr
 import org.apache.lucene.analysis.Analyzer
+import org.apache.lucene.analysis.core.WhitespaceAnalyzer
 import org.apache.lucene.analysis.en.EnglishAnalyzer
 import org.apache.lucene.analysis.miscellaneous.PerFieldAnalyzerWrapper
 import org.apache.lucene.document.Document
@@ -18,7 +20,11 @@ import org.apache.lucene.index.IndexWriterConfig
 import org.apache.lucene.index.Term
 import org.apache.lucene.queryparser.flexible.standard.StandardQueryParser
 import org.apache.lucene.queryparser.flexible.standard.config.StandardQueryConfigHandler
+import org.apache.lucene.search.BooleanClause
+import org.apache.lucene.search.BooleanQuery
 import org.apache.lucene.search.IndexSearcher
+import org.apache.lucene.search.PhraseQuery
+import org.apache.lucene.search.TermQuery
 import org.apache.lucene.store.BaseDirectory
 import org.apache.lucene.store.FSDirectory
 import org.apache.lucene.store.NIOFSDirectory
@@ -28,6 +34,17 @@ import java.nio.file.Path
 
 class Indexer(path: Path, sources: List<Source>) : Closeable {
 
+    companion object {
+        private val QUOTE_REGEX = Regex("\"([^\"]+?)\"")
+
+        private val OPERATOR_CASCADE_REGEX =
+            Regex("(?i)\\b(AND(?:\\s+NOT)?|OR(?:\\s+NOT)?|NOT)\\b(?:\\s+(?:AND|OR|NOT)\\b)*")
+
+        private val LEADING_REGEX = Regex("(?i)^(?:AND|OR|NOT)\\b\\s*")
+
+        private val TRAILING_REGEX = Regex("(?i)\\s*\\b(?:AND|OR|NOT)$")
+    }
+
     private val logger = getLogger(Indexer::class.java)
 
     private val directory: BaseDirectory
@@ -36,11 +53,11 @@ class Indexer(path: Path, sources: List<Source>) : Closeable {
 
     private var reader: DirectoryReader
 
+    private val whitespaceAnalyzer = WhitespaceAnalyzer()
+
     private val mappedAnalyzer = mutableMapOf<String, Analyzer>()
 
     private val idFields = mutableSetOf<String>()
-
-    private val operator = mapOf("(?i)\\bor\\b" to "OR", "(?i)\\band\\b" to "AND", "(?i)\\bnot\\b" to "NOT")
 
     init {
         //See https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/store/NIOFSDirectory.html
@@ -55,7 +72,11 @@ class Indexer(path: Path, sources: List<Source>) : Closeable {
                 val fieldName = field.name
 
                 when (field) {
-                    is IndexField -> this.mappedAnalyzer["$normalized.$fieldName"] = LangAnalyzer.new(field.lang)
+                    is IndexField -> {
+                        this.mappedAnalyzer["$normalized.$fieldName"] = LangAnalyzer.new(field.lang)
+                        this.mappedAnalyzer["$normalized.$fieldName.ws"] = whitespaceAnalyzer
+                    }
+
                     is UniqueField -> if (field.identify) this.idFields.add("$normalized.$fieldName")
                     else -> {}
                 }
@@ -84,34 +105,31 @@ class Indexer(path: Path, sources: List<Source>) : Closeable {
     fun indexEntries(name: String, entries: List<Map<String, String>>) {
         if (this.mappedAnalyzer.isEmpty() || entries.isEmpty()) return
 
+        val fieldName = idFields.find { it.startsWith(name) } ?: return
+
         var hasChanges = false
 
-        entries.forEach {
-            val fieldName = idFields.find { it.startsWith(name) } ?: return@forEach
-            val fieldValue = it[fieldName.substringAfter("$name.")] ?: return@forEach
+        entries.forEach { entry ->
+            val fieldValue = entry[fieldName.substringAfter("$name.")] ?: return@forEach
 
-            this.writer.updateDocument(Term(fieldName, fieldValue), this.createDoc(name, it))
+            this.writer.updateDocument(Term(fieldName, fieldValue), this.createDoc(name, entry))
 
             hasChanges = true
         }
 
-        if (hasChanges) runCatching { this.writer.commit() }.getOrElse { e ->
-            this.logger.error(
-                "Exception: Failed to commit changes.",
-                e
-            )
+        if (hasChanges) {
+            runCatching { this.writer.commit() }.getOrElse { e ->
+                this.logger.error("Exception: Failed to commit changes.", e)
+            }
         }
     }
 
     fun searchFieldIndex(field: String, query: String): List<Document> {
-        val normalized = this.normalizeOperator(query)
+        val exactTerms = QUOTE_REGEX.findAll(query).map { it.groupValues[1] }.toList()
 
-        if (normalized.isEmpty()) return emptyList()
+        val stripped = query.replace(QUOTE_REGEX, "").trim()
 
-        val queryParser = StandardQueryParser(this.mappedAnalyzer[field] ?: EnglishAnalyzer())
-
-        queryParser.defaultOperator = StandardQueryConfigHandler.Operator.AND
-        queryParser.allowLeadingWildcard = true
+        val normalized = normalizeOperator(stripped)
 
         DirectoryReader.openIfChanged(this.reader)?.let {
             this.reader.close()
@@ -121,11 +139,33 @@ class Indexer(path: Path, sources: List<Source>) : Closeable {
 
         val searcher = IndexSearcher(this.reader)
 
-        val topDocs = searcher.search(queryParser.parse(normalized, field), Int.MAX_VALUE)
+        val queryBuilder = BooleanQuery.Builder()
 
-        val storedFields = searcher.storedFields()
+        if (normalized.isNotBlank()) {
+            val parser = StandardQueryParser(mappedAnalyzer[field] ?: EnglishAnalyzer()).apply {
+                defaultOperator = StandardQueryConfigHandler.Operator.AND
+                allowLeadingWildcard = true
+            }
 
-        return topDocs.scoreDocs.map { storedFields.document(it.doc) }
+            queryBuilder.add(parser.parse(normalized, field), BooleanClause.Occur.MUST)
+        }
+
+        exactTerms.map { splitStr(it, ' ') }.forEach { rawTerm ->
+            if (rawTerm.isEmpty()) return@forEach
+
+            if (rawTerm.size == 1) {
+                queryBuilder.add(TermQuery(Term("$field.ws", rawTerm[0])), BooleanClause.Occur.MUST)
+            } else {
+                val phraseBuilder = PhraseQuery.Builder()
+
+                rawTerm.forEach { phraseBuilder.add(Term("$field.ws", it)) }
+
+                queryBuilder.add(phraseBuilder.build(), BooleanClause.Occur.MUST)
+            }
+        }
+
+        val hits = searcher.search(queryBuilder.build(), Int.MAX_VALUE)
+        return hits.scoreDocs.map { searcher.storedFields().document(it.doc) }
     }
 
     override fun close() {
@@ -133,8 +173,11 @@ class Indexer(path: Path, sources: List<Source>) : Closeable {
         this.reader.close()
     }
 
-    private fun normalizeOperator(query: String) =
-        operator.entries.fold(query) { acc, entry -> acc.replace(entry.key.toRegex(), entry.value) }
+    private fun normalizeOperator(query: String): String {
+        return OPERATOR_CASCADE_REGEX.replace(query) { it.groupValues[1].uppercase() }
+            .replace(LEADING_REGEX, "")
+            .replace(TRAILING_REGEX, "")
+    }
 
     private fun createDoc(name: String, map: Map<String, String>): Document = Document().apply {
         map.forEach { (key, value) ->
@@ -144,7 +187,10 @@ class Indexer(path: Path, sources: List<Source>) : Closeable {
                 add(LongField(if (key.endsWith("_ag_id")) key else id, value.toLong(), Field.Store.YES))
             }
 
-            if (mappedAnalyzer.contains(id)) add(TextField(id, value, Field.Store.YES))
+            if (mappedAnalyzer.contains(id)) {
+                add(TextField(id, value, Field.Store.YES))
+                add(TextField("$id.ws", value, Field.Store.YES))
+            }
         }
     }
 

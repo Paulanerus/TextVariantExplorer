@@ -37,7 +37,7 @@ internal class BufferedCSVReader(private val path: Path, private val delimiter: 
                 if (split.size == this.headSize) {
                     val headToValue = mutableMapOf<String, String>()
 
-                    split.forEachIndexed { index, entry -> headToValue[header[index]] = entry.trim('"') }
+                    split.forEachIndexed { index, entry -> headToValue[header[index]] = entry }
 
                     batch.add(headToValue)
                 } else {

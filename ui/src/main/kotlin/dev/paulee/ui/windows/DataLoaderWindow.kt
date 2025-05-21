@@ -11,6 +11,7 @@ import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.runtime.*
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -21,11 +22,11 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.*
+import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.WindowPosition
+import androidx.compose.ui.window.rememberWindowState
 import dev.paulee.api.data.*
-import dev.paulee.ui.Hint
-import dev.paulee.ui.SimpleTextField
-import dev.paulee.ui.capitalize
+import dev.paulee.ui.*
 import dev.paulee.ui.components.CustomInputDialog
 import dev.paulee.ui.components.DialogType
 import dev.paulee.ui.components.FileDialog
@@ -34,19 +35,33 @@ import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import kotlin.io.path.*
 
+
+enum class DialogState {
+    None, Add, Name, Import, Export,
+}
+
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInfo?) -> Unit) {
     val windowState = rememberWindowState(
         position = WindowPosition.Aligned(Alignment.Center), size = DpSize(1100.dp, 700.dp)
     )
 
-    var showAddDialog by remember { mutableStateOf(false) }
-    var showExportDialog by remember { mutableStateOf(false) }
+    var dialogState by remember { mutableStateOf(DialogState.None) }
     val sources = remember { mutableStateListOf<Source>() }
     val sourcePaths = remember { mutableStateListOf<Path>() }
     var selectedSource by remember { mutableStateOf<Source?>(null) }
-    var showNameDialog by remember { mutableStateOf(false) }
     var dataInfoName by remember { mutableStateOf("") }
+
+    val exportButtonEnabled by derivedStateOf { sources.isNotEmpty() }
+
+    val loadButtonEnabled by derivedStateOf { sources.isNotEmpty() && sources.size == sourcePaths.size }
+
+    val otherSources by derivedStateOf {
+        selectedSource?.let { selected ->
+            sources.filter { it.name != selected.name }
+        } ?: emptyList()
+    }
 
     fun updateSource(
         selectedSource: Source?,
@@ -56,11 +71,13 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
         selectedSource?.let { current ->
             val updated = transform(current)
 
-            val idx = sources.indexOfFirst { it.name == current.name }
+            if (updated != current) {
+                val idx = sources.indexOfFirst { it.name == current.name }
 
-            if (idx != -1 && updated != current) {
-                sources[idx] = updated
-                onSelect(updated)
+                if (idx != -1) {
+                    sources[idx] = updated
+                    onSelect(updated)
+                }
             }
         }
     }
@@ -70,11 +87,8 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
             Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
 
                 FieldTypeHelp(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(8.dp)
+                    modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)
                 )
-
 
                 Row(modifier = Modifier.fillMaxSize()) {
                     Column(modifier = Modifier.width(250.dp)) {
@@ -85,14 +99,42 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                         LazyColumn(
                             modifier = Modifier.weight(1f).fillMaxWidth()
                         ) {
-                            items(sources) { source ->
+                            items(
+                                items = sources, key = { it.name }) { source ->
                                 val bgColor = if (source == selectedSource) Color.LightGray else Color.Transparent
 
-                                Box(
+                                val hasSourceFile by derivedStateOf {
+                                    sourcePaths.any { it.nameWithoutExtension == source.name }
+                                }
+
+                                var showPopup by remember { mutableStateOf(false) }
+
+                                Row(
                                     modifier = Modifier.fillMaxWidth().background(bgColor)
-                                        .clickable { selectedSource = source }.padding(8.dp)
+                                        .clickable { selectedSource = source }.padding(8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(source.name)
+
+                                    if (hasSourceFile) return@Row
+
+                                    Box {
+                                        Icon(
+                                            Icons.Default.Info,
+                                            contentDescription = "Info",
+                                            tint = Color.Red,
+                                            modifier = Modifier.pointerMoveFilter(
+                                                onEnter = { showPopup = true; false },
+                                                onExit = { showPopup = false; false })
+                                        )
+
+                                        if (showPopup) {
+                                            SimplePopup(offset = IntOffset(170, 16)) {
+                                                Text("Missing source file.", modifier = Modifier.padding(4.dp))
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -100,7 +142,7 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                         Spacer(modifier = Modifier.height(4.dp))
 
                         Button(
-                            onClick = { showAddDialog = true }, modifier = Modifier.fillMaxWidth()
+                            onClick = { dialogState = DialogState.Add }, modifier = Modifier.fillMaxWidth()
                         ) {
                             Text("Add")
                         }
@@ -123,31 +165,31 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
 
                         Spacer(modifier = Modifier.height(4.dp))
 
-                        /*
-                        //FIXME: Add 'Import' button functionallity.
-
                         Button(
-                            onClick = { println("Import") }, enabled = false, modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Import")
-                        }
-                         */
-
-                        Spacer(modifier = Modifier.height(4.dp))
-
-                        Button(
-                            onClick = { showExportDialog = true },
-                            enabled = sources.isNotEmpty(),
+                            onClick = { dialogState = DialogState.Export },
+                            enabled = exportButtonEnabled,
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text("Export")
                         }
 
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Button(
+                            onClick = {
+                                sources.clear()
+                                sourcePaths.clear()
+                                dialogState = DialogState.Import
+                            }, modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Import")
+                        }
+
                         Spacer(modifier = Modifier.height(18.dp))
 
                         Button(
-                            onClick = { showNameDialog = true },
-                            enabled = sources.isNotEmpty(),
+                            onClick = { dialogState = DialogState.Name },
+                            enabled = loadButtonEnabled,
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text("Load")
@@ -197,7 +239,9 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                             when (selectedTab) {
                                 0 -> {
                                     LazyColumn(modifier = Modifier.fillMaxWidth()) {
-                                        items(selectedSource?.fields ?: emptyList()) { field ->
+                                        items(
+                                            items = selectedSource?.fields ?: emptyList(),
+                                            key = { "${selectedSource?.name}:${it.name}" }) { field ->
                                             val initialVariant = when (field) {
                                                 is UniqueField -> "Unique"
                                                 is IndexField -> "Index"
@@ -439,15 +483,14 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                                                                     Text("None")
                                                                 }
 
-                                                                sources.filter { source -> source.name != selectedSource!!.name }
-                                                                    .forEach { source ->
-                                                                        DropdownMenuItem(onClick = {
-                                                                            linkSource = source.name
-                                                                            linkDropdownExpanded = false
-                                                                        }) {
-                                                                            Text(source.name)
-                                                                        }
+                                                                otherSources.forEach { source ->
+                                                                    DropdownMenuItem(onClick = {
+                                                                        linkSource = source.name
+                                                                        linkDropdownExpanded = false
+                                                                    }) {
+                                                                        Text(source.name)
                                                                     }
+                                                                }
                                                             }
                                                         }
                                                     }
@@ -485,8 +528,7 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                                         updateSource(
                                             selectedSource,
                                             transform = { it.copy(preFilter = updatedPreFilter) },
-                                            onSelect = { selectedSource = it }
-                                        )
+                                            onSelect = { selectedSource = it })
                                     }
 
                                     Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
@@ -572,8 +614,7 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                                         updateSource(
                                             selectedSource,
                                             transform = { it.copy(variantMapping = updatedMapping) },
-                                            onSelect = { selectedSource = it }
-                                        )
+                                            onSelect = { selectedSource = it })
                                     }
 
                                     Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
@@ -627,53 +668,72 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                     }
                 }
 
-                if (showNameDialog) {
-                    CustomInputDialog(
-                        title = "Enter a name",
-                        placeholder = "Name",
-                        onDismissRequest = { showNameDialog = false },
-                        onConfirmClick = {
-                            if (dataInfoName.isNotEmpty()) {
-                                showNameDialog = false
+                when (dialogState) {
+                    DialogState.Name -> {
+                        CustomInputDialog(
+                            title = "Enter a name",
+                            placeholder = "Name",
+                            onDismissRequest = { dialogState = DialogState.None },
+                            onConfirmClick = {
+                                if (dataInfoName.isNotEmpty()) {
+                                    dialogState = DialogState.None
 
-                                sourcePaths.forEach { path ->
-                                    Files.copy(path, dataDir.resolve(path.name), StandardCopyOption.REPLACE_EXISTING)
-                                }
-                                onClose(DataInfo(dataInfoName, sources.toList()))
-                            }
-                        },
-                        textFieldValue = dataInfoName,
-                        onTextFieldValueChange = { dataInfoName = it })
-                }
-
-                if (showAddDialog) {
-                    FileDialog { paths ->
-                        paths.let {
-                            val newSources =
-                                it.filter { path -> sources.none { src -> src.name == path.nameWithoutExtension } }
-                                    .mapNotNull { path ->
-                                        val source = parseSourceFromFile(path) ?: return@mapNotNull null
-                                        sourcePaths.add(path)
-                                        source
+                                    sourcePaths.forEach { path ->
+                                        Files.copy(
+                                            path, dataDir.resolve(path.name), StandardCopyOption.REPLACE_EXISTING
+                                        )
                                     }
-                            sources.addAll(newSources)
-                        }
-                        showAddDialog = false
+                                    onClose(DataInfo(dataInfoName, sources.toList()))
+                                }
+                            },
+                            textFieldValue = dataInfoName,
+                            onTextFieldValueChange = { dataInfoName = it })
                     }
-                }
 
-                if (showExportDialog) {
-                    FileDialog(dialogType = DialogType.SAVE, extension = "json") { paths ->
-                        if (paths.isNotEmpty()) {
-                            val savePath = paths.first()
+                    DialogState.Add, DialogState.Import -> {
+                        FileDialog(extension = if (dialogState == DialogState.Add) "csv" else "json") {
 
-                            val dataInfo = DataInfo(savePath.nameWithoutExtension, sources.toList())
+                            if (dialogState == DialogState.Add) {
+                                val newSources = it.filterNot { path ->
+                                    sources.any { src -> src.name == path.nameWithoutExtension }
+                                        .also { missing -> if (missing) sourcePaths.add(path) }
+                                }.mapNotNull { path ->
+                                    val source = parseSourceFromFile(path) ?: return@mapNotNull null
+                                    sourcePaths.add(path)
+                                    source
+                                }
 
-                            dataService.dataInfoToString(dataInfo)?.let { savePath.writeText(it) }
+                                sources.addAll(newSources)
+                            } else {
+                                it.firstOrNull()?.readText()?.let { text ->
+                                    val dataInfo = dataService.dataInfoFromString(text)
+
+                                    if (dataInfo != null) {
+                                        sources.addAll(dataInfo.sources)
+                                        dataInfoName = dataInfo.name
+                                    }
+                                }
+                            }
+
+                            dialogState = DialogState.None
                         }
-
-                        showExportDialog = false
                     }
+
+                    DialogState.Export -> {
+                        FileDialog(dialogType = DialogType.SAVE, extension = "json") {
+                            if (it.isNotEmpty()) {
+                                val savePath = it.first()
+
+                                val dataInfo = DataInfo(savePath.nameWithoutExtension, sources.toList())
+
+                                dataService.dataInfoToString(dataInfo)?.let { str -> savePath.writeText(str) }
+                            }
+
+                            dialogState = DialogState.None
+                        }
+                    }
+
+                    else -> {}
                 }
             }
         }
@@ -698,7 +758,8 @@ private fun parseSourceFromFile(path: Path): Source? {
 
         val values = runCatching { reader.readLine() }.getOrNull()?.split(",")
 
-        val headerFields = header.split(",").mapIndexed { idx, field -> BasicField(field, getType(values?.get(idx))) }
+        val headerFields = header.split(",")
+            .mapIndexed { idx, field -> BasicField(normalizeSourceName(field), getType(values?.get(idx))) }
 
         return@use Source(name = path.nameWithoutExtension, fields = headerFields)
     }
@@ -714,41 +775,24 @@ private fun FieldTypeHelp(modifier: Modifier = Modifier) {
         imageVector = Icons.Filled.Info,
         contentDescription = "Field type help",
         tint = MaterialTheme.colors.onSurface.copy(alpha = 0.6f),
-        modifier = modifier
-            .size(24.dp)
-            .pointerMoveFilter(
-                onEnter = { showPopup = true; false },
-                onExit = { showPopup = false; false }
-            )
+        modifier = modifier.size(24.dp)
+            .pointerMoveFilter(onEnter = { showPopup = true; false }, onExit = { showPopup = false; false })
     )
 
     if (showPopup) {
-        Popup(
-            alignment = Alignment.TopEnd,
-            offset = IntOffset(-16, 24),
-            properties = PopupProperties(
-                focusable = false
-            ), content = {
-                Card(
-                    shape = RoundedCornerShape(4.dp),
-                    backgroundColor = MaterialTheme.colors.surface,
-                    elevation = 4.dp
-                ) {
-                    Column(modifier = Modifier.padding(8.dp)) {
-                        FieldType.entries.forEach { type ->
-                            Text(
-                                text = "${
-                                    type.name.capitalize().padEnd(maxNameLength)
-                                } - " + fieldTypeDescription(type),
-                                style = MaterialTheme.typography.body2.copy(
-                                    fontFamily = FontFamily.Monospace,
-                                    letterSpacing = (-0.5).sp
-                                )
-                            )
-                        }
-                    }
+        SimplePopup {
+            Column(modifier = Modifier.padding(8.dp)) {
+                FieldType.entries.forEach { type ->
+                    Text(
+                        text = "${
+                            type.name.capitalize().padEnd(maxNameLength)
+                        } - " + fieldTypeDescription(type), style = MaterialTheme.typography.body2.copy(
+                            fontFamily = FontFamily.Monospace, letterSpacing = (-0.5).sp
+                        )
+                    )
                 }
-            })
+            }
+        }
     }
 }
 

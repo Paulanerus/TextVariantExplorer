@@ -5,7 +5,7 @@ class UtilityTest {
     @Test
     fun splitStr() {
         val strOne = "The table 'Data List' has 121.432 entries"
-        val arrayOne = listOf("The", "table", "'Data List'", "has", "121.432", "entries")
+        val arrayOne = listOf("The", "table", "Data List", "has", "121.432", "entries")
 
         val strTwo = "This_table_is_pretty_huge"
         val arrayTwo = listOf("This", "table", "is", "pretty", "huge")

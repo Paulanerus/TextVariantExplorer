@@ -14,9 +14,9 @@ dependencies {
 
     implementation(kotlin("reflect"))
 
-    implementation("org.xerial:sqlite-jdbc:3.47.0.0")
+    implementation("org.xerial:sqlite-jdbc:${rootProject.extra["sqlite-jdbc.version"]}")
 
-    implementation("io.github.java-diff-utils:java-diff-utils:4.15")
+    implementation("io.github.java-diff-utils:java-diff-utils:${rootProject.extra["jdu.version"]}")
 
     implementation("org.apache.lucene:lucene-core:${rootProject.extra["lucene.version"]}")
     implementation("org.apache.lucene:lucene-analysis-common:${rootProject.extra["lucene.version"]}")
@@ -34,7 +34,7 @@ dependencies {
     implementation("org.apache.logging.log4j:log4j-api:${rootProject.extra["log4j.version"]}")
     implementation("org.apache.logging.log4j:log4j-slf4j2-impl:${rootProject.extra["log4j.version"]}")
 
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:${rootProject.extra["coroutines.version"]}")
 
     testImplementation(kotlin("test"))
 }

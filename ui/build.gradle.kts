@@ -19,6 +19,7 @@ dependencies {
     implementation(project(":api"))
 
     implementation(compose.desktop.currentOs)
+    implementation("org.jetbrains.compose.material:material-icons-core:${rootProject.extra["icons.version"]}")
 }
 
 kotlin {
