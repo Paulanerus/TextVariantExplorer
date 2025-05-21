@@ -421,13 +421,10 @@ class TextExplorerUI(
                     Window.LOAD_DATA -> DataLoaderWindow(dataService, dataDir) { dataInfo ->
                         openWindow = Window.NONE
 
+                        if (dataInfo == null) return@DataLoaderWindow
+
                         scope.launch {
                             loadState = LoadState.Loading("Loading data pool")
-
-                            if (dataInfo == null) {
-                                loadState = LoadState.Error("Data info is null")
-                                return@launch
-                            }
 
                             val poolsEmpty = dataService.getAvailablePools().isEmpty()
 
