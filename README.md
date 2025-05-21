@@ -16,7 +16,7 @@ This is a tool designed for the exploration and comparison of variants of textua
    - Start the application
    - Load the data via the menu in the top right-corner of the window
    - The data layout can be configured in the new window
-   - When the configuration is complete, press the 'Import' button 
+   - When the configuration is complete, press the 'Load' button 
    - Depending on the size of your dataset, the loading process may take some time
 
 4. **Load the Plugin**
@@ -31,13 +31,11 @@ This is a tool designed for the exploration and comparison of variants of textua
    - Enter simple words or sentences to search through the dataset.
    - Use Boolean operators to refine your search: and, and not, or
 
-3. Use Name Variants
+3. **Use Name Variants**
    - The syntax for searching name variants is: `@name:value`
 
-4. Apply Pre-Filters
+4. **Apply Pre-Filters**
    - You can pre-filter search results using the following syntax: `@name:value1:value2`
-
-*The 'name' for name variants and pre-filters corresponds to the value specified in @DataSource and is visible in the Info View.*
 
 ## Development
 
