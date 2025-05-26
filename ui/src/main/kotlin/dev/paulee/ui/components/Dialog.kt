@@ -116,3 +116,46 @@ fun CustomInputDialog(
         }
     }
 }
+
+@Composable
+fun YesNoDialog(
+    title: String,
+    text: String,
+    onDismissRequest: () -> Unit,
+    onResult: (Boolean) -> Unit,
+) {
+    Dialog(
+        onDismissRequest = onDismissRequest,
+        properties = DialogProperties(dismissOnBackPress = true, dismissOnClickOutside = true)
+    ) {
+        Surface(
+            modifier = Modifier.widthIn(min = 280.dp), shape = MaterialTheme.shapes.medium, elevation = 8.dp
+        ) {
+            Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 20.dp)) {
+                Text(
+                    text = title, style = MaterialTheme.typography.h6, modifier = Modifier.padding(bottom = 12.dp)
+                )
+                Text(
+                    text = text, style = MaterialTheme.typography.body1, modifier = Modifier.padding(bottom = 24.dp)
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = {
+                        onResult(false)
+                        onDismissRequest()
+                    }) {
+                        Text("No")
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(onClick = {
+                        onResult(true)
+                        onDismissRequest()
+                    }) {
+                        Text("Yes")
+                    }
+                }
+            }
+        }
+    }
+}
