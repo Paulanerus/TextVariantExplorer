@@ -10,8 +10,8 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.runtime.*
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -30,6 +30,7 @@ import dev.paulee.ui.*
 import dev.paulee.ui.components.CustomInputDialog
 import dev.paulee.ui.components.DialogType
 import dev.paulee.ui.components.FileDialog
+import dev.paulee.ui.components.YesNoDialog
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
@@ -37,7 +38,7 @@ import kotlin.io.path.*
 
 
 enum class DialogState {
-    None, Add, Name, Import, Export,
+    None, Add, Name, Import, Export, Missing
 }
 
 @OptIn(ExperimentalComposeUiApi::class)
@@ -53,6 +54,9 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
     var selectedSource by remember { mutableStateOf<Source?>(null) }
     var dataInfoName by remember { mutableStateOf("") }
 
+    val missingSources = remember { mutableStateSetOf<String>() }
+    val updatedSources = remember { mutableStateMapOf<String, List<BasicField>>() }
+
     val exportButtonEnabled by derivedStateOf { sources.isNotEmpty() }
 
     val loadButtonEnabled by derivedStateOf { sources.isNotEmpty() && sources.size == sourcePaths.size }
@@ -66,7 +70,7 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
     fun updateSource(
         selectedSource: Source?,
         transform: (Source) -> Source,
-        onSelect: (Source) -> Unit,
+        onSelect: (Source) -> Unit = {},
     ) {
         selectedSource?.let { current ->
             val updated = transform(current)
@@ -107,7 +111,12 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                                     sourcePaths.any { it.nameWithoutExtension == source.name }
                                 }
 
-                                var showPopup by remember { mutableStateOf(false) }
+                                val hasMissingFields by derivedStateOf {
+                                    missingSources.any { it == source.name }
+                                }
+
+                                var showPopupMissingFields by remember { mutableStateOf(false) }
+                                var showPopupMissingSourceFile by remember { mutableStateOf(false) }
 
                                 Row(
                                     modifier = Modifier.fillMaxWidth().background(bgColor)
@@ -117,21 +126,40 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                                 ) {
                                     Text(source.name)
 
-                                    if (hasSourceFile) return@Row
-
                                     Box {
-                                        Icon(
-                                            Icons.Default.Info,
-                                            contentDescription = "Info",
-                                            tint = Color.Red,
-                                            modifier = Modifier.pointerMoveFilter(
-                                                onEnter = { showPopup = true; false },
-                                                onExit = { showPopup = false; false })
-                                        )
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            if (hasMissingFields) {
+                                                Icon(
+                                                    Icons.Default.Warning,
+                                                    contentDescription = "Warning",
+                                                    tint = Color.Yellow,
+                                                    modifier = Modifier.pointerMoveFilter(
+                                                        onEnter = { showPopupMissingFields = true; false },
+                                                        onExit = { showPopupMissingFields = false; false })
+                                                )
+                                            }
 
-                                        if (showPopup) {
+                                            if (!hasSourceFile) {
+                                                Icon(
+                                                    Icons.Default.Info,
+                                                    contentDescription = "Info",
+                                                    tint = Color.Red,
+                                                    modifier = Modifier.pointerMoveFilter(
+                                                        onEnter = { showPopupMissingSourceFile = true; false },
+                                                        onExit = { showPopupMissingSourceFile = false; false })
+                                                )
+                                            }
+                                        }
+
+
+                                        if (showPopupMissingSourceFile || showPopupMissingFields) {
                                             SimplePopup(offset = IntOffset(170, 16)) {
-                                                Text("Missing source file.", modifier = Modifier.padding(4.dp))
+                                                Text(
+                                                    if (showPopupMissingSourceFile) "Missing source file." else "Some fields defined in the specification are not found in the source file and will be ignored during loading.",
+                                                    modifier = Modifier.padding(4.dp)
+                                                )
                                             }
                                         }
                                     }
@@ -669,6 +697,30 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                 }
 
                 when (dialogState) {
+                    DialogState.Missing -> {
+                        YesNoDialog(
+                            title = "Missing values",
+                            text = "Some data fields found in the CSV file are missing from your imported data specification. Do you want to add these missing fields?",
+                            onDismissRequest = {
+                                dialogState = DialogState.None
+                                updatedSources.clear()
+                            }) { value ->
+
+                            if (!value) return@YesNoDialog
+
+                            sources.forEach {
+                                val missing = updatedSources[it.name] ?: return@forEach
+
+                                updateSource(
+                                    it,
+                                    transform = { src ->
+                                        src.copy(fields = src.fields + missing)
+                                    }
+                                )
+                            }
+                        }
+                    }
+
                     DialogState.Name -> {
                         CustomInputDialog(
                             title = "Enter a name",
@@ -695,8 +747,33 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
 
                             if (dialogState == DialogState.Add) {
                                 val newSources = it.filterNot { path ->
-                                    sources.any { src -> src.name == path.nameWithoutExtension }
-                                        .also { missing -> if (missing) sourcePaths.add(path) }
+                                    val pathName = path.nameWithoutExtension
+
+                                    sources.any { src -> src.name == pathName }
+                                        .also { missing ->
+
+                                            if (missing) {
+                                                val source =
+                                                    sources.firstOrNull { src -> src.name == pathName }
+                                                        ?: return@also
+
+                                                val fields = readHeader(path)
+
+                                                val fileNames = fields.mapTo(HashSet(fields.size)) { it.name }
+                                                val sourceNames =
+                                                    source.fields.mapTo(HashSet(source.fields.size)) { it.name }
+
+                                                val hasMissingFields = source.fields.any { f -> f.name !in fileNames }
+
+                                                if (hasMissingFields) missingSources.add(source.name)
+
+                                                val newFields = fields.filter { f -> f.name !in sourceNames }
+
+                                                if (newFields.isNotEmpty()) updatedSources[source.name] = newFields
+
+                                                sourcePaths.add(path)
+                                            }
+                                        }
                                 }.mapNotNull { path ->
                                     val source = parseSourceFromFile(path) ?: return@mapNotNull null
                                     sourcePaths.add(path)
@@ -715,7 +792,7 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                                 }
                             }
 
-                            dialogState = DialogState.None
+                            dialogState = if (updatedSources.isNotEmpty()) DialogState.Missing else DialogState.None
                         }
                     }
 
@@ -750,19 +827,31 @@ private fun getType(value: String?): FieldType {
     return FieldType.TEXT
 }
 
-private fun parseSourceFromFile(path: Path): Source? {
-    if (path.extension != "csv") return null
+private fun readHeader(path: Path): List<BasicField> {
+    if (path.extension != "csv") return emptyList()
 
-    return path.bufferedReader().use { reader ->
-        val header = runCatching { reader.readLine() }.getOrNull() ?: return null
-
-        val values = runCatching { reader.readLine() }.getOrNull()?.split(",")
-
-        val headerFields = header.split(",")
-            .mapIndexed { idx, field -> BasicField(normalizeSourceName(field), getType(values?.get(idx))) }
-
-        return@use Source(name = path.nameWithoutExtension, fields = headerFields)
+    val (headerLine, sampleLine) = path.bufferedReader().useLines { lines ->
+        val it = lines.iterator()
+        val header = if (it.hasNext()) it.next() else return emptyList()
+        val sample = if (it.hasNext()) it.next() else null
+        header to sample
     }
+
+    val headers = headerLine.split(',')
+    val samples = sampleLine?.split(',')
+
+    return headers.mapIndexed { idx, raw ->
+        BasicField(
+            normalizeSourceName(raw),
+            getType(samples?.getOrNull(idx))
+        )
+    }
+}
+
+private fun parseSourceFromFile(path: Path): Source? {
+    val headerFields = readHeader(path)
+
+    return Source(name = path.nameWithoutExtension, fields = headerFields)
 }
 
 @OptIn(ExperimentalComposeUiApi::class)
