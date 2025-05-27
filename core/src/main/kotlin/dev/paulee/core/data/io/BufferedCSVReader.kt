@@ -1,5 +1,6 @@
 package dev.paulee.core.data.io
 
+import dev.paulee.core.normalizeSourceName
 import dev.paulee.core.splitStr
 import org.slf4j.LoggerFactory.getLogger
 import java.nio.file.Path
@@ -26,7 +27,7 @@ internal class BufferedCSVReader(private val path: Path, private val delimiter: 
                 return
             }
 
-            val header = splitStr(head, delimiter)
+            val header = splitStr(head, delimiter).map { normalizeSourceName(it) }
 
             this.headSize = header.size
 

@@ -16,7 +16,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerMoveFilter
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.IntOffset
@@ -135,9 +136,13 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                                                     Icons.Default.Warning,
                                                     contentDescription = "Warning",
                                                     tint = Color.Yellow,
-                                                    modifier = Modifier.pointerMoveFilter(
-                                                        onEnter = { showPopupMissingFields = true; false },
-                                                        onExit = { showPopupMissingFields = false; false })
+                                                    modifier = Modifier
+                                                        .onPointerEvent(PointerEventType.Enter) {
+                                                            showPopupMissingFields = true
+                                                        }
+                                                        .onPointerEvent(PointerEventType.Exit) {
+                                                            showPopupMissingFields = false
+                                                        }
                                                 )
                                             }
 
@@ -146,9 +151,13 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                                                     Icons.Default.Info,
                                                     contentDescription = "Info",
                                                     tint = Color.Red,
-                                                    modifier = Modifier.pointerMoveFilter(
-                                                        onEnter = { showPopupMissingSourceFile = true; false },
-                                                        onExit = { showPopupMissingSourceFile = false; false })
+                                                    modifier = Modifier
+                                                        .onPointerEvent(PointerEventType.Enter) {
+                                                            showPopupMissingSourceFile = true
+                                                        }
+                                                        .onPointerEvent(PointerEventType.Exit) {
+                                                            showPopupMissingSourceFile = false
+                                                        }
                                                 )
                                             }
                                         }
@@ -865,7 +874,8 @@ private fun FieldTypeHelp(modifier: Modifier = Modifier) {
         contentDescription = "Field type help",
         tint = MaterialTheme.colors.onSurface.copy(alpha = 0.6f),
         modifier = modifier.size(24.dp)
-            .pointerMoveFilter(onEnter = { showPopup = true; false }, onExit = { showPopup = false; false })
+            .onPointerEvent(PointerEventType.Enter) { showPopup = true }
+            .onPointerEvent(PointerEventType.Exit) { showPopup = false }
     )
 
     if (showPopup) {
