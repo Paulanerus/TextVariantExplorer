@@ -19,7 +19,7 @@ private fun typeToColumnType(type: FieldType): ColumnType = when (type) {
     FieldType.TEXT -> ColumnType.TEXT
     FieldType.INT -> ColumnType.INTEGER
     FieldType.FLOAT -> ColumnType.REAL
-    FieldType.BOOLEAN -> ColumnType.NUMERIC
+    FieldType.BOOLEAN -> ColumnType.TEXT
     else -> ColumnType.UNKNOWN
 }
 

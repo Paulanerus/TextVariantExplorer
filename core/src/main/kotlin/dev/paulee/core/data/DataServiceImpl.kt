@@ -479,7 +479,7 @@ class DataServiceImpl : IDataService {
                         linkEntries.values.flatMap { (source, field) ->
                             val ids = dataPool.storageProvider.get(
                                 source, whereClause = listOf("${preFilter.linkKey}:$linkValue")
-                            ).mapNotNull { it[field]?.let { id -> "$field:$id" } }
+                            ).mapNotNull { it[field]?.let { id -> "$field:$id" } }.distinct()
 
                             val transformKey = preFilter.key
 
