@@ -19,6 +19,8 @@ extensions = ['myst_parser']
 templates_path = ['_templates']
 exclude_patterns = []
 
+html_baseurl = os.environ.get("READTHEDOCS_CANONICAL_URL", "/")
+
 
 
 # -- Options for HTML output -------------------------------------------------
