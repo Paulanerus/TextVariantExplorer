@@ -9,7 +9,7 @@
 project = 'TextVariantExplorer'
 copyright = '2025, Paulanerus'
 author = 'Paulanerus'
-release = '1.2.2'
+release = '1.2.3'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
