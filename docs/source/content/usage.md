@@ -101,7 +101,7 @@ The Tagger can be enabled and switched in the top-left corner (e.g., DemoTag) an
 
 ![Insights Tags](../_static/tag_view.png)
 
-UI extensions from plugins (see Development) are also available within the 'Insights' section. To access visualizations or insights provided by plugins, switch to the 'Plugins' tab located at the top-center (see images above). Switching between different plugin views is possible.
+UI extensions from plugins (see [Development](dev.md)) are also available within the 'Insights' section. To access visualizations or insights provided by plugins, switch to the 'Plugins' tab located at the top-center (see images above). Switching between different plugin views is possible.
 
 ### Links
 
