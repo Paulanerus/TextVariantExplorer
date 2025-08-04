@@ -33,14 +33,60 @@ The **Insights** feature provides tools for comparing data through a diff and ta
 
 ### Search
 
-TODO
+The search features offer different ways to explore the data within the application. These range from a simple search, designed for a broader and more loosely defined search, to an exact search for pinpointing specific terms or phrases. 
 
-+ Normal Search
-+ Exact Search
-+ Boolean Search
-+ Field Search
-+ Variant Search
-+ Pre filtering
+A normal search consists of entering one or more terms into the search field, where the application will return a result table of entries that contain at least one of the specified terms.
+
+![Normal search](../_static/normal_search.png)
+
+For a more precise search, wrap the query in quotes (e.g., "Term1 Term2 Term3") to search for the exact order of terms.
+
+![Exact search](../_static/exact_search.png)
+
+**Boolean Search**
+
+Boolean search allows you to refine your search by logically connecting terms using operators such as `AND`, `OR`, `AND NOT`, and parentheses `()` for grouping. For example:
+- Use `AND` to return results that contain all the specified terms (e.g., `Term1 AND Term2`).
+- Use `OR` to return results that contain either of the specified terms (e.g., `Term1 OR Term2`).
+- Use `AND NOT` to exclude terms from the results (e.g., `Term1 AND NOT Term2`).
+- Use parentheses to group terms and define the order of operations (e.g., `(Term1 OR Term2) AND Term3`).
+
+![Boolean search](../_static/boolean_search.png)
+  
+**Field Search**
+
+With field search, you can target specific fields in the dataset by specifying a field and its corresponding value. This allows precise filtering based on pre-defined field values. For instance:
+- Use `ga:01` to return all matching entries where the field `ga` has the value `01`.
+- Multiple field-specific filters can be combined to narrow down the results further.
+
+![Field search](../_static/field_search.png)
+
+**Variant Search**
+
+Variant search enables you to search for different variations of terms that often represent the same concept. For example, terms like `America`, `USA`, `US`, and `United States` may all refer to the same entity in your data set. These variants are configured during the data set loading process (see [Load a Data Set](#load-a-data-set)).
+
+To search for such variants, use the syntax `@source:value`, where:
+- **source** specifies the field to search within.
+- **value** represents the label associated with the term(s) you want to find.
+
+For instance:
+- `@name:Jesus` searches all entries where the field `name` contains terms associated with the label _Jesus_.
+
+**Pre filtering**
+
+Pre-filtering enables the pre-selection of entries based on linked conditions and criteria, allowing for targeted filtering in cases where multiple data sources are interconnected. Unlike simple field searches, pre-filtering draws from data relationships configured during the data set loading process (see [Load a Data Set](#load-a-data-set)). These relationships point to different fields and values across multiple sources.
+For example, the example data set provided in the [installation section](installation.md) includes a file that indicates whether a specific name or token is present or missing in certain phrases. These conditions are established in the configuration of the data set itself, not by the application.
+The syntax for pre-filtering is: `@source:value1:value2`
+
+Where:
+- **source** specifies the source entry to search within.
+- **value1** refers to the linked value to evaluate.
+- **value2** specifies the state or condition to filter for.
+
+### Example:
+- `@occurrences:ανδρεου:False` pre-selects all entries that should contain `ανδρεου` (as indicated in the data set) but do not.
+
+**Important**: The required information must be present in the data set. The application is only capable of interpreting and processing the provided information and it cannot generate or offer functionality for data that has not been included.
 
 ### Insights
 
