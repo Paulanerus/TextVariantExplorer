@@ -12,15 +12,14 @@ import java.sql.DriverManager
 import kotlin.io.path.createDirectories
 
 private enum class ColumnType {
-    TEXT, INTEGER, REAL, NUMERIC, UNKNOWN
+    TEXT, INTEGER, REAL
 }
 
 private fun typeToColumnType(type: FieldType): ColumnType = when (type) {
     FieldType.TEXT -> ColumnType.TEXT
     FieldType.INT -> ColumnType.INTEGER
     FieldType.FLOAT -> ColumnType.REAL
-    FieldType.BOOLEAN -> ColumnType.NUMERIC
-    else -> ColumnType.UNKNOWN
+    FieldType.BOOLEAN -> ColumnType.TEXT
 }
 
 private data class Column(val name: String, val type: ColumnType, val primary: Boolean, val nullable: Boolean) {

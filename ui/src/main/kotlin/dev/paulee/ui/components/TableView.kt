@@ -122,10 +122,9 @@ fun TableView(
                 Button(
                     onClick = clicked,
                     enabled = selectedRows.isNotEmpty(),
-                    modifier = Modifier.width(120.dp).padding(bottom = 12.dp)
+                    modifier = Modifier.width(140.dp).padding(bottom = 12.dp)
                 ) {
-                    if (selectedRows.size <= 1) Text("View")
-                    else Text("View Diff")
+                    Text("View Insights")
                 }
             }
 
