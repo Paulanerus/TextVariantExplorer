@@ -16,7 +16,7 @@ Features:
 * **Text Search**: Quickly search through large text corpora to find specific terms or phrases.
 * **Text Comparison**: Easily compare different versions of texts to identify changes and variations.
 * **Word Tagging**: Annotate words with custom tags to categorize and analyze text data effectively.
-* **User-Friendly Interface**: Intuitive and easy-to-navigate interface for both novice and experienced users.
+* **User-Friendly Interface**: Intuitive and easy-to-navigate user interface.
 * **Extensible**: Built with extensibility in mind, allowing developers to add new features and functionalities.
 
 Citation:

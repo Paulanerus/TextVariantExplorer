@@ -22,7 +22,7 @@ When you open the 'Load Data' menu, the Data Import Window will appear. This win
 
 Each source file added via the 'Add' button can be configured to tailor the data set to specific requirements. Configuration options include:
 
-**Fields**
+#### Fields
 
 Fields represent the individual columns or attributes in the source file and can be assigned one of four types: **Text**, **Int**, **Float**, or **Boolean**. Each field type determines how the data is interpreted and processed by the application.
 
@@ -35,21 +35,28 @@ Certain field types can have additional variants, which define how the data in t
 - **Index** (for Text fields): Adds properties such as:
   - **Language**: Specifies the language of the data for indexing purposes. Currently, only one language per field is supported.
   - **Default**: Marks the field as the default for searches, allowing queries to omit specifying the field explicitly. Only one default field is allowed per data set, and at least one index field is required. The source file containing the index field becomes the **main source file**, which is used to display all data from the source (e.g., if the source CSV file has columns like `text`, `author`, and `year`, all columns will be displayed unless disabled).
-- **Unique** (for Int fields): Adds the **Identifiable** property, which designates the field as the unique identifier for the source. While this does not affect search capabilities, it optimizes the initial data loading process.
+- **Unique** (for Int fields): Adds the **Identifiable** property, which designates the field as the unique identifier for the source. It optimizes the initial data loading process and is needed for the **Filter** feature for identification.
 
 **Float** and **Boolean** fields do not support additional properties or variants.
 
-Every field also includes a **Link** option, which is particularly useful for the main source file. This feature enables linking fields in the main source to fields in other source files, allowing for relationships between data sets. For example, if the main source contains a field called `author` and another source file contains detailed information about authors, the linked source can be used to fetch and display additional information during queries. Note that linked sources are not searchable, and links are unidirectional, flowing from the main source to the linked source (e.g., `main source -> linked source`).
+Every field also includes a **Link** option, which is particularly useful for the main source file. This feature enables linking fields in the main source to fields in other source files by identical fields, allowing for relationships between data sets. For example, if the main source contains a field called `author` and another source file contains detailed information about authors, the linked source can be used to fetch and display additional information during queries. Note that linked sources are not searchable, and links are unidirectional, flowing from the main source to the linked source (e.g., `main source -> linked source`).
 
-**Filter**
+![Fields Configuration](../_static/fields.png)
 
-In the Filter tab the pre-filtering is configured.
+#### Filter
+
+The Filter tab is where pre-filtering is configured. Pre-filtering selects a set of entries based on linked conditions when used in a search. This configuration consists of setting filter conditions and links. For this configuration to work, a link must exist in the current source.
+
+The filter configuration consists of three key elements:
+- **Key**: A field in the main source that uniquely identifies each entry.
+- **Link Key**: A field in the linked source whose value is used to evaluate conditions.
+- **Value**: A field in the current source that stores the value for conditional lookups.
 
 ![Filter Configuration](../_static/filter_config.png)
 
-See <Link To Pre-filter> for more details.
+For more details on how to use variants in searches, see [Pre-filtering](#pre-filtering).
 
-**Variant Mapping**
+#### Variant Mapping
 
 Variant Mapping is used to unify multiple fields into a single representation.
 
@@ -57,7 +64,7 @@ The **Base Field** is the primary field used for the representation. For example
 
 The **Variants** textbox accepts a comma-separated list of fields from the source file that contain the variations of the base field. For instance, these fields might include translations or alternative spellings of a name.
 
-#### **Example**
+**Example**
 
 Consider a data set where:
 
@@ -67,7 +74,7 @@ Consider a data set where:
 The data should be structured as follows:
 
 | label_en | label_el_norm | variant  |
-| -------- | ------------- | -------- |
+|----------|---------------|----------|
 | name1    | translation1  | variant1 |
 | name1    | translation2  | variant2 |
 | name1    | translation1  | variant3 |
@@ -82,7 +89,7 @@ The application will then group all translations and variants (e.g., `translatio
 
 ![Variant Mapping](../_static/variant_mapping.png)
 
-For more details on how to use variants in searches, see [Variant Search](<Link To Variant Search>).
+For more details on how to use variants in searches, see [Variant Search](#variant-search).
 
 ## Load a Plugin
 
@@ -111,7 +118,7 @@ For a more precise search, wrap the query in quotes (e.g., "Term1 Term2 Term3") 
 
 ![Exact search](../_static/exact_search.png)
 
-**Boolean Search**
+#### Boolean Search
 
 Boolean search allows you to refine your search by logically connecting terms using operators such as `AND`, `OR`, `AND NOT`, and parentheses `()` for grouping. For example:
 
@@ -122,7 +129,7 @@ Boolean search allows you to refine your search by logically connecting terms us
 
 ![Boolean search](../_static/boolean_search.png)
 
-**Field Search**
+#### Field Search
 
 With field search, you can target specific fields in the dataset by specifying a field and its corresponding value. This allows precise filtering based on pre-defined field values. For instance:
 
@@ -131,7 +138,7 @@ With field search, you can target specific fields in the dataset by specifying a
 
 ![Field search](../_static/field_search.png)
 
-**Variant Search**
+#### Variant Search
 
 Variant search enables you to search for different variations of terms that often represent the same concept. For example, terms like `America`, `USA`, `US`, and `United States` may all refer to the same entity in your data set. These variants are configured during the data set loading process (see [Load a Data Set](#load-a-data-set)).
 
@@ -144,7 +151,7 @@ For instance:
 
 - `@name:Jesus` searches all entries where the field `name` contains terms associated with the label _Jesus_.
 
-**Pre filtering**
+#### Pre filtering
 
 Pre-filtering enables the pre-selection of entries based on linked conditions and criteria, allowing for targeted filtering in cases where multiple data sources are interconnected. Unlike simple field searches, pre-filtering draws from data relationships configured during the data set loading process (see [Load a Data Set](#load-a-data-set)). These relationships point to different fields and values across multiple sources.
 For example, the example data set provided in the [installation section](installation.md) includes a file that indicates whether a specific name or token is present or missing in certain phrases. These conditions are established in the configuration of the data set itself, not by the application.
