@@ -55,19 +55,11 @@ class TextExplorerUI(
     private val diffService: DiffService,
 ) {
 
-    private val appDir = Path(System.getProperty("user.home")).resolve(".textexplorer")
+    private val appDir = Path(System.getProperty("user.home")).resolve(App.APP_DIR)
 
     private val pluginsDir = appDir.resolve("plugins")
 
     private val dataDir = appDir.resolve("data")
-
-    private val versionString = "v${System.getProperty("app.version")} ${
-        listOf("api", "core", "ui").joinToString(
-            prefix = "(", postfix = ")", separator = ", "
-        ) {
-            "${it.uppercase()} - ${System.getProperty("${it}.version")}"
-        }
-    }"
 
     private var poolSelected by mutableStateOf(false)
 
@@ -200,7 +192,7 @@ class TextExplorerUI(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
-                    Text("Text Explorer", fontSize = 32.sp)
+                    Text(App.NAME, fontSize = 32.sp)
 
                     Spacer(modifier = Modifier.height(16.dp))
 
@@ -321,7 +313,7 @@ class TextExplorerUI(
                 }
 
                 Text(
-                    versionString,
+                    App.VERSION_STRING,
                     modifier = Modifier.align(Alignment.BottomCenter),
                     fontSize = 10.sp,
                     color = Color.LightGray
