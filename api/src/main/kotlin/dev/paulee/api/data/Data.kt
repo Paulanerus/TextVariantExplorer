@@ -93,14 +93,14 @@ sealed interface SourceField {
 data class BasicField(
     override val name: String,
     override val fieldType: FieldType,
-    @JsonInclude(JsonInclude.Include.NON_EMPTY) override val sourceLink: String = ""
+    @param:JsonInclude(JsonInclude.Include.NON_EMPTY) override val sourceLink: String = ""
 ) :
     SourceField
 
 data class IndexField(
     override val name: String,
     override val fieldType: FieldType,
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    @param:JsonInclude(JsonInclude.Include.NON_EMPTY)
     override val sourceLink: String = "",
     val lang: Language,
     val default: Boolean = false
@@ -109,7 +109,7 @@ data class IndexField(
 data class UniqueField(
     override val name: String,
     override val fieldType: FieldType,
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    @param:JsonInclude(JsonInclude.Include.NON_EMPTY)
     override val sourceLink: String = "",
     val identify: Boolean = false
 ) : SourceField
