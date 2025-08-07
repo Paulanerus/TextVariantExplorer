@@ -3,6 +3,7 @@ package dev.paulee.core.data.provider
 import dev.paulee.api.data.DataInfo
 import dev.paulee.api.data.provider.IStorageProvider
 import dev.paulee.api.data.provider.ProviderStatus
+import dev.paulee.api.data.provider.QueryOrder
 import dev.paulee.core.data.sql.Database
 import org.slf4j.LoggerFactory.getLogger
 import java.nio.file.Path
@@ -54,11 +55,12 @@ internal class SQLiteProvider : IStorageProvider {
         ids: Set<Long>,
         whereClause: List<String>,
         filter: List<String>,
+        order: QueryOrder?,
         offset: Int,
         limit: Int,
     ): List<Map<String, String>> {
         val entries = this.getEntries(name, ids, whereClause, filter) ?: return emptyList()
-        return this.database.selectAll(name, entries, offset = offset, limit = limit)
+        return this.database.selectAll(name, entries, order, offset = offset, limit = limit)
     }
 
     override fun count(
