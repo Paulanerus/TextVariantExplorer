@@ -331,7 +331,7 @@ class DataServiceImpl : IDataService {
 
         if (this.currentPool == null || this.currentField == null) return Pair(emptyList(), emptyMap())
 
-        logger.info("Query: $query")
+        logger.info("Query (${order ?: "None"}): $query")
 
         val key = Triple(pageCount, query, order)
 
