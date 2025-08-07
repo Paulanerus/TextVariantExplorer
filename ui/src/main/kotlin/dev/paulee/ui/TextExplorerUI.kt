@@ -27,6 +27,7 @@ import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import dev.paulee.api.data.DiffService
 import dev.paulee.api.data.IDataService
+import dev.paulee.api.data.provider.QueryOrder
 import dev.paulee.api.plugin.IPluginService
 import dev.paulee.ui.components.DropDownMenu
 import dev.paulee.ui.components.FileDialog
@@ -87,6 +88,8 @@ class TextExplorerUI(
         var amount by remember { mutableStateOf(0L) }
         var currentPage by remember { mutableStateOf(0) }
 
+        var queryOrderState by remember { mutableStateOf(null as QueryOrder?) }
+
         var selectedText = remember(this.poolSelected) {
             val (pool, field) = dataService.getSelectedPool().split(".", limit = 2)
 
@@ -113,7 +116,7 @@ class TextExplorerUI(
             indexStrings = indexed
 
             if (totalPages > 0) {
-                dataService.getPage(text, currentPage).let { (pageEntries, pageLinks) ->
+                dataService.getPage(text, queryOrderState, currentPage).let { (pageEntries, pageLinks) ->
 
                     val first = pageEntries.firstOrNull() ?: return@let
 
@@ -259,8 +262,18 @@ class TextExplorerUI(
                                 columns = header,
                                 data = data,
                                 links = links,
+                                queryOrder = queryOrderState,
+                                onQueryOrderChange = { newQueryOrder ->
+                                    queryOrderState = newQueryOrder
+                                    currentPage = 0
+                                    dataService.getPage(text, queryOrderState, currentPage).let { result ->
+                                        data = result.first.map { it.values.toList() }
+                                        links = result.second
+                                    }
+                                },
                                 onRowSelect = { selectedRows = it },
-                                clicked = { openWindow = Window.DIFF })
+                                clicked = { openWindow = Window.DIFF }
+                            )
 
                             if (totalPages < 2) {
                                 Text("Total: $amount", modifier = Modifier.align(Alignment.CenterHorizontally))
@@ -279,7 +292,7 @@ class TextExplorerUI(
                                         if (currentPage > 0) {
                                             currentPage--
 
-                                            dataService.getPage(text, currentPage).let { result ->
+                                            dataService.getPage(text, queryOrderState, currentPage).let { result ->
                                                 data = result.first.map { it.values.toList() }
 
                                                 links = result.second
@@ -297,7 +310,7 @@ class TextExplorerUI(
                                         if (currentPage < totalPages - 1) {
                                             currentPage++
 
-                                            dataService.getPage(text, currentPage).let { result ->
+                                            dataService.getPage(text, queryOrderState,currentPage).let { result ->
                                                 data = result.first.map { it.values.toList() }
 
                                                 links = result.second
