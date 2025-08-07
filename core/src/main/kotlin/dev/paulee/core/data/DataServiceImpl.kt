@@ -3,6 +3,7 @@ package dev.paulee.core.data
 import dev.paulee.api.data.*
 import dev.paulee.api.data.provider.IStorageProvider
 import dev.paulee.api.data.provider.ProviderStatus
+import dev.paulee.api.data.provider.QueryOrder
 import dev.paulee.core.data.analysis.Indexer
 import dev.paulee.core.data.io.BufferedCSVReader
 import dev.paulee.core.data.provider.StorageProvider
@@ -175,9 +176,9 @@ class DataServiceImpl : IDataService {
 
     private var currentField: String? = null
 
-    private val pageCache = object : LinkedHashMap<Pair<Int, String>, PageResult>(3, 0.75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Pair<Int, String>, PageResult>?): Boolean {
-            return size > 3
+    private val pageCache = object : LinkedHashMap<Triple<Int, String, QueryOrder?>, PageResult>(6, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Triple<Int, String, QueryOrder?>, PageResult>?): Boolean {
+            return size > 6
         }
     }
 
@@ -320,19 +321,19 @@ class DataServiceImpl : IDataService {
     override fun hasSelectedPool(): Boolean = this.currentPool != null && this.currentField != null
 
     override fun getAvailablePools(): Set<String> =
-        dataPools.filter { it.value.fields.any { it.value } }.flatMap { entry ->
+        dataPools.filter { pool -> pool.value.fields.any { it.value } }.flatMap { entry ->
             entry.value.fields.filter { it.value }.map { "${entry.key}.${it.key.substringBefore(".")}" }
         }.toSet()
 
     override fun getAvailableDataInfo(): Set<DataInfo> = this.dataPools.values.map { it.dataInfo }.toSet()
 
-    override fun getPage(query: String, pageCount: Int): PageResult {
+    override fun getPage(query: String, order: QueryOrder?, pageCount: Int): PageResult {
 
         if (this.currentPool == null || this.currentField == null) return Pair(emptyList(), emptyMap())
 
         logger.info("Query: $query")
 
-        val key = Pair(pageCount, query)
+        val key = Triple(pageCount, query, order)
 
         pageCache[key]?.let { return it }
 
@@ -349,6 +350,7 @@ class DataServiceImpl : IDataService {
             indexResult.ids,
             indexResult.tokens,
             filter,
+            order,
             offset = pageCount * PAGE_SIZE,
             limit = PAGE_SIZE
         )
@@ -391,12 +393,8 @@ class DataServiceImpl : IDataService {
             this.currentField!!, indexResult.ids, indexResult.tokens, filter
         )
 
-        val indexedValues =
-            indexResult.indexedValues
-                .flatMap { splitStr(it, ' ') }
-                .map { it.trim('(', ')') }
-                .mapNotNull { flattenToken(it) }
-                .toSet()
+        val indexedValues = indexResult.indexedValues.flatMap { splitStr(it, ' ') }.map { it.trim('(', ')') }
+            .mapNotNull { flattenToken(it) }.toSet()
 
         return Triple(count, ceil(count / PAGE_SIZE.toDouble()).toLong(), indexedValues)
     }
@@ -439,16 +437,11 @@ class DataServiceImpl : IDataService {
             val key = it.groupValues[1]
             val value = it.groupValues[2]
 
-            val transform = replacements[key]
-
-            when (transform) {
+            when (val transform = replacements[key]) {
                 is VariantMapping -> {
                     dataPool.storageProvider.get(key, whereClause = listOf("${transform.base}:$value"))
-                        .flatMap { map -> transform.variants.mapNotNull { key -> map[key] } }
-                        .toSet()
-                        .takeIf { set -> set.isNotEmpty() }
-                        ?.joinToString(" or ", prefix = "(", postfix = ")")
-                        ?: ""
+                        .flatMap { map -> transform.variants.mapNotNull { key -> map[key] } }.toSet()
+                        .takeIf { set -> set.isNotEmpty() }?.joinToString(" or ", prefix = "(", postfix = ")") ?: ""
                 }
 
                 else -> ""

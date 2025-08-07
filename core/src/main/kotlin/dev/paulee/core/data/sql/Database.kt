@@ -3,6 +3,7 @@ package dev.paulee.core.data.sql
 import dev.paulee.api.data.FieldType
 import dev.paulee.api.data.Source
 import dev.paulee.api.data.UniqueField
+import dev.paulee.api.data.provider.QueryOrder
 import dev.paulee.core.normalizeDataSource
 import org.slf4j.LoggerFactory.getLogger
 import java.io.Closeable
@@ -74,6 +75,7 @@ private class Table(val name: String, columns: List<Column>) {
     fun selectAll(
         connection: Connection,
         whereClause: Map<String, List<String>> = emptyMap(),
+        order: QueryOrder?,
         offset: Int = 0,
         limit: Int = Int.MAX_VALUE,
     ): List<Map<String, String>> {
@@ -97,6 +99,13 @@ private class Table(val name: String, columns: List<Column>) {
                     append(" WHERE ")
                     append(clause)
                 }
+            }
+
+            order?.takeIf { it.first.isNotBlank() }?.let {
+                append(" ORDER BY ")
+                append(order.first)
+
+                if (order.second) append(" DESC")
             }
 
             append(" LIMIT ")
@@ -231,6 +240,7 @@ internal class Database(path: Path) : Closeable {
     fun selectAll(
         name: String,
         whereClause: Map<String, List<String>> = emptyMap(),
+        order: QueryOrder?,
         offset: Int = 0,
         limit: Int = Int.MAX_VALUE,
     ): List<Map<String, String>> {
@@ -240,7 +250,7 @@ internal class Database(path: Path) : Closeable {
 
         return runCatching {
             transaction {
-                table.selectAll(this, whereClause, offset, limit)
+                table.selectAll(this, whereClause, order, offset, limit)
             }
         }.getOrElse { e ->
             logger.error("Exception: Failed to retrieve entries from table '$name' due to an unexpected error.", e)
