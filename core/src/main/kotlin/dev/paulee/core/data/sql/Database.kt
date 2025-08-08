@@ -83,23 +83,7 @@ private class Table(val name: String, columns: List<Column>) {
             append("SELECT * FROM ")
             append(name)
 
-            if (whereClause.isNotEmpty()) {
-                val clause = whereClause.entries.filter { getColumnType(it.key) != null }
-                    .joinToString(" AND ") { (column, values) ->
-                        val columnType = getColumnType(column) ?: return@joinToString ""
-
-                        val inClause = values.joinToString(
-                            ", ", prefix = "IN (", postfix = ")"
-                        ) { if (columnType == ColumnType.TEXT) "'$it'" else it }
-
-                        "$column $inClause"
-                    }
-
-                if (clause.isNotEmpty()) {
-                    append(" WHERE ")
-                    append(clause)
-                }
-            }
+            append(buildWhereClause(whereClause))
 
             order?.takeIf { it.first.isNotBlank() }?.let {
                 append(" ORDER BY ")
@@ -135,23 +119,7 @@ private class Table(val name: String, columns: List<Column>) {
             append("SELECT COUNT(*) FROM ")
             append(name)
 
-            if (whereClause.isNotEmpty()) {
-                val clause = whereClause.entries.filter { getColumnType(it.key) != null }
-                    .joinToString(" AND ") { (column, values) ->
-                        val columnType = getColumnType(column) ?: return@joinToString ""
-
-                        val inClause = values.joinToString(
-                            ", ", prefix = "IN (", postfix = ")"
-                        ) { if (columnType == ColumnType.TEXT) "'$it'" else it }
-
-                        "$column $inClause"
-                    }
-
-                if (clause.isNotEmpty()) {
-                    append(" WHERE ")
-                    append(clause)
-                }
-            }
+            append(buildWhereClause(whereClause))
         }
 
         return connection.createStatement().use { statement ->
@@ -162,6 +130,57 @@ private class Table(val name: String, columns: List<Column>) {
     fun getColumnType(name: String): ColumnType? = columns.find { it.name == name }?.type
 
     override fun toString(): String = "$name primary=${primaryKey}, columns={${columns.joinToString(", ")}}"
+
+    private fun buildWhereClause(whereClause: Map<String, List<String>>): String {
+        if (whereClause.isEmpty()) return ""
+
+        val parts = whereClause.entries.filter { getColumnType(it.key) != null }
+            .joinToString(" AND ") { (column, values) ->
+                val columnType = getColumnType(column) ?: return@joinToString ""
+
+                val (wildcards, nonWildcards) = values.distinct().partition { it.hasWildcard() }
+
+                val cause = buildString {
+                    if (nonWildcards.isNotEmpty()) {
+                        if (nonWildcards.size == 1) {
+                            val value = nonWildcards.first()
+
+                            append("$column = ${if (columnType == ColumnType.TEXT) "'${value.escapeLiteral()}'" else value}")
+                        } else {
+                            val inClause = nonWildcards.joinToString(
+                                ", ", prefix = "IN (", postfix = ")"
+                            ) { if (columnType == ColumnType.TEXT) "'${it.escapeLiteral()}'" else it }
+
+                            append("$column $inClause")
+                        }
+
+                        if (wildcards.isNotEmpty()) append(" OR ")
+                    }
+
+                    if (columnType == ColumnType.TEXT) {
+                        wildcards.takeIf { it.isNotEmpty() }
+                            ?.joinToString(" OR ") { "$column LIKE '${it.replaceWildCard()}' ESCAPE '\\'" }
+                            ?.let { append(it) }
+                    }
+                }
+
+                if (cause.isNotBlank()) "($cause)" else ""
+            }
+
+        return if (parts.isEmpty()) "" else " WHERE $parts"
+    }
+
+    private fun String.escapeLiteral() = this.replace("'", "''")
+
+    private fun String.hasWildcard(): Boolean = this.contains('*') || this.contains('?')
+
+    private fun String.replaceWildCard(): String = this
+        .replace("\\", "\\\\")
+        .replace("%", "\\%")
+        .replace("_", "\\_")
+        .replace("*", "%")
+        .replace("?", "_")
+        .escapeLiteral()
 }
 
 internal class Database(path: Path) : Closeable {
