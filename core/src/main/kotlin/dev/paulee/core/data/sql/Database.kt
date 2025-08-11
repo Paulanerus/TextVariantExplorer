@@ -1,6 +1,7 @@
 package dev.paulee.core.data.sql
 
 import dev.paulee.api.data.FieldType
+import dev.paulee.api.data.IndexField
 import dev.paulee.api.data.Source
 import dev.paulee.api.data.UniqueField
 import dev.paulee.api.data.provider.QueryOrder
@@ -23,16 +24,20 @@ private fun typeToColumnType(type: FieldType): ColumnType = when (type) {
     FieldType.BOOLEAN -> ColumnType.TEXT
 }
 
-private data class Column(val name: String, val type: ColumnType, val primary: Boolean, val nullable: Boolean) {
+private data class Column(
+    val name: String,
+    val type: ColumnType,
+    val primary: Boolean,
+    val nullable: Boolean,
+    val indexable: Boolean
+) {
     override fun toString(): String = "$name $type ${if (primary) "PRIMARY KEY" else if (nullable) "" else "NOT NULL"}"
 }
 
 private class Table(val name: String, columns: List<Column>) {
 
     val primaryKey: Column = columns.find { it.primary } ?: Column(
-        "${name}_ag_id", ColumnType.INTEGER,
-        primary = true,
-        nullable = false
+        "${name}_ag_id", ColumnType.INTEGER, primary = true, nullable = false, indexable = false
     )
 
     val columns = listOf(primaryKey) + columns.filter { !it.primary }
@@ -40,6 +45,11 @@ private class Table(val name: String, columns: List<Column>) {
     fun createIfNotExists(connection: Connection) {
         connection.createStatement().use {
             it.execute("CREATE TABLE IF NOT EXISTS $name (${columns.joinToString(", ")})")
+
+            columns.filter { col -> col.indexable }
+                .forEach { col ->
+                    it.execute("CREATE INDEX IF NOT EXISTS ${name}_${col.name}_idx ON $name(${col.name}) WHERE ${col.name} IS NOT NULL")
+                }
         }
     }
 
@@ -127,6 +137,34 @@ private class Table(val name: String, columns: List<Column>) {
         }
     }
 
+    fun suggestions(connection: Connection, field: String, value: String, amount: Int): List<String> {
+        val query = buildString {
+            append("SELECT DISTINCT ")
+            append(field)
+            append(" FROM ")
+            append(name)
+
+            append(" WHERE ")
+            append(field)
+            append(" LIKE '")
+            append(value.replaceWildCard())
+            append("%' ESCAPE '\\'")
+
+            append(" LIMIT ")
+            append(amount)
+        }
+
+        return connection.createStatement().use { statement ->
+            statement.executeQuery(query).use {
+                val results = mutableListOf<String>()
+
+                while (it.next()) results.add(it.getString(1))
+
+                results
+            }
+        }
+    }
+
     fun getColumnType(name: String): ColumnType? = columns.find { it.name == name }?.type
 
     override fun toString(): String = "$name primary=${primaryKey}, columns={${columns.joinToString(", ")}}"
@@ -134,8 +172,8 @@ private class Table(val name: String, columns: List<Column>) {
     private fun buildWhereClause(whereClause: Map<String, List<String>>): String {
         if (whereClause.isEmpty()) return ""
 
-        val parts = whereClause.entries.filter { getColumnType(it.key) != null }
-            .joinToString(" AND ") { (column, values) ->
+        val parts =
+            whereClause.entries.filter { getColumnType(it.key) != null }.joinToString(" AND ") { (column, values) ->
                 val columnType = getColumnType(column) ?: return@joinToString ""
 
                 val (wildcards, nonWildcards) = values.distinct().partition { it.hasWildcard() }
@@ -230,12 +268,16 @@ internal class Database(path: Path) : Closeable {
     fun createTable(source: Source) {
         if (hasNoSQLModule) return
 
+        val hasIndex = source.fields.any { it is IndexField }
+
         val columns = source.fields.map { field ->
             val isNullable = false //param.hasAnnotation<Nullable>()
 
             val isPrimary = (field is UniqueField) // && !isNullable
 
-            Column(field.name, typeToColumnType(field.fieldType), isPrimary, isNullable)
+            val isIndexable = (field.fieldType == FieldType.TEXT && field !is IndexField && hasIndex)
+
+            Column(field.name, typeToColumnType(field.fieldType), isPrimary, isNullable, isIndexable)
         }
 
         val table = Table(normalizeDataSource(source.name), columns)
@@ -248,8 +290,7 @@ internal class Database(path: Path) : Closeable {
             }
         }.getOrElse { e ->
             logger.error(
-                "Exception: Failed to create table for class '${source.name}' due to an unexpected error.",
-                e
+                "Exception: Failed to create table for class '${source.name}' due to an unexpected error.", e
             )
         }
     }
@@ -289,6 +330,21 @@ internal class Database(path: Path) : Closeable {
         }.getOrElse { e ->
             logger.error("Exception: Failed to count entries in table '$name' due to an unexpected error.", e)
             0
+        }
+    }
+
+    fun suggestions(name: String, field: String, value: String, amount: Int): List<String> {
+        if (hasNoSQLModule) return emptyList()
+
+        val table = tables.find { it.name == name } ?: return emptyList()
+
+        return runCatching {
+            transaction {
+                table.suggestions(this, field, value, amount)
+            }
+        }.getOrElse { e ->
+            logger.error("Exception: Failed to retrieve suggestions from table '$name' due to an unexpected error.", e)
+            emptyList()
         }
     }
 

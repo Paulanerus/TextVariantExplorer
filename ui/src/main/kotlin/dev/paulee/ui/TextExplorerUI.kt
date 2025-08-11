@@ -18,22 +18,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.*
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Window
-import androidx.compose.ui.window.WindowPosition
-import androidx.compose.ui.window.application
-import androidx.compose.ui.window.rememberWindowState
+import androidx.compose.ui.window.*
 import dev.paulee.api.data.DiffService
 import dev.paulee.api.data.IDataService
 import dev.paulee.api.data.provider.QueryOrder
 import dev.paulee.api.plugin.IPluginService
-import dev.paulee.ui.components.DropDownMenu
-import dev.paulee.ui.components.FileDialog
-import dev.paulee.ui.components.TableView
-import dev.paulee.ui.components.exactHighlightingWrapper
-import dev.paulee.ui.components.widthLimitWrapper
+import dev.paulee.ui.components.*
 import dev.paulee.ui.windows.DataLoaderWindow
 import dev.paulee.ui.windows.DiffViewerWindow
 import dev.paulee.ui.windows.PluginInfoWindow
@@ -55,7 +49,6 @@ class TextExplorerUI(
     private val dataService: IDataService,
     private val diffService: DiffService,
 ) {
-
     private val appDir = Path(System.getProperty("user.home")).resolve(App.APP_DIR)
 
     private val pluginsDir = appDir.resolve("plugins")
@@ -79,7 +72,7 @@ class TextExplorerUI(
 
     @Composable
     private fun content() {
-        var text by remember { mutableStateOf("") }
+        var textField by remember { mutableStateOf(TextFieldValue("")) }
         var selectedRows by remember { mutableStateOf(listOf<Map<String, String>>()) }
         var openWindow by remember { mutableStateOf(Window.NONE) }
         var showTable by remember { mutableStateOf(false) }
@@ -89,6 +82,11 @@ class TextExplorerUI(
         var currentPage by remember { mutableStateOf(0) }
 
         var queryOrderState by remember { mutableStateOf(null as QueryOrder?) }
+
+        var showSuggestions by remember { mutableStateOf(false) }
+        var suggestions by remember { mutableStateOf(listOf<String>()) }
+        var highlightedIndex by remember { mutableStateOf(0) }
+        var suppressNextEnterSearch by remember { mutableStateOf(false) }
 
         var selectedText = remember(this.poolSelected) {
             val (pool, field) = dataService.getSelectedPool().split(".", limit = 2)
@@ -106,9 +104,13 @@ class TextExplorerUI(
         val scope = rememberCoroutineScope()
 
         val performSearch: () -> Unit = {
-            currentPage = 0
-            val (count, pages, indexed) = dataService.getPageCount(text)
+            showSuggestions = false
 
+            currentPage = 0
+
+            val queryText = textField.text
+
+            val (count, pages, indexed) = dataService.getPageCount(queryText)
             amount = count
 
             totalPages = pages
@@ -116,8 +118,7 @@ class TextExplorerUI(
             indexStrings = indexed
 
             if (totalPages > 0) {
-                dataService.getPage(text, queryOrderState, currentPage).let { (pageEntries, pageLinks) ->
-
+                dataService.getPage(queryText, queryOrderState, currentPage).let { (pageEntries, pageLinks) ->
                     val first = pageEntries.firstOrNull() ?: return@let
 
                     header = first.keys.toList()
@@ -154,7 +155,7 @@ class TextExplorerUI(
                                     poolSelected = !poolSelected
 
                                     if (selectedText != item.second) {
-                                        text = ""
+                                        textField = TextFieldValue("")
                                         showTable = false
                                     }
 
@@ -200,41 +201,130 @@ class TextExplorerUI(
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        TextField(
-                            value = text,
-                            onValueChange = { text = it },
-                            placeholder = { Text("Search...") },
-                            modifier = Modifier.width(600.dp).background(
-                                color = Color.LightGray,
-                                shape = RoundedCornerShape(24.dp),
-                            ).onKeyEvent { event ->
-                                if (text.isNotBlank() && event.key == Key.Enter && event.type == KeyEventType.KeyUp) {
-                                    performSearch()
+                        Box {
+                            TextField(
+                                value = textField,
+                                onValueChange = { newValue ->
+                                    textField = newValue
+                                    val text = newValue.text
+                                    val caret = newValue.selection.start
 
-                                    return@onKeyEvent true
-                                }
+                                    val ctx = Autocomplete.getAutocompleteContext(text, caret)
 
-                                false
-                            },
-                            colors = TextFieldDefaults.textFieldColors(
-                                backgroundColor = Color.Transparent,
-                                focusedIndicatorColor = Color.Transparent,
-                                unfocusedIndicatorColor = Color.Transparent
-                            ),
-                            singleLine = true,
-                            trailingIcon = {
-                                IconButton(onClick = {
-                                    text = ""
-                                    showTable = false
-                                }) {
-                                    Icon(Icons.Default.Close, contentDescription = "Close")
+                                    if (ctx != null && ctx.value.isNotEmpty()) {
+                                        scope.launch {
+                                            delay(300)
+
+                                            if (textField.text == text) {
+                                                suggestions = dataService.getSuggestions(ctx.field, ctx.value)
+                                                highlightedIndex = 0
+                                                showSuggestions = suggestions.isNotEmpty()
+                                            }
+                                        }
+                                    } else {
+                                        showSuggestions = false
+                                    }
+                                },
+                                placeholder = { Text("Search...") },
+                                modifier = Modifier
+                                    .width(600.dp)
+                                    .background(
+                                        color = Color.LightGray,
+                                        shape = RoundedCornerShape(24.dp),
+                                    )
+                                    .onPreviewKeyEvent { event ->
+                                        if (showSuggestions) {
+                                            when (event.type) {
+                                                KeyEventType.KeyDown if event.key == Key.DirectionDown -> {
+                                                    highlightedIndex =
+                                                        (highlightedIndex + 1).coerceAtMost(suggestions.lastIndex)
+                                                    true
+                                                }
+
+                                                KeyEventType.KeyDown if event.key == Key.DirectionUp -> {
+                                                    highlightedIndex = (highlightedIndex - 1).coerceAtLeast(0)
+                                                    true
+                                                }
+
+                                                KeyEventType.KeyDown if (event.key == Key.Enter || event.key == Key.Tab) -> {
+                                                    suggestions.getOrNull(highlightedIndex)
+                                                        ?.let {
+                                                            Autocomplete.acceptSuggestion(textField, it)
+                                                                ?.let { newValue ->
+                                                                    textField = newValue
+                                                                    showSuggestions = false
+                                                                }
+                                                        }
+                                                    suppressNextEnterSearch = event.key == Key.Enter
+                                                    true
+                                                }
+
+                                                KeyEventType.KeyDown if event.key == Key.Escape -> {
+                                                    showSuggestions = false
+                                                    true
+                                                }
+
+                                                else -> false
+                                            }
+                                        } else {
+                                            if (event.key == Key.Enter && event.type == KeyEventType.KeyUp) {
+                                                if (suppressNextEnterSearch) {
+                                                    suppressNextEnterSearch = false
+                                                    return@onPreviewKeyEvent true
+                                                }
+                                                if (textField.text.isNotBlank()) {
+                                                    performSearch()
+                                                    return@onPreviewKeyEvent true
+                                                }
+                                            }
+                                            false
+                                        }
+                                    },
+                                colors = TextFieldDefaults.textFieldColors(
+                                    backgroundColor = Color.Transparent,
+                                    focusedIndicatorColor = Color.Transparent,
+                                    unfocusedIndicatorColor = Color.Transparent
+                                ),
+                                singleLine = true,
+                                trailingIcon = {
+                                    IconButton(onClick = {
+                                        textField = TextFieldValue("")
+                                        showSuggestions = false
+                                        showTable = false
+                                    }) {
+                                        Icon(Icons.Default.Close, contentDescription = "Close")
+                                    }
                                 }
-                            })
+                            )
+
+                            DropdownMenu(
+                                expanded = showSuggestions,
+                                onDismissRequest = { showSuggestions = false },
+                                properties = PopupProperties(focusable = false)
+                            ) {
+                                suggestions.forEachIndexed { idx, s ->
+                                    DropdownMenuItem(
+                                        onClick = {
+                                            Autocomplete.acceptSuggestion(textField, s)?.let { newValue ->
+                                                textField = newValue
+                                                showSuggestions = false
+                                            }
+                                        }
+                                    ) {
+                                        val isSel = idx == highlightedIndex
+                                        Text(
+                                            text = s,
+                                            color = if (isSel) MaterialTheme.colors.primary else MaterialTheme.colors.onSurface
+                                        )
+                                    }
+                                }
+                            }
+                        }
 
                         IconButton(
                             onClick = { performSearch() },
                             modifier = Modifier.height(70.dp).padding(horizontal = 10.dp),
-                            enabled = text.isNotBlank() && dataService.hasSelectedPool()
+                            enabled = textField.text.isNotBlank() && dataService.hasSelectedPool()
                         ) {
                             Icon(Icons.Default.Search, contentDescription = "Search")
                         }
@@ -266,7 +356,7 @@ class TextExplorerUI(
                                 onQueryOrderChange = { newQueryOrder ->
                                     queryOrderState = newQueryOrder
                                     currentPage = 0
-                                    dataService.getPage(text, queryOrderState, currentPage).let { result ->
+                                    dataService.getPage(textField.text, queryOrderState, currentPage).let { result ->
                                         data = result.first.map { it.values.toList() }
                                         links = result.second
                                     }
@@ -292,11 +382,12 @@ class TextExplorerUI(
                                         if (currentPage > 0) {
                                             currentPage--
 
-                                            dataService.getPage(text, queryOrderState, currentPage).let { result ->
-                                                data = result.first.map { it.values.toList() }
+                                            dataService.getPage(textField.text, queryOrderState, currentPage)
+                                                .let { result ->
+                                                    data = result.first.map { it.values.toList() }
 
-                                                links = result.second
-                                            }
+                                                    links = result.second
+                                                }
                                         }
                                     }, enabled = currentPage > 0
                                 ) {
@@ -310,11 +401,12 @@ class TextExplorerUI(
                                         if (currentPage < totalPages - 1) {
                                             currentPage++
 
-                                            dataService.getPage(text, queryOrderState,currentPage).let { result ->
-                                                data = result.first.map { it.values.toList() }
+                                            dataService.getPage(textField.text, queryOrderState, currentPage)
+                                                .let { result ->
+                                                    data = result.first.map { it.values.toList() }
 
-                                                links = result.second
-                                            }
+                                                    links = result.second
+                                                }
                                         }
                                     }, enabled = currentPage < totalPages - 1
                                 ) {
