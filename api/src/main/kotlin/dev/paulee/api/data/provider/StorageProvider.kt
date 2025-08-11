@@ -38,4 +38,6 @@ interface IStorageProvider : Closeable {
         whereClause: List<String> = emptyList(),
         filter: List<String> = emptyList(),
     ): Long
+
+    fun suggestions(name: String, field: String, value: String, amount: Int): List<String>
 }
