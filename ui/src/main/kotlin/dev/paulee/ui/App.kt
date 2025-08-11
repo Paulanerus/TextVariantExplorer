@@ -1,7 +1,7 @@
 package dev.paulee.ui
 
 object App {
-    const val NAME = "Text Explorer"
+    const val NAME = "TextVariant Explorer"
 
     const val APP_DIR = ".textexplorer"
 

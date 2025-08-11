@@ -45,7 +45,7 @@ compose.desktop {
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
-            packageName = "TextExplorer"
+            packageName = "TextVariantExplorer"
 
             modules += listOf("java.sql")
         }

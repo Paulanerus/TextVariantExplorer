@@ -550,7 +550,7 @@ class TextExplorerUI(
         val windowState =
             rememberWindowState(position = WindowPosition.Aligned(Alignment.Center), size = DpSize(1600.dp, 900.dp))
 
-        Window(title = "TextExplorer", state = windowState, onCloseRequest = {
+        Window(title = App.NAME.replace(" ", ""), state = windowState, onCloseRequest = {
             dataService.close()
             Config.save()
             exitApplication()
