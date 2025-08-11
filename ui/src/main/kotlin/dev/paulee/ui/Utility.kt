@@ -9,8 +9,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
@@ -53,6 +55,36 @@ internal sealed class LoadState {
 }
 
 internal data class HighlightMatch(val start: Int, val end: Int, val word: String, val tag: String, val color: Color)
+
+internal data class AutocompleteContext(val field: String, val value: String, val startPos: Int, val endPos: Int)
+
+internal object Autocomplete {
+    fun getAutocompleteContext(text: String, caret: Int): AutocompleteContext? {
+        val tokenStart = text.lastIndexOf(' ', caret - 1).let { if (it == -1) 0 else it + 1 }
+        val tokenEnd = text.indexOf(' ', caret).let { if (it == -1) text.length else it }
+
+        val token = text.substring(tokenStart, tokenEnd)
+        val colonIndex = token.indexOf(':')
+
+        return if (colonIndex > 0) {
+            AutocompleteContext(
+                field = token.take(colonIndex),
+                value = token.substring(colonIndex + 1),
+                startPos = tokenStart + colonIndex + 1,
+                endPos = tokenEnd
+            )
+        } else null
+    }
+
+    fun acceptSuggestion(textField: TextFieldValue, suggestion: String): TextFieldValue? {
+        return getAutocompleteContext(textField.text, textField.selection.start)?.let { ctx ->
+            val newText = textField.text.replaceRange(ctx.startPos, ctx.endPos, suggestion)
+            val newCaretPos = ctx.startPos + suggestion.length
+
+            TextFieldValue(newText, TextRange(newCaretPos))
+        }
+    }
+}
 
 @Composable
 fun MarkedText(
