@@ -73,6 +73,15 @@ internal class SQLiteProvider : IStorageProvider {
         return this.database.count(name, entries)
     }
 
+    override fun suggestions(
+        name: String,
+        field: String,
+        value: String,
+        amount: Int
+    ): List<String> {
+        return this.database.suggestions(name, field, value, amount)
+    }
+
     private fun getEntries(
         name: String,
         ids: Set<Long>,

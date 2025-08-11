@@ -30,9 +30,7 @@ private data class Column(val name: String, val type: ColumnType, val primary: B
 private class Table(val name: String, columns: List<Column>) {
 
     val primaryKey: Column = columns.find { it.primary } ?: Column(
-        "${name}_ag_id", ColumnType.INTEGER,
-        primary = true,
-        nullable = false
+        "${name}_ag_id", ColumnType.INTEGER, primary = true, nullable = false
     )
 
     val columns = listOf(primaryKey) + columns.filter { !it.primary }
@@ -40,6 +38,8 @@ private class Table(val name: String, columns: List<Column>) {
     fun createIfNotExists(connection: Connection) {
         connection.createStatement().use {
             it.execute("CREATE TABLE IF NOT EXISTS $name (${columns.joinToString(", ")})")
+
+            //TODO: Create indexes
         }
     }
 
@@ -127,6 +127,34 @@ private class Table(val name: String, columns: List<Column>) {
         }
     }
 
+    fun suggestions(connection: Connection, field: String, value: String, amount: Int): List<String> {
+        val query = buildString {
+            append("SELECT DISTINCT ")
+            append(field)
+            append(" FROM ")
+            append(name)
+
+            append(" WHERE ")
+            append(field)
+            append(" LIKE '")
+            append(value.replaceWildCard())
+            append("%' ESCAPE '\\'")
+
+            append(" LIMIT ")
+            append(amount)
+        }
+
+        return connection.createStatement().use { statement ->
+            statement.executeQuery(query).use {
+                val results = mutableListOf<String>()
+
+                while (it.next()) results.add(it.getString(1))
+
+                results
+            }
+        }
+    }
+
     fun getColumnType(name: String): ColumnType? = columns.find { it.name == name }?.type
 
     override fun toString(): String = "$name primary=${primaryKey}, columns={${columns.joinToString(", ")}}"
@@ -134,38 +162,38 @@ private class Table(val name: String, columns: List<Column>) {
     private fun buildWhereClause(whereClause: Map<String, List<String>>): String {
         if (whereClause.isEmpty()) return ""
 
-        val parts = whereClause.entries.filter { getColumnType(it.key) != null }
-            .joinToString(" AND ") { (column, values) ->
-                val columnType = getColumnType(column) ?: return@joinToString ""
+        val parts =
+            whereClause.entries.filter { getColumnType(it.key) != null }.joinToString(" AND ") { (column, values) ->
+                    val columnType = getColumnType(column) ?: return@joinToString ""
 
-                val (wildcards, nonWildcards) = values.distinct().partition { it.hasWildcard() }
+                    val (wildcards, nonWildcards) = values.distinct().partition { it.hasWildcard() }
 
-                val cause = buildString {
-                    if (nonWildcards.isNotEmpty()) {
-                        if (nonWildcards.size == 1) {
-                            val value = nonWildcards.first()
+                    val cause = buildString {
+                        if (nonWildcards.isNotEmpty()) {
+                            if (nonWildcards.size == 1) {
+                                val value = nonWildcards.first()
 
-                            append("$column = ${if (columnType == ColumnType.TEXT) "'${value.escapeLiteral()}'" else value}")
-                        } else {
-                            val inClause = nonWildcards.joinToString(
-                                ", ", prefix = "IN (", postfix = ")"
-                            ) { if (columnType == ColumnType.TEXT) "'${it.escapeLiteral()}'" else it }
+                                append("$column = ${if (columnType == ColumnType.TEXT) "'${value.escapeLiteral()}'" else value}")
+                            } else {
+                                val inClause = nonWildcards.joinToString(
+                                    ", ", prefix = "IN (", postfix = ")"
+                                ) { if (columnType == ColumnType.TEXT) "'${it.escapeLiteral()}'" else it }
 
-                            append("$column $inClause")
+                                append("$column $inClause")
+                            }
+
+                            if (wildcards.isNotEmpty()) append(" OR ")
                         }
 
-                        if (wildcards.isNotEmpty()) append(" OR ")
+                        if (columnType == ColumnType.TEXT) {
+                            wildcards.takeIf { it.isNotEmpty() }
+                                ?.joinToString(" OR ") { "$column LIKE '${it.replaceWildCard()}' ESCAPE '\\'" }
+                                ?.let { append(it) }
+                        }
                     }
 
-                    if (columnType == ColumnType.TEXT) {
-                        wildcards.takeIf { it.isNotEmpty() }
-                            ?.joinToString(" OR ") { "$column LIKE '${it.replaceWildCard()}' ESCAPE '\\'" }
-                            ?.let { append(it) }
-                    }
+                    if (cause.isNotBlank()) "($cause)" else ""
                 }
-
-                if (cause.isNotBlank()) "($cause)" else ""
-            }
 
         return if (parts.isEmpty()) "" else " WHERE $parts"
     }
@@ -248,8 +276,7 @@ internal class Database(path: Path) : Closeable {
             }
         }.getOrElse { e ->
             logger.error(
-                "Exception: Failed to create table for class '${source.name}' due to an unexpected error.",
-                e
+                "Exception: Failed to create table for class '${source.name}' due to an unexpected error.", e
             )
         }
     }
@@ -289,6 +316,21 @@ internal class Database(path: Path) : Closeable {
         }.getOrElse { e ->
             logger.error("Exception: Failed to count entries in table '$name' due to an unexpected error.", e)
             0
+        }
+    }
+
+    fun suggestions(name: String, field: String, value: String, amount: Int): List<String> {
+        if (hasNoSQLModule) return emptyList()
+
+        val table = tables.find { it.name == name } ?: return emptyList()
+
+        return runCatching {
+            transaction {
+                table.suggestions(this, field, value, amount)
+            }
+        }.getOrElse { e ->
+            logger.error("Exception: Failed to retrieve suggestions from table '$name' due to an unexpected error.", e)
+            emptyList()
         }
     }
 

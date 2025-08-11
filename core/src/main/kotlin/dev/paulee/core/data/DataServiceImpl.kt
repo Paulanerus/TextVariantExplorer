@@ -327,6 +327,10 @@ class DataServiceImpl : IDataService {
 
     override fun getAvailableDataInfo(): Set<DataInfo> = this.dataPools.values.map { it.dataInfo }.toSet()
 
+    override fun getSuggestions(field: String, value: String): List<String> = currentField?.let { name ->
+        dataPools[currentPool]?.storageProvider?.suggestions(name, field, value, 6)
+    } ?: emptyList()
+
     override fun getPage(query: String, order: QueryOrder?, pageCount: Int): PageResult {
 
         if (this.currentPool == null || this.currentField == null) return Pair(emptyList(), emptyMap())
