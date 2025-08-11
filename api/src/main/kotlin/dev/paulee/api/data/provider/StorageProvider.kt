@@ -4,6 +4,8 @@ import dev.paulee.api.data.DataInfo
 import java.io.Closeable
 import java.nio.file.Path
 
+typealias QueryOrder = Pair<String, Boolean>
+
 enum class StorageType {
     SQLITE,
 }
@@ -25,6 +27,7 @@ interface IStorageProvider : Closeable {
         ids: Set<Long> = emptySet(),
         whereClause: List<String> = emptyList(),
         filter: List<String> = emptyList(),
+        order: QueryOrder? = null,
         offset: Int = 0,
         limit: Int = Int.MAX_VALUE,
     ): List<Map<String, String>>
@@ -35,4 +38,6 @@ interface IStorageProvider : Closeable {
         whereClause: List<String> = emptyList(),
         filter: List<String> = emptyList(),
     ): Long
+
+    fun suggestions(name: String, field: String, value: String, amount: Int): List<String>
 }

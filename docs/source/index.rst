@@ -1,7 +1,7 @@
 TextVariantExplorer
 =====================
 
-Welcome to TextVariantExplorer's documentation. TextVariantExplorer is an open-source and cross-platform tool designed for the exploration and comparison of text variants, making it easier to analyze differences and similarities in textual data.
+Welcome to TextVariantExplorer's documentation. TextVariantExplorer is an open-source, cross-platform tool designed for the exploration and comparison of text variants, making it easier to analyze differences and similarities in textual data.
 
 .. toctree::
    :maxdepth: 2

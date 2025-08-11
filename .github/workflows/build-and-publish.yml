@@ -111,12 +111,12 @@ jobs:
 
       - name: Upload Windows Artifact
         if: matrix.os == 'windows-latest'
-        run: gh release upload v${{ env.VERSION }} build/compose/binaries/main-release/msi/TextExplorer-${{ env.VERSION }}.msi --clobber
+        run: gh release upload v${{ env.VERSION }} build/compose/binaries/main-release/msi/TextVariantExplorer-${{ env.VERSION }}.msi --clobber
 
       - name: Upload Linux  Artifact
         if: matrix.os == 'ubuntu-latest'
-        run: gh release upload v${{ env.VERSION }} build/compose/binaries/main-release/deb/textexplorer_${{ env.VERSION }}_amd64.deb --clobber
+        run: gh release upload v${{ env.VERSION }} build/compose/binaries/main-release/deb/textvariantexplorer_${{ env.VERSION }}_amd64.deb --clobber
 
       - name: Upload macOS Artifact
         if: matrix.os == 'macos-latest'
-        run: gh release upload v${{ env.VERSION }} build/compose/binaries/main-release/dmg/TextExplorer-${{ env.VERSION }}.Dmg --clobber
+        run: gh release upload v${{ env.VERSION }} build/compose/binaries/main-release/dmg/TextVariantExplorer-${{ env.VERSION }}.Dmg --clobber

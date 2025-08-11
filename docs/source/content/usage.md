@@ -136,6 +136,8 @@ With field search, you can target specific fields in the dataset by specifying a
 - Use `ga:01` to return all matching entries where the field `ga` has the value `01`.
 - Multiple field-specific filters can be combined to narrow down the results further.
 
+**Wildcard**: Use * to match any number of characters and ? to match exactly one character.
+
 ![Field search](../_static/field_search.png)
 
 #### Variant Search

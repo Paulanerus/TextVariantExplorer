@@ -10,6 +10,8 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -23,6 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import dev.paulee.api.data.provider.QueryOrder
 import dev.paulee.api.plugin.Tag
 import dev.paulee.ui.Config
 import dev.paulee.ui.MarkedText
@@ -40,6 +43,8 @@ fun TableView(
     columns: List<String>,
     data: List<List<String>>,
     links: Map<String, List<Map<String, String>>> = emptyMap(),
+    queryOrder: QueryOrder?,
+    onQueryOrderChange: (QueryOrder) -> Unit = {},
     onRowSelect: (List<Map<String, String>>) -> Unit,
     clicked: () -> Unit = {},
 ) {
@@ -137,23 +142,49 @@ fun TableView(
                     if (hiddenColumns.contains(index)) return@forEachIndexed
 
                     Box(
-                        modifier = Modifier.height(IntrinsicSize.Min).width(columnWidths[index]).drawBehind {
-                            if (columns.lastIndex == index) return@drawBehind
+                        modifier = Modifier
+                            .height(IntrinsicSize.Min)
+                            .width(columnWidths[index])
+                            .clickable {
+                                val newQueryOrderState = if (queryOrder?.first == columnName) {
+                                    QueryOrder(columnName, !queryOrder.second)
+                                } else {
+                                    QueryOrder(columnName, false)
+                                }
 
-                            val strokeWidth = 2.dp.toPx()
-                            val halfStrokeWidth = strokeWidth / 2
-                            drawLine(
-                                color = Color.DarkGray,
-                                start = Offset(size.width - halfStrokeWidth, 0f),
-                                end = Offset(size.width - halfStrokeWidth, size.height),
-                                strokeWidth = strokeWidth
+                                onQueryOrderChange(newQueryOrderState)
+                            }
+                            .drawBehind {
+                                if (columns.lastIndex == index) return@drawBehind
+
+                                val strokeWidth = 2.dp.toPx()
+                                val halfStrokeWidth = strokeWidth / 2
+                                drawLine(
+                                    color = Color.DarkGray,
+                                    start = Offset(size.width - halfStrokeWidth, 0f),
+                                    end = Offset(size.width - halfStrokeWidth, size.height),
+                                    strokeWidth = strokeWidth
+                                )
+                            }) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp).fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = columnName,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.weight(1f)
                             )
-                        }) {
-                        Text(
-                            text = columnName,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
-                        )
+
+                            if (queryOrder?.first == columnName) {
+                                Icon(
+                                    imageVector = if (queryOrder.second) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowUp,
+                                    contentDescription = if (queryOrder.second) "Desc" else "Asc",
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }
