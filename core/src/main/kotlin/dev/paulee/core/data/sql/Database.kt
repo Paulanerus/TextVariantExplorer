@@ -1,6 +1,7 @@
 package dev.paulee.core.data.sql
 
 import dev.paulee.api.data.FieldType
+import dev.paulee.api.data.IndexField
 import dev.paulee.api.data.Source
 import dev.paulee.api.data.UniqueField
 import dev.paulee.api.data.provider.QueryOrder
@@ -23,14 +24,20 @@ private fun typeToColumnType(type: FieldType): ColumnType = when (type) {
     FieldType.BOOLEAN -> ColumnType.TEXT
 }
 
-private data class Column(val name: String, val type: ColumnType, val primary: Boolean, val nullable: Boolean) {
+private data class Column(
+    val name: String,
+    val type: ColumnType,
+    val primary: Boolean,
+    val nullable: Boolean,
+    val indexable: Boolean
+) {
     override fun toString(): String = "$name $type ${if (primary) "PRIMARY KEY" else if (nullable) "" else "NOT NULL"}"
 }
 
 private class Table(val name: String, columns: List<Column>) {
 
     val primaryKey: Column = columns.find { it.primary } ?: Column(
-        "${name}_ag_id", ColumnType.INTEGER, primary = true, nullable = false
+        "${name}_ag_id", ColumnType.INTEGER, primary = true, nullable = false, indexable = false
     )
 
     val columns = listOf(primaryKey) + columns.filter { !it.primary }
@@ -39,7 +46,10 @@ private class Table(val name: String, columns: List<Column>) {
         connection.createStatement().use {
             it.execute("CREATE TABLE IF NOT EXISTS $name (${columns.joinToString(", ")})")
 
-            //TODO: Create indexes
+            columns.filter { col -> col.indexable }
+                .forEach { col ->
+                    it.execute("CREATE INDEX IF NOT EXISTS ${name}_${col.name}_idx ON $name(${col.name}) WHERE ${col.name} IS NOT NULL")
+                }
         }
     }
 
@@ -164,36 +174,36 @@ private class Table(val name: String, columns: List<Column>) {
 
         val parts =
             whereClause.entries.filter { getColumnType(it.key) != null }.joinToString(" AND ") { (column, values) ->
-                    val columnType = getColumnType(column) ?: return@joinToString ""
+                val columnType = getColumnType(column) ?: return@joinToString ""
 
-                    val (wildcards, nonWildcards) = values.distinct().partition { it.hasWildcard() }
+                val (wildcards, nonWildcards) = values.distinct().partition { it.hasWildcard() }
 
-                    val cause = buildString {
-                        if (nonWildcards.isNotEmpty()) {
-                            if (nonWildcards.size == 1) {
-                                val value = nonWildcards.first()
+                val cause = buildString {
+                    if (nonWildcards.isNotEmpty()) {
+                        if (nonWildcards.size == 1) {
+                            val value = nonWildcards.first()
 
-                                append("$column = ${if (columnType == ColumnType.TEXT) "'${value.escapeLiteral()}'" else value}")
-                            } else {
-                                val inClause = nonWildcards.joinToString(
-                                    ", ", prefix = "IN (", postfix = ")"
-                                ) { if (columnType == ColumnType.TEXT) "'${it.escapeLiteral()}'" else it }
+                            append("$column = ${if (columnType == ColumnType.TEXT) "'${value.escapeLiteral()}'" else value}")
+                        } else {
+                            val inClause = nonWildcards.joinToString(
+                                ", ", prefix = "IN (", postfix = ")"
+                            ) { if (columnType == ColumnType.TEXT) "'${it.escapeLiteral()}'" else it }
 
-                                append("$column $inClause")
-                            }
-
-                            if (wildcards.isNotEmpty()) append(" OR ")
+                            append("$column $inClause")
                         }
 
-                        if (columnType == ColumnType.TEXT) {
-                            wildcards.takeIf { it.isNotEmpty() }
-                                ?.joinToString(" OR ") { "$column LIKE '${it.replaceWildCard()}' ESCAPE '\\'" }
-                                ?.let { append(it) }
-                        }
+                        if (wildcards.isNotEmpty()) append(" OR ")
                     }
 
-                    if (cause.isNotBlank()) "($cause)" else ""
+                    if (columnType == ColumnType.TEXT) {
+                        wildcards.takeIf { it.isNotEmpty() }
+                            ?.joinToString(" OR ") { "$column LIKE '${it.replaceWildCard()}' ESCAPE '\\'" }
+                            ?.let { append(it) }
+                    }
                 }
+
+                if (cause.isNotBlank()) "($cause)" else ""
+            }
 
         return if (parts.isEmpty()) "" else " WHERE $parts"
     }
@@ -258,12 +268,16 @@ internal class Database(path: Path) : Closeable {
     fun createTable(source: Source) {
         if (hasNoSQLModule) return
 
+        val hasIndex = source.fields.any { it is IndexField }
+
         val columns = source.fields.map { field ->
             val isNullable = false //param.hasAnnotation<Nullable>()
 
             val isPrimary = (field is UniqueField) // && !isNullable
 
-            Column(field.name, typeToColumnType(field.fieldType), isPrimary, isNullable)
+            val isIndexable = (field.fieldType == FieldType.TEXT && field !is IndexField && hasIndex)
+
+            Column(field.name, typeToColumnType(field.fieldType), isPrimary, isNullable, isIndexable)
         }
 
         val table = Table(normalizeDataSource(source.name), columns)
