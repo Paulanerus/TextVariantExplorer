@@ -72,7 +72,7 @@ class TextExplorerUI(
 
     @Composable
     private fun content() {
-        var textField by remember { mutableStateOf(TextFieldValue("\"ανηρ\" or \"ανδρος\"")) }
+        var textField by remember { mutableStateOf(TextFieldValue("")) }
         var selectedRows by remember { mutableStateOf(listOf<Map<String, String>>()) }
         var openWindow by remember { mutableStateOf(Window.NONE) }
         var showTable by remember { mutableStateOf(false) }
