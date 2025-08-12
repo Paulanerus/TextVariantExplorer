@@ -272,7 +272,7 @@ class TextExplorerUI(
                                                     suppressNextEnterSearch = false
                                                     return@onPreviewKeyEvent true
                                                 }
-                                                if (textField.text.isNotBlank()) {
+                                                if (textField.text.isNotBlank() && dataService.hasSelectedPool()) {
                                                     performSearch()
                                                     return@onPreviewKeyEvent true
                                                 }

@@ -5,10 +5,8 @@ import dev.paulee.api.data.Language
 import dev.paulee.api.data.Source
 import dev.paulee.api.data.UniqueField
 import dev.paulee.core.normalizeDataSource
-import dev.paulee.core.splitStr
 import org.apache.lucene.analysis.Analyzer
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer
-import org.apache.lucene.analysis.en.EnglishAnalyzer
 import org.apache.lucene.analysis.miscellaneous.PerFieldAnalyzerWrapper
 import org.apache.lucene.document.Document
 import org.apache.lucene.document.Field
@@ -18,13 +16,9 @@ import org.apache.lucene.index.DirectoryReader
 import org.apache.lucene.index.IndexWriter
 import org.apache.lucene.index.IndexWriterConfig
 import org.apache.lucene.index.Term
-import org.apache.lucene.queryparser.flexible.standard.StandardQueryParser
-import org.apache.lucene.queryparser.flexible.standard.config.StandardQueryConfigHandler
-import org.apache.lucene.search.BooleanClause
-import org.apache.lucene.search.BooleanQuery
+import org.apache.lucene.queryparser.classic.QueryParser
 import org.apache.lucene.search.IndexSearcher
-import org.apache.lucene.search.PhraseQuery
-import org.apache.lucene.search.TermQuery
+import org.apache.lucene.search.Query
 import org.apache.lucene.store.BaseDirectory
 import org.apache.lucene.store.FSDirectory
 import org.apache.lucene.store.NIOFSDirectory
@@ -32,11 +26,23 @@ import org.slf4j.LoggerFactory.getLogger
 import java.io.Closeable
 import java.nio.file.Path
 
-class Indexer(path: Path, sources: List<Source>) : Closeable {
+internal class CustomParser(private val defaultField: String, defaultAnalyzer: Analyzer) :
+    QueryParser(defaultField, defaultAnalyzer) {
+
+    override fun newFieldQuery(
+        analyzer: Analyzer,
+        field: String?,
+        queryText: String?,
+        quoted: Boolean,
+    ): Query {
+        val target = if (quoted) "$defaultField.ws" else (field ?: defaultField)
+        return super.newFieldQuery(analyzer, target, queryText, quoted)
+    }
+}
+
+internal class Indexer(path: Path, sources: List<Source>) : Closeable {
 
     companion object {
-        private val QUOTE_REGEX = Regex("\"([^\"]+?)\"")
-
         private val OPERATOR_CASCADE_REGEX =
             Regex("(?i)\\b(AND(?:\\s+NOT)?|OR(?:\\s+NOT)?|NOT)\\b(?:\\s+(?:AND|OR|NOT)\\b)*")
 
@@ -125,11 +131,7 @@ class Indexer(path: Path, sources: List<Source>) : Closeable {
     }
 
     fun searchFieldIndex(field: String, query: String): List<Document> {
-        val exactTerms = QUOTE_REGEX.findAll(query).map { it.groupValues[1] }.toList()
-
-        val stripped = query.replace(QUOTE_REGEX, "").trim()
-
-        val normalized = normalizeOperator(stripped)
+        val normalized = normalizeOperator(query)
 
         DirectoryReader.openIfChanged(this.reader)?.let {
             this.reader.close()
@@ -139,32 +141,20 @@ class Indexer(path: Path, sources: List<Source>) : Closeable {
 
         val searcher = IndexSearcher(this.reader)
 
-        val queryBuilder = BooleanQuery.Builder()
+        val perField =
+            PerFieldAnalyzerWrapper(
+                mappedAnalyzer[field] ?: LangAnalyzer.new(Language.ENGLISH),
+                mappedAnalyzer
+            )
 
-        if (normalized.isNotBlank()) {
-            val parser = StandardQueryParser(mappedAnalyzer[field] ?: EnglishAnalyzer()).apply {
-                defaultOperator = StandardQueryConfigHandler.Operator.AND
-                allowLeadingWildcard = true
-            }
-
-            queryBuilder.add(parser.parse(normalized, field), BooleanClause.Occur.MUST)
+        val parser = CustomParser(field, perField).apply {
+            defaultOperator = QueryParser.Operator.AND
+            allowLeadingWildcard = true
         }
 
-        exactTerms.map { splitStr(it, ' ') }.forEach { rawTerm ->
-            if (rawTerm.isEmpty()) return@forEach
+        val query = parser.parse(normalized)
 
-            if (rawTerm.size == 1) {
-                queryBuilder.add(TermQuery(Term("$field.ws", rawTerm[0])), BooleanClause.Occur.MUST)
-            } else {
-                val phraseBuilder = PhraseQuery.Builder()
-
-                rawTerm.forEach { phraseBuilder.add(Term("$field.ws", it)) }
-
-                queryBuilder.add(phraseBuilder.build(), BooleanClause.Occur.MUST)
-            }
-        }
-
-        val hits = searcher.search(queryBuilder.build(), Int.MAX_VALUE)
+        val hits = searcher.search(query, Int.MAX_VALUE)
         return hits.scoreDocs.map { searcher.storedFields().document(it.doc) }
     }
 
