@@ -72,7 +72,7 @@ class TextExplorerUI(
 
     @Composable
     private fun content() {
-        var textField by remember { mutableStateOf(TextFieldValue("")) }
+        var textField by remember { mutableStateOf(TextFieldValue("\"ανηρ\" or \"ανδρος\"")) }
         var selectedRows by remember { mutableStateOf(listOf<Map<String, String>>()) }
         var openWindow by remember { mutableStateOf(Window.NONE) }
         var showTable by remember { mutableStateOf(false) }
@@ -272,7 +272,7 @@ class TextExplorerUI(
                                                     suppressNextEnterSearch = false
                                                     return@onPreviewKeyEvent true
                                                 }
-                                                if (textField.text.isNotBlank()) {
+                                                if (textField.text.isNotBlank() && dataService.hasSelectedPool()) {
                                                     performSearch()
                                                     return@onPreviewKeyEvent true
                                                 }
