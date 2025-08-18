@@ -113,25 +113,21 @@ internal class Indexer(path: Path, sources: List<Source>) : Closeable {
 
         val fieldName = idFields.find { it.startsWith(name) } ?: return
 
-        var hasChanges = false
-
         entries.forEach { entry ->
             val fieldValue = entry[fieldName.substringAfter("$name.")] ?: return@forEach
 
             this.writer.updateDocument(Term(fieldName, fieldValue), this.createDoc(name, entry))
-
-            hasChanges = true
         }
 
-        if (hasChanges) {
-            runCatching { this.writer.commit() }.getOrElse { e ->
-                this.logger.error("Exception: Failed to commit changes.", e)
-            }
+        runCatching { this.writer.commit() }.getOrElse { e ->
+            this.logger.error("Exception: Failed to commit changes.", e)
         }
     }
 
     fun searchFieldIndex(field: String, query: String): List<Document> {
         val normalized = normalizeOperator(query)
+
+        if (normalized.isBlank()) return emptyList()
 
         DirectoryReader.openIfChanged(this.reader)?.let {
             this.reader.close()
