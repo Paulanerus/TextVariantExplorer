@@ -112,10 +112,17 @@ private class DataPool(val indexer: Indexer, val dataInfo: DataInfo, val storage
 
             splitStr(query, delimiter = ' ').forEach { str ->
 
-                val colon = str.indexOf(':')
+                var colon = -1
+                var hasSpace = false
+
+                for (i in str.indices) {
+                    val ch = str[i]
+                    if (ch == ':') { colon = i; break }
+                    if (ch == ' ') hasSpace = true
+                }
 
                 if (colon == -1) {
-                    queryToken.add(str)
+                    queryToken.add(if (hasSpace) "\"$str\"" else str)
                     return@forEach
                 }
 

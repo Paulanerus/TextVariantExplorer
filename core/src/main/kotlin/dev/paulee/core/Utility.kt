@@ -38,9 +38,9 @@ fun splitStr(str: String, delimiter: Char, quoteCharacters: Array<Char> = arrayO
         var inside = false
 
         for (c in str) {
-            when {
-                c == quote -> inside = !inside
-                c == delimiter && !inside -> {
+            when (c) {
+                quote -> inside = !inside
+                delimiter if !inside -> {
                     result.add(sb.toString())
                     sb.setLength(0)
                 }
