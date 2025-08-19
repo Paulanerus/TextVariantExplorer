@@ -1,5 +1,7 @@
 package dev.paulee.ui
 
+import java.awt.Color
+
 object App {
     const val NAME = "TextVariant Explorer"
 
@@ -14,4 +16,14 @@ object App {
     private val uiVersion: String? by lazy { System.getProperty("ui.version") }
 
     val VERSION_STRING = "v$VERSION (API - $apiVersion, Core - $coreVersion, UI - $uiVersion)"
+
+    object Colors {
+
+        val GREEN_HIGHLIGHT: Color
+            get() = Color(0, 200, 83)
+
+        val RED_HIGHLIGHT: Color
+            get() = Color(200, 0, 0)
+
+    }
 }

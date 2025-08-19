@@ -35,6 +35,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import dev.paulee.api.data.provider.QueryOrder
 import dev.paulee.api.plugin.Tag
+import dev.paulee.ui.App
 import dev.paulee.ui.Config
 import dev.paulee.ui.MarkedText
 
@@ -349,7 +350,7 @@ fun TableView(
                                                         highlights = if (indexStrings.isEmpty()) emptyMap() else indexStrings.associateWith {
                                                             Tag(
                                                                 "",
-                                                                java.awt.Color(0, 200, 83)
+                                                                App.Colors.GREEN_HIGHLIGHT
                                                             )
                                                         },
                                                         exact = exactHighlightingWrapper
