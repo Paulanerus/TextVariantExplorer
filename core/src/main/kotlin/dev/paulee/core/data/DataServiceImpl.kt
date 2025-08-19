@@ -327,9 +327,21 @@ class DataServiceImpl : IDataService {
 
     override fun getAvailableDataInfo(): Set<DataInfo> = this.dataPools.values.map { it.dataInfo }.toSet()
 
-    override fun getSuggestions(field: String, value: String): List<String> = currentField?.let { name ->
-        dataPools[currentPool]?.storageProvider?.suggestions(name, field, value, 6)
-    } ?: emptyList()
+    override fun getSuggestions(field: String, value: String): List<String> {
+        val current = this.currentField ?: return emptyList()
+
+        val dataPool = this.dataPools[this.currentPool] ?: return emptyList()
+
+        val fieldExists = dataPool.dataInfo.sources
+            .firstOrNull { it.name == current }
+            ?.fields
+            ?.any { it.name == field } == true
+
+        if (!fieldExists) return emptyList()
+
+
+        return dataPool.storageProvider.suggestions(current, field, value, 6)
+    }
 
     override fun getPage(query: String, order: QueryOrder?, pageCount: Int): PageResult {
 
