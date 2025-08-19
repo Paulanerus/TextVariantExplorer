@@ -1,7 +1,6 @@
 package dev.paulee.core.data.sql
 
 import dev.paulee.api.data.FieldType
-import dev.paulee.api.data.IndexField
 import dev.paulee.api.data.Source
 import dev.paulee.api.data.UniqueField
 import dev.paulee.api.data.provider.QueryOrder
@@ -29,7 +28,6 @@ private data class Column(
     val type: ColumnType,
     val primary: Boolean,
     val nullable: Boolean,
-    val indexable: Boolean
 ) {
     override fun toString(): String = "$name $type ${if (primary) "PRIMARY KEY" else if (nullable) "" else "NOT NULL"}"
 }
@@ -37,7 +35,7 @@ private data class Column(
 private class Table(val name: String, columns: List<Column>) {
 
     val primaryKey: Column = columns.find { it.primary } ?: Column(
-        "${name}_ag_id", ColumnType.INTEGER, primary = true, nullable = false, indexable = false
+        "${name}_ag_id", ColumnType.INTEGER, primary = true, nullable = false
     )
 
     val columns = listOf(primaryKey) + columns.filter { !it.primary }
@@ -45,11 +43,6 @@ private class Table(val name: String, columns: List<Column>) {
     fun createIfNotExists(connection: Connection) {
         connection.createStatement().use {
             it.execute("CREATE TABLE IF NOT EXISTS $name (${columns.joinToString(", ")})")
-
-            columns.filter { col -> col.indexable }
-                .forEach { col ->
-                    it.execute("CREATE INDEX IF NOT EXISTS ${name}_${col.name}_idx ON $name(${col.name}) WHERE ${col.name} IS NOT NULL")
-                }
         }
     }
 
@@ -260,24 +253,18 @@ internal class Database(path: Path) : Closeable {
     }
 
     fun insert(name: String, entries: List<Map<String, String>>) {
-        val table = tables.find { it.name == name } ?: return
-
-        table.insert(this.connection ?: return, entries)
+        if (!hasNoSQLModule) tables.find { it.name == name }?.insert(connection ?: return, entries)
     }
 
     fun createTable(source: Source) {
         if (hasNoSQLModule) return
-
-        val hasIndex = source.fields.any { it is IndexField }
 
         val columns = source.fields.map { field ->
             val isNullable = false //param.hasAnnotation<Nullable>()
 
             val isPrimary = (field is UniqueField) // && !isNullable
 
-            val isIndexable = (field.fieldType == FieldType.TEXT && field !is IndexField && hasIndex)
-
-            Column(field.name, typeToColumnType(field.fieldType), isPrimary, isNullable, isIndexable)
+            Column(field.name, typeToColumnType(field.fieldType), isPrimary, isNullable)
         }
 
         val table = Table(normalizeDataSource(source.name), columns)

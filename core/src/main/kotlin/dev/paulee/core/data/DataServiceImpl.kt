@@ -112,10 +112,17 @@ private class DataPool(val indexer: Indexer, val dataInfo: DataInfo, val storage
 
             splitStr(query, delimiter = ' ').forEach { str ->
 
-                val colon = str.indexOf(':')
+                var colon = -1
+                var hasSpace = false
+
+                for (i in str.indices) {
+                    val ch = str[i]
+                    if (ch == ':') { colon = i; break }
+                    if (ch == ' ') hasSpace = true
+                }
 
                 if (colon == -1) {
-                    queryToken.add(str)
+                    queryToken.add(if (hasSpace) "\"$str\"" else str)
                     return@forEach
                 }
 
@@ -154,7 +161,8 @@ private class DataPool(val indexer: Indexer, val dataInfo: DataInfo, val storage
             indexedValues.add(query)
         }
 
-        return IndexSearchResult(ids, token, indexedValues)
+        //FIXME: "ids.take(10000).toSet()" is a temporary fix to prevent a silent crash with large result sets, due to bad pagination and will be fixed with v2.
+        return IndexSearchResult(ids.take(10000).toSet(), token, indexedValues)
     }
 
     fun hasIdentifier(name: String, entries: Map<String, String>): Boolean {
@@ -327,9 +335,21 @@ class DataServiceImpl : IDataService {
 
     override fun getAvailableDataInfo(): Set<DataInfo> = this.dataPools.values.map { it.dataInfo }.toSet()
 
-    override fun getSuggestions(field: String, value: String): List<String> = currentField?.let { name ->
-        dataPools[currentPool]?.storageProvider?.suggestions(name, field, value, 6)
-    } ?: emptyList()
+    override fun getSuggestions(field: String, value: String): List<String> {
+        val current = this.currentField ?: return emptyList()
+
+        val dataPool = this.dataPools[this.currentPool] ?: return emptyList()
+
+        val fieldExists = dataPool.dataInfo.sources
+            .firstOrNull { it.name == current }
+            ?.fields
+            ?.any { it.name == field } == true
+
+        if (!fieldExists) return emptyList()
+
+
+        return dataPool.storageProvider.suggestions(current, field, value, 6)
+    }
 
     override fun getPage(query: String, order: QueryOrder?, pageCount: Int): PageResult {
 
