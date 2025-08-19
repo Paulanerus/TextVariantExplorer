@@ -1,6 +1,6 @@
 # Installation
 
-TextVariantExplorer is available for Linux, macOS, and Windows.
+The TextVariant Explorer is available for Linux, macOS, and Windows.
 
 ## Official Binaries
 

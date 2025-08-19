@@ -1,4 +1,4 @@
-# TextVariantExplorer
+# TextVariant Explorer
 
 Is an open-source, cross-platform tool designed for the exploration and comparison of text variants, making it easier to analyze differences and similarities in textual data.
 
@@ -10,7 +10,7 @@ For comprehensive usage guides and development information, please see the [**of
 
 ## Citation
 
-If you use TextVariantExplorer in your research, please cite it using the information provided in the [CITATION.cff](CITATION.cff) file.
+If you use the TextVariant Explorer in your research, please cite it using the information provided in the [CITATION.cff](CITATION.cff) file.
 
 ## Support
 
