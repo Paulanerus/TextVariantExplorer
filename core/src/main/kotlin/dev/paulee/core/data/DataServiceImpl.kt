@@ -161,7 +161,8 @@ private class DataPool(val indexer: Indexer, val dataInfo: DataInfo, val storage
             indexedValues.add(query)
         }
 
-        return IndexSearchResult(ids, token, indexedValues)
+        //FIXME: "ids.take(10000).toSet()" is a temporary fix to prevent a silent crash with large result sets, due to bad pagination and will be fixed with v2.
+        return IndexSearchResult(ids.take(10000).toSet(), token, indexedValues)
     }
 
     fun hasIdentifier(name: String, entries: Map<String, String>): Boolean {
