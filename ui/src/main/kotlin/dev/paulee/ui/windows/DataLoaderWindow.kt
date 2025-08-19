@@ -768,9 +768,8 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
 
                                                 val fields = readHeader(path)
 
-                                                val fileNames = fields.mapTo(HashSet(fields.size)) { it.name }
-                                                val sourceNames =
-                                                    source.fields.mapTo(HashSet(source.fields.size)) { it.name }
+                                                val fileNames = fields.map { f -> f.name }
+                                                val sourceNames = source.fields.map { f -> f.name }
 
                                                 val hasMissingFields = source.fields.any { f -> f.name !in fileNames }
 

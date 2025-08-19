@@ -43,7 +43,7 @@ fun normalizeSourceName(str: String): String {
     return (if (needsUnderscore) "_$replaced" else replaced).trim()
 }
 
-fun java.awt.Color.toComposeColor() = Color(red, green, blue, alpha)
+fun java.awt.Color.toComposeColor(newAlpha: Int = alpha) = Color(red, green, blue, newAlpha)
 
 fun String.capitalize() = lowercase().replaceFirstChar { it.uppercase() }
 
@@ -186,6 +186,9 @@ fun HeatmapText(
 ) {
     val text = change?.str ?: fallback
 
+    val greenColor = App.Colors.GREEN_HIGHLIGHT.toComposeColor(76)
+    val redColor = App.Colors.RED_HIGHLIGHT.toComposeColor(76)
+
     val annotatedString = remember(change) {
         buildAnnotatedString {
             var currentIndex = 0
@@ -200,14 +203,14 @@ fun HeatmapText(
 
                     val processedToken = when {
                         token.startsWith("~~") && token.endsWith("~~") -> {
-                            withStyle(style = SpanStyle(background = Color.Red.copy(alpha = 0.3f))) {
+                            withStyle(style = SpanStyle(background = redColor)) {
                                 append(" ".repeat(token.trim('~').length))
                             }
                             ""
                         }
 
                         token.startsWith("**") && token.endsWith("**") -> {
-                            withStyle(style = SpanStyle(background = Color.Green.copy(alpha = 0.3f))) {
+                            withStyle(style = SpanStyle(background = greenColor)) {
                                 append(token.trim('*'))
                             }
                             ""

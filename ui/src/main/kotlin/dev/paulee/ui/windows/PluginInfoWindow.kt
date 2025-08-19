@@ -39,6 +39,9 @@ fun PluginInfoWindow(pluginService: IPluginService, allDataInfo: Set<DataInfo>, 
                 ) {
                     Text("Plugins:", fontWeight = FontWeight.Bold, fontSize = 26.sp)
 
+                    if (pluginService.getPlugins().isEmpty())
+                        Text("No plugins loaded.")
+
                     pluginService.getPlugins().forEach {
                         val metadata = pluginService.getPluginMetadata(it) ?: return@forEach
 
