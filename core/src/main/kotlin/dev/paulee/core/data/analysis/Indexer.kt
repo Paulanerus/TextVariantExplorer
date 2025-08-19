@@ -34,7 +34,7 @@ internal class CustomParser(private val defaultField: String, defaultAnalyzer: A
         field: String?,
         queryText: String?,
         quoted: Boolean,
-    ): Query {
+    ): Query? {
         val target = if (quoted) "$defaultField.ws" else (field ?: defaultField)
         return super.newFieldQuery(analyzer, target, queryText, quoted)
     }
