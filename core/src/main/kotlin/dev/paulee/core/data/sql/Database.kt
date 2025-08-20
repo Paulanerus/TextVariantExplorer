@@ -5,6 +5,7 @@ import dev.paulee.api.data.Source
 import dev.paulee.api.data.UniqueField
 import dev.paulee.api.data.provider.QueryOrder
 import dev.paulee.core.normalizeDataSource
+import dev.paulee.core.sha1Hex
 import org.slf4j.LoggerFactory.getLogger
 import java.io.Closeable
 import java.nio.file.Path
@@ -39,6 +40,8 @@ private class Table(val name: String, columns: List<Column>) {
     )
 
     val columns = listOf(primaryKey) + columns.filter { !it.primary }
+
+    val tempTables = mutableMapOf<String, String>()
 
     fun createIfNotExists(connection: Connection) {
         connection.createStatement().use {
@@ -86,7 +89,7 @@ private class Table(val name: String, columns: List<Column>) {
             append("SELECT * FROM ")
             append(name)
 
-            append(buildWhereClause(whereClause))
+            append(buildWhereClause(connection, whereClause))
 
             order?.takeIf { it.first.isNotBlank() }?.let {
                 append(" ORDER BY ")
@@ -122,7 +125,7 @@ private class Table(val name: String, columns: List<Column>) {
             append("SELECT COUNT(*) FROM ")
             append(name)
 
-            append(buildWhereClause(whereClause))
+            append(buildWhereClause(connection, whereClause))
         }
 
         return connection.createStatement().use { statement ->
@@ -162,7 +165,7 @@ private class Table(val name: String, columns: List<Column>) {
 
     override fun toString(): String = "$name primary=${primaryKey}, columns={${columns.joinToString(", ")}}"
 
-    private fun buildWhereClause(whereClause: Map<String, List<String>>): String {
+    private fun buildWhereClause(connection: Connection, whereClause: Map<String, List<String>>): String {
         if (whereClause.isEmpty()) return ""
 
         val parts =
@@ -178,11 +181,22 @@ private class Table(val name: String, columns: List<Column>) {
 
                             append("$column = ${if (columnType == ColumnType.TEXT) "'${value.escapeLiteral()}'" else value}")
                         } else {
-                            val inClause = nonWildcards.joinToString(
-                                ", ", prefix = "IN (", postfix = ")"
-                            ) { if (columnType == ColumnType.TEXT) "'${it.escapeLiteral()}'" else it }
 
-                            append("$column $inClause")
+                            if(nonWildcards.size > 500){
+                                val hash = sha1Hex(nonWildcards.joinToString(""))
+
+                                val tempQuery = tempTables.getOrPut(hash) {
+                                    createAndUpdateTempTable(connection, hash, nonWildcards, columnType)
+                                }
+
+                                append("$column IN ($tempQuery)")
+                            }else{
+                                val inClause = nonWildcards.joinToString(
+                                    ", ", prefix = "IN (", postfix = ")"
+                                ) { if (columnType == ColumnType.TEXT) "'${it.escapeLiteral()}'" else it }
+
+                                append("$column $inClause")
+                            }
                         }
 
                         if (wildcards.isNotEmpty()) append(" OR ")
@@ -212,6 +226,48 @@ private class Table(val name: String, columns: List<Column>) {
         .replace("*", "%")
         .replace("?", "_")
         .escapeLiteral()
+
+    private fun createAndUpdateTempTable(connection: Connection, hash: String, values: List<String>, type: ColumnType): String {
+        val tempName = "tmp_$hash"
+
+        connection.createStatement().use {
+            it.execute("CREATE TEMP TABLE $tempName (v $type)")
+        }
+
+        values.chunked(500).forEach { chunk ->
+            val placeholders = List(chunk.size) { "(?)" }.joinToString(", ")
+            val sql = "INSERT INTO $tempName(v) VALUES $placeholders"
+
+            connection.prepareStatement(sql).use { ps ->
+                var paramIndex = 1
+
+                when (type) {
+                    ColumnType.TEXT -> {
+                        for (v in chunk)
+                            ps.setString(paramIndex++, v)
+                    }
+                    ColumnType.INTEGER -> {
+                        for (v in chunk) {
+                            val longVal = v.toLongOrNull()
+                            if (longVal == null) ps.setNull(paramIndex++, java.sql.Types.INTEGER)
+                            else ps.setLong(paramIndex++, longVal)
+                        }
+                    }
+                    ColumnType.REAL -> {
+                        for (v in chunk) {
+                            val dblVal = v.toDoubleOrNull()
+                            if (dblVal == null) ps.setNull(paramIndex++, java.sql.Types.REAL)
+                            else ps.setDouble(paramIndex++, dblVal)
+                        }
+                    }
+                }
+
+                ps.executeUpdate()
+            }
+        }
+
+        return "SELECT v FROM $tempName"
+    }
 }
 
 internal class Database(path: Path) : Closeable {
