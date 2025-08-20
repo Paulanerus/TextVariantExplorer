@@ -11,6 +11,7 @@ import java.io.Closeable
 import java.nio.file.Path
 import java.sql.Connection
 import java.sql.DriverManager
+import java.sql.Types
 import kotlin.io.path.createDirectories
 
 private enum class ColumnType {
@@ -249,14 +250,14 @@ private class Table(val name: String, columns: List<Column>) {
                     ColumnType.INTEGER -> {
                         for (v in chunk) {
                             val longVal = v.toLongOrNull()
-                            if (longVal == null) ps.setNull(paramIndex++, java.sql.Types.INTEGER)
+                            if (longVal == null) ps.setNull(paramIndex++, Types.INTEGER)
                             else ps.setLong(paramIndex++, longVal)
                         }
                     }
                     ColumnType.REAL -> {
                         for (v in chunk) {
                             val dblVal = v.toDoubleOrNull()
-                            if (dblVal == null) ps.setNull(paramIndex++, java.sql.Types.REAL)
+                            if (dblVal == null) ps.setNull(paramIndex++, Types.REAL)
                             else ps.setDouble(paramIndex++, dblVal)
                         }
                     }
