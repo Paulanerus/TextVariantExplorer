@@ -1,6 +1,7 @@
 package dev.paulee.core
 
 import org.slf4j.LoggerFactory.getLogger
+import java.security.MessageDigest
 
 object GlobalExceptionHandler {
 
@@ -69,3 +70,8 @@ fun splitStr(str: String, delimiter: Char, quoteCharacters: Array<Char> = arrayO
 }
 
 fun normalizeDataSource(dataSource: String): String = dataSource.substringBeforeLast(".").replace(" ", "_")
+
+fun sha1Hex(input: String): String =
+    MessageDigest.getInstance("SHA-1")
+        .digest(input.toByteArray(Charsets.UTF_8))
+        .joinToString("") { "%02x".format(it) }

@@ -1,0 +1,175 @@
+{
+  "name" : "GreekVariant4",
+  "sources" : [ {
+    "name" : "words",
+    "fields" : [ {
+      "type" : "basic",
+      "name" : "gender",
+      "fieldType" : "TEXT"
+    }, {
+      "type" : "basic",
+      "name" : "label_en",
+      "fieldType" : "TEXT"
+    }, {
+      "type" : "basic",
+      "name" : "label_el_norm",
+      "fieldType" : "TEXT"
+    }, {
+      "type" : "basic",
+      "name" : "factgrid",
+      "fieldType" : "TEXT"
+    }, {
+      "type" : "basic",
+      "name" : "type",
+      "fieldType" : "TEXT"
+    }, {
+      "type" : "basic",
+      "name" : "variant",
+      "fieldType" : "TEXT"
+    }, {
+      "type" : "basic",
+      "name" : "wordID",
+      "fieldType" : "INT"
+    }, {
+      "type" : "basic",
+      "name" : "variantID",
+      "fieldType" : "INT"
+    } ],
+    "variantMapping" : {
+      "base" : "label_en",
+      "variants" : [ "label_el_norm", "variant" ]
+    }
+  }, {
+    "name" : "verses",
+    "fields" : [ {
+      "type" : "basic",
+      "name" : "bkv",
+      "fieldType" : "TEXT"
+    }, {
+      "type" : "basic",
+      "name" : "edition_date",
+      "fieldType" : "TEXT"
+    }, {
+      "type" : "basic",
+      "name" : "edition_version",
+      "fieldType" : "TEXT"
+    }, {
+      "type" : "basic",
+      "name" : "encoding_version",
+      "fieldType" : "TEXT"
+    }, {
+      "type" : "basic",
+      "name" : "funder",
+      "fieldType" : "TEXT"
+    }, {
+      "type" : "basic",
+      "name" : "ga",
+      "fieldType" : "TEXT",
+      "sourceLink" : "manuscripts"
+    }, {
+      "type" : "basic",
+      "name" : "lection",
+      "fieldType" : "TEXT"
+    }, {
+      "type" : "basic",
+      "name" : "nkv",
+      "fieldType" : "TEXT"
+    }, {
+      "type" : "basic",
+      "name" : "publisher",
+      "fieldType" : "TEXT"
+    }, {
+      "type" : "basic",
+      "name" : "publishing_date",
+      "fieldType" : "TEXT"
+    }, {
+      "type" : "basic",
+      "name" : "source",
+      "fieldType" : "TEXT"
+    }, {
+      "type" : "basic",
+      "name" : "sponsor",
+      "fieldType" : "TEXT"
+    }, {
+      "type" : "index",
+      "name" : "text",
+      "fieldType" : "TEXT",
+      "lang" : "GREEK",
+      "default" : true
+    }, {
+      "type" : "basic",
+      "name" : "transcript",
+      "fieldType" : "TEXT"
+    }, {
+      "type" : "basic",
+      "name" : "witness",
+      "fieldType" : "TEXT"
+    }, {
+      "type" : "UniqueField",
+      "name" : "verse_id",
+      "fieldType" : "INT",
+      "identify" : true
+    } ]
+  }, {
+    "name" : "occurrences",
+    "fields" : [ {
+      "type" : "basic",
+      "name" : "verse_id",
+      "fieldType" : "INT"
+    }, {
+      "type" : "basic",
+      "name" : "variantID",
+      "fieldType" : "INT"
+    }, {
+      "type" : "basic",
+      "name" : "occurrence",
+      "fieldType" : "BOOLEAN"
+    }, {
+      "type" : "basic",
+      "name" : "wordID",
+      "fieldType" : "INT",
+      "sourceLink" : "words"
+    } ],
+    "preFilter" : {
+      "key" : "verse_id",
+      "linkKey" : "variant",
+      "value" : "occurrence"
+    }
+  }, {
+    "name" : "manuscripts",
+    "fields" : [ {
+      "type" : "basic",
+      "name" : "ga",
+      "fieldType" : "TEXT"
+    }, {
+      "type" : "basic",
+      "name" : "source",
+      "fieldType" : "TEXT"
+    }, {
+      "type" : "basic",
+      "name" : "docID",
+      "fieldType" : "TEXT"
+    }, {
+      "type" : "basic",
+      "name" : "pagesCount",
+      "fieldType" : "INT"
+    }, {
+      "type" : "basic",
+      "name" : "leavesCount",
+      "fieldType" : "INT"
+    }, {
+      "type" : "basic",
+      "name" : "century",
+      "fieldType" : "TEXT"
+    }, {
+      "type" : "basic",
+      "name" : "label",
+      "fieldType" : "TEXT"
+    }, {
+      "type" : "basic",
+      "name" : "dbpedia",
+      "fieldType" : "TEXT"
+    } ]
+  } ],
+  "storageType" : "SQLITE"
+}
