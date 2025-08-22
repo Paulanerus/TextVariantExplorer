@@ -42,6 +42,8 @@ class BufferedCSVReader(private val path: Path, private val delimiter: Char = ',
 
                     split.forEachIndexed { index, entry -> headToValue[header[index]] = entry }
 
+                    batch.add(headToValue)
+
                     if (batch.size == batchSize) {
                         callback(batch)
                         batch.clear()
