@@ -83,6 +83,9 @@ class TextExplorerUI(
 
         var queryOrderState by remember { mutableStateOf(null as QueryOrder?) }
 
+        var selectedByPage by remember { mutableStateOf(mapOf<Int, Set<Int>>()) }
+        var selectedRowsCache by remember { mutableStateOf(mapOf<String, List<String>>()) }
+
         var showSuggestions by remember { mutableStateOf(false) }
         var suggestions by remember { mutableStateOf(listOf<String>()) }
         var highlightedIndex by remember { mutableStateOf(0) }
@@ -107,6 +110,10 @@ class TextExplorerUI(
             showSuggestions = false
 
             currentPage = 0
+
+            selectedByPage = emptyMap()
+            selectedRowsCache = emptyMap()
+            selectedRows = emptyList()
 
             val queryText = textField.text
 
@@ -355,13 +362,45 @@ class TextExplorerUI(
                                 queryOrder = queryOrderState,
                                 onQueryOrderChange = { newQueryOrder ->
                                     queryOrderState = newQueryOrder
+
+                                    selectedByPage = emptyMap()
+                                    selectedRowsCache = emptyMap()
+                                    selectedRows = emptyList()
+
                                     currentPage = 0
                                     dataService.getPage(textField.text, queryOrderState, currentPage).let { result ->
                                         data = result.first.map { it.values.toList() }
                                         links = result.second
                                     }
                                 },
-                                onRowSelect = { selectedRows = it },
+                                totalAmountOfSelectedRows = selectedRows.size,
+                                selectedIndices = selectedByPage[currentPage] ?: emptySet(),
+                                onSelectionChange = { newSelection ->
+                                    val currentSelected = selectedByPage[currentPage] ?: emptySet()
+
+                                    selectedByPage = if (newSelection.isEmpty()) {
+                                        selectedByPage - currentPage
+                                    } else {
+                                        selectedByPage + (currentPage to newSelection)
+                                    }
+
+                                    val added = newSelection - currentSelected
+                                    val removed = currentSelected - newSelection
+
+                                    val updatedCache = selectedRowsCache.toMutableMap()
+
+                                    added.forEach { idx ->
+                                        data.getOrNull(idx)?.let { updatedCache["${currentPage}_$idx"] = it }
+                                    }
+
+                                    removed.forEach { updatedCache.remove("${currentPage}_$it") }
+
+                                    selectedRowsCache = updatedCache
+
+                                    selectedRows = selectedRowsCache.values
+                                        .map { header.zip(it).toMap() }
+                                        .toList()
+                                },
                                 clicked = { openWindow = Window.DIFF }
                             )
 
