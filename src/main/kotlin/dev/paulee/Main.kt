@@ -12,7 +12,7 @@ fun main() {
     val explorerUI = TextExplorerUI(
         PluginServiceImpl(),
         DataServiceImpl(),
-        DiffServiceImpl()
+        DiffServiceImpl
     )
 
     explorerUI.start()
