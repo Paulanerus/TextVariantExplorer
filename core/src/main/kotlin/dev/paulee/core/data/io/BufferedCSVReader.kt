@@ -4,8 +4,6 @@ import dev.paulee.core.normalizeSourceName
 import dev.paulee.core.splitStr
 import org.slf4j.LoggerFactory.getLogger
 import java.nio.file.Path
-import java.util.ArrayList
-import java.util.HashMap
 import kotlin.io.path.bufferedReader
 
 class BufferedCSVReader(private val path: Path, private val delimiter: Char = ',', val batchSize: Int = 300) {
@@ -15,6 +13,29 @@ class BufferedCSVReader(private val path: Path, private val delimiter: Char = ',
     private var reader = path.bufferedReader()
 
     private var headSize: Int = -1
+
+    companion object {
+
+        fun estimateBatches(path: Path, batchSize: Int): Int {
+            val lineCount = countLines(path)
+
+            return ((lineCount + batchSize - 1) / batchSize).toInt()
+        }
+
+        private fun countLines(path: Path): Long {
+            return runCatching {
+                path.bufferedReader().use { reader ->
+                    var count = 0L
+                    reader.readLine()
+
+                    while (reader.readLine() != null)
+                        count++
+
+                    count
+                }
+            }.getOrDefault(0L)
+        }
+    }
 
     fun readLines(callback: (List<HashMap<String, String>>) -> Unit) {
         val batch = ArrayList<HashMap<String, String>>(batchSize)
