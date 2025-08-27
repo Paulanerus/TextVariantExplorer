@@ -18,7 +18,7 @@ import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.functions
 import kotlin.reflect.full.valueParameters
 
-class PluginServiceImpl : IPluginService {
+object PluginServiceImpl : IPluginService {
 
     private val logger = getLogger(PluginServiceImpl::class.java)
 

@@ -10,7 +10,7 @@ fun main() {
     GlobalExceptionHandler
 
     val explorerUI = TextExplorerUI(
-        PluginServiceImpl(),
+        PluginServiceImpl,
         DataServiceImpl(),
         DiffServiceImpl
     )
