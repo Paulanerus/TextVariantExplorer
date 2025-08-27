@@ -587,7 +587,32 @@ class TextExplorerUI(
 
     fun start() = application(exitProcessOnExit = true) {
         val windowState =
-            rememberWindowState(position = WindowPosition.Aligned(Alignment.Center), size = DpSize(1600.dp, 900.dp))
+            rememberWindowState(
+                placement = when (Config.windowState) {
+                    "Fullscreen" -> WindowPlacement.Fullscreen
+                    "Maximized" -> WindowPlacement.Maximized
+                    else -> WindowPlacement.Floating
+                },
+                position = if (Config.windowState != "Floating" || Config.windowX < 0 || Config.windowY < 0) WindowPosition.Aligned(
+                    Alignment.Center
+                ) else WindowPosition.Absolute(
+                    Config.windowY.dp,
+                    Config.windowY.dp
+                ),
+                size = DpSize(maxOf(Config.windowWidth.dp, 100.dp), maxOf(Config.windowHeight.dp, 100.dp))
+            )
+
+        LaunchedEffect(windowState.size, windowState.position, windowState.placement) {
+            Config.windowState = windowState.placement.name
+
+            if (Config.windowState == "Floating") {
+                Config.windowWidth = windowState.size.width.value.toInt()
+                Config.windowHeight = windowState.size.height.value.toInt()
+
+                Config.windowX = windowState.position.x.value.toInt()
+                Config.windowY = windowState.position.y.value.toInt()
+            }
+        }
 
         Window(title = App.NAME.replace(" ", ""), state = windowState, onCloseRequest = {
             dataService.close()

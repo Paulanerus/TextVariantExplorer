@@ -17,6 +17,14 @@ object Config {
 
     var selectedPool = ""
 
+    var windowState = "Floating"
+
+    var windowWidth = 1600
+    var windowHeight = 900
+
+    var windowX = -1
+    var windowY = -1
+
     private var configFile = "config"
 
     private var configPath = Path(configFile)
