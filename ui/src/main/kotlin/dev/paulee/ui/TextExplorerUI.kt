@@ -564,7 +564,9 @@ class TextExplorerUI(
 
                             val poolsEmpty = dataService.getAvailablePools().isEmpty()
 
-                            val success = dataService.createDataPool(dataInfo, dataDir)
+                            val success = dataService.createDataPool(dataInfo, dataDir) { progress ->
+                                loadState = LoadState.Loading("Loading data pool ($progress %)")
+                            }
 
                             loadState = if (success) {
                                 dataService.getAvailablePools().firstOrNull()?.let inner@{
