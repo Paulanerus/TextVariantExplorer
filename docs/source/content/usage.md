@@ -194,7 +194,7 @@ The fetched link information is displayed in the result table with underlined te
 
 ## Settings
 
-A few settings are available in the burger menu in the top-right corner of the screen. These settings will mostly affect the user interface and how the data is displayed. These settings include:
+The settings menu can be accessed via the burger menu in the top-right corner of the screen. These settings will mostly affect the user interface and how the data is displayed. These settings include:
 
 - **Width Limit**: Toggles between a fixed width for the result table and a dynamic width that adjusts to the content.
 - **Exact Highlighting**: Enables or disables exact highlighting of search results in the result table. When enabled, only exact matching terms will be highlighted in the result table. When disabled, even matching substrings will be highlighted.
@@ -204,8 +204,6 @@ Certain columns of the result table can be disabled to reduce clutter. These can
 ![Column toggle](../_static/column_toggle.png)
 
 The tool is able to manage multiple data sets at the same time. You can switch between data sets using the dropdown menu in the top-left corner of the screen.
-
-The settings menu is likely to change in the future, so please check the documentation for updates.
 
 ## Logs
 
