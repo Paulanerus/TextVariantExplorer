@@ -1,13 +1,16 @@
 package dev.paulee.core.data
 
-import dev.paulee.api.data.*
+import dev.paulee.api.data.DataInfo
+import dev.paulee.api.data.IDataService
+import dev.paulee.api.data.PreFilter
+import dev.paulee.api.data.VariantMapping
 import dev.paulee.api.data.provider.IStorageProvider
 import dev.paulee.api.data.provider.ProviderStatus
 import dev.paulee.api.data.provider.QueryOrder
 import dev.paulee.core.data.analysis.Indexer
 import dev.paulee.core.data.io.BufferedCSVReader
+import dev.paulee.core.data.model.DataPool
 import dev.paulee.core.data.provider.StorageProvider
-import dev.paulee.core.normalizeDataSource
 import dev.paulee.core.splitStr
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -22,162 +25,15 @@ private val logger = getLogger(DataServiceImpl::class.java)
 
 typealias PageResult = Pair<List<Map<String, String>>, Map<String, List<Map<String, String>>>>
 
-private data class IndexSearchResult(
-    val ids: Set<Long> = emptySet(),
-    val tokens: List<String> = emptyList(),
-    val indexedValues: Set<String> = emptySet(),
-) {
-    fun isEmpty(): Boolean = ids.isEmpty() && tokens.isEmpty()
-}
+object DataServiceImpl : IDataService {
 
-private class DataPool(val indexer: Indexer, val dataInfo: DataInfo, val storageProvider: IStorageProvider) {
+    private const val PAGE_SIZE = 50
 
-    var fields = mutableMapOf<String, Boolean>()
+    private const val CSV_READER_BATCH_SIZE = 300
 
-    var identifier = mutableMapOf<String, String>()
+    private val variantPattern = Regex("@([^:]+):(\\S+)")
 
-    var defaultIndexField: String? = null
-
-    var defaultClass: String? = null
-
-    val links = mutableMapOf<String, String>()
-
-    val metadata = mutableMapOf<String, Any>()
-
-    private val keyValueRgx = "\\w+:\\w+|\\w+:\"[^\"]*\"".toRegex()
-
-    init {
-        dataInfo.sources.forEach { source ->
-            val sourceName = source.name
-
-            source.variantMapping?.let { metadata[sourceName] = it }
-
-            source.preFilter?.let { metadata[sourceName] = it }
-
-            val normalized = normalizeDataSource(sourceName)
-
-            source.fields.forEach inner@{ field ->
-                val fieldName = field.name
-
-                val key = "$normalized.$fieldName"
-                fields[key] = false
-
-                if (field.sourceLink.isNotBlank()) {
-                    if (dataInfo.sources.any { link -> link.name == field.sourceLink && link.fields.any { it.name == field.name } }) {
-                        links[key] = "${field.sourceLink}.$fieldName"
-                    } else logger.warn("Link '${field.sourceLink}' is not present and will be ignored.")
-                }
-
-                when (field) {
-                    is IndexField -> {
-                        fields[key] = true
-
-                        identifier.putIfAbsent(normalized, "${normalized}_ag_id")
-
-                        if (field.default && defaultIndexField.isNullOrEmpty()) {
-                            defaultIndexField = "$normalized.$fieldName"
-                            defaultClass = normalized
-                        }
-                    }
-
-                    is UniqueField -> if (field.identify) identifier[normalized] = "$normalized.$fieldName"
-                    else -> {}
-                }
-            }
-        }
-
-        if (this.defaultIndexField.isNullOrEmpty()) {
-            logger.warn("${dataInfo.name} has no default index field.")
-
-            this.fields.filter { it.value }.entries.firstOrNull()?.key.let {
-                if (it == null) {
-                    logger.warn("${dataInfo.name} has no indexable fields.")
-                } else {
-                    logger.warn("'$it' was chosen instead.")
-                    this.defaultIndexField = it
-                }
-            }
-        }
-    }
-
-    fun search(query: String): IndexSearchResult {
-        val ids = mutableSetOf<Long>()
-
-        val indexedValues = mutableSetOf<String>()
-
-        val token = mutableListOf<String>()
-        if (keyValueRgx.containsMatchIn(query)) {
-
-            val queryToken = mutableListOf<String>()
-
-            splitStr(query, delimiter = ' ').forEach { str ->
-
-                var colon = -1
-                var hasSpace = false
-
-                for (i in str.indices) {
-                    val ch = str[i]
-                    if (ch == ':') { colon = i; break }
-                    if (ch == ' ') hasSpace = true
-                }
-
-                if (colon == -1) {
-                    queryToken.add(if (hasSpace) "\"$str\"" else str)
-                    return@forEach
-                }
-
-                val field = str.substring(0, colon).let {
-                    if (it.contains(".")) it
-                    else "${defaultClass ?: return IndexSearchResult()}.$it"
-                }
-
-                if (fields[field] == true) {
-                    val value = str.substring(colon + 1)
-                    val fieldClass = field.substringBefore('.')
-
-                    indexedValues.add(value)
-
-                    indexer.searchFieldIndex(field, value)
-                        .mapTo(ids) { doc -> doc.getField(identifier[fieldClass]).numericValue().toLong() }
-
-                } else token.add(str)
-            }
-
-            if (queryToken.isNotEmpty()) {
-                val joined = queryToken.joinToString(" ")
-
-                indexedValues.add(joined)
-
-                defaultIndexField?.let { defaultField ->
-                    indexer.searchFieldIndex(defaultField, joined).mapTo(ids) { doc ->
-                        doc.getField(identifier[defaultClass]).numericValue().toLong()
-                    }
-                }
-            }
-        } else {
-            defaultIndexField?.let { indexer.searchFieldIndex(it, query) }
-                ?.mapTo(ids) { doc -> doc.getField(identifier[defaultClass]).numericValue().toLong() }
-
-            indexedValues.add(query)
-        }
-
-        return IndexSearchResult(ids, token, indexedValues)
-    }
-
-    fun hasIdentifier(name: String, entries: Map<String, String>): Boolean {
-        return entries[identifier[name]?.substringAfter(".")] != null
-    }
-}
-
-class DataServiceImpl : IDataService {
-
-    companion object {
-        private const val PAGE_SIZE = 50
-
-        private val variantPattern = Regex("@([^:]+):(\\S+)")
-
-        private val preFilterPattern = Regex("@[^:\\s]+:[^:\\s]+:[^:\\s]+")
-    }
+    private val preFilterPattern = Regex("@[^:\\s]+:[^:\\s]+:[^:\\s]+")
 
     private var currentPool: String? = null
 
@@ -193,75 +49,96 @@ class DataServiceImpl : IDataService {
 
     private val dataPools = mutableMapOf<String, DataPool>()
 
-    override suspend fun createDataPool(dataInfo: DataInfo, path: Path): Boolean = withContext(Dispatchers.IO) {
-        try {
-            val poolPath = path.resolve(dataInfo.name)
+    override suspend fun createDataPool(dataInfo: DataInfo, path: Path, onProgress: (progress: Int) -> Unit): Boolean =
+        withContext(Dispatchers.IO) {
+            try {
+                val poolPath = path.resolve(dataInfo.name)
 
-            val storageProvider = StorageProvider.of(dataInfo.storageType)
+                val storageProvider = StorageProvider.of(dataInfo.storageType)
 
-            val initStatus = storageProvider.init(dataInfo, poolPath)
+                val initStatus = storageProvider.init(dataInfo, poolPath)
 
-            if (initStatus != ProviderStatus.SUCCESS) return@withContext initStatus == ProviderStatus.EXISTS
+                if (initStatus != ProviderStatus.SUCCESS) return@withContext initStatus == ProviderStatus.EXISTS
 
-            dataInfoToString(dataInfo)?.let { json ->
-                poolPath.resolve("info.json").writeText(json)
-                logger.info("Created '${dataInfo.name}' info file.")
-            }
-
-            val dataPool = runCatching {
-                DataPool(
-                    indexer = Indexer(poolPath.resolve("index"), dataInfo.sources),
-                    dataInfo = dataInfo,
-                    storageProvider = storageProvider
-                )
-            }.getOrElse { e ->
-                logger.error("Exception: Failed to create data pool.", e)
-                return@withContext false
-            }
-
-            dataInfo.sources.forEach { source ->
-                val file = source.name
-
-                if (file.isEmpty()) {
-                    logger.warn("No data source provided for ${file}.")
-                    return@forEach
+                dataInfoToString(dataInfo)?.let { json ->
+                    poolPath.resolve("info.json").writeText(json)
+                    logger.info("Created '${dataInfo.name}' info file.")
                 }
 
-                val sourcePath = path.resolve(file.let { if (it.endsWith(".csv")) it else "$it.csv" })
-
-                if (!sourcePath.exists()) {
-                    logger.warn("Source file '$sourcePath' not found.")
-                    return@forEach
+                val dataPool = runCatching {
+                    DataPool(
+                        indexer = Indexer(poolPath.resolve("index"), dataInfo.sources),
+                        dataInfo = dataInfo,
+                        storageProvider = storageProvider
+                    )
+                }.getOrElse { e ->
+                    logger.error("Exception: Failed to create data pool.", e)
+                    return@withContext false
                 }
 
-                val idGenerator = generateSequence(1L) { it + 1 }.iterator()
+                val totalBatches = dataInfo.sources.sumOf { source ->
+                    val sourcePath = path.resolve(source.name.let { if (it.endsWith(".csv")) it else "$it.csv" })
 
-                BufferedCSVReader(sourcePath).readLines { lines ->
-                    val entries = lines.map { line ->
-                        if (dataPool.hasIdentifier(file, line)) line
-                        else line + ("${file}_ag_id" to idGenerator.next().toString())
+                    if (sourcePath.exists()) BufferedCSVReader.estimateBatches(sourcePath, CSV_READER_BATCH_SIZE)
+                    else 0
+                }
+
+                var processedBatches = 0
+                var lastPercentage = 0
+                onProgress(0)
+
+                dataInfo.sources.forEach { source ->
+                    val file = source.name
+
+                    if (file.isEmpty()) {
+                        logger.warn("No data source provided for ${file}.")
+                        return@forEach
                     }
 
-                    dataPool.indexer.indexEntries(file, entries)
-                    storageProvider.insert(file, entries)
+                    val sourcePath = path.resolve(file.let { if (it.endsWith(".csv")) it else "$it.csv" })
+
+                    if (!sourcePath.exists()) {
+                        logger.warn("Source file '$sourcePath' not found.")
+                        return@forEach
+                    }
+
+                    val idGenerator = generateSequence(1L) { it + 1 }.iterator()
+
+                    BufferedCSVReader(sourcePath, batchSize = CSV_READER_BATCH_SIZE).readLines { lines ->
+                        val entries = lines.map { line ->
+                            if (dataPool.hasIdentifier(file, line)) line
+                            else line + ("${file}_ag_id" to idGenerator.next().toString())
+                        }
+
+                        dataPool.indexer.indexEntries(file, entries)
+                        storageProvider.insert(file, entries)
+
+                        processedBatches++
+
+                        val percentage = if (totalBatches > 0) (processedBatches * 100) / totalBatches else 0
+
+                        if (percentage > lastPercentage) {
+                            onProgress(percentage)
+                            lastPercentage = percentage
+                        }
+                    }
                 }
+
+                dataPools[dataInfo.name] = dataPool
+
+                logger.info("Created data pool ${dataInfo.name}.")
+
+                true
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: IOException) {
+                logger.error("Failed to create data pool ${dataInfo.name}.", e)
+                false
+            } catch (e: Exception) {
+                logger.error("Unexpected error for ${dataInfo.name}.", e)
+                false
             }
-
-            dataPools[dataInfo.name] = dataPool
-
-            logger.info("Created data pool ${dataInfo.name}.")
-
-            true
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: IOException) {
-            logger.error("Failed to create data pool ${dataInfo.name}.", e)
-            false
-        } catch (e: Exception) {
-            logger.error("Unexpected error for ${dataInfo.name}.", e)
-            false
         }
-    }
 
     @OptIn(ExperimentalPathApi::class)
     override fun loadDataPools(path: Path): Int {

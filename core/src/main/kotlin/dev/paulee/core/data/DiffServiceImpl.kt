@@ -4,11 +4,15 @@ import com.github.difflib.text.DiffRowGenerator
 import dev.paulee.api.data.Change
 import dev.paulee.api.data.DiffService
 
-class DiffServiceImpl : DiffService {
+object DiffServiceImpl : DiffService {
 
     private val generator =
-        DiffRowGenerator.create().mergeOriginalRevised(true).showInlineDiffs(true).oldTag { _ -> "~~" }
-            .newTag { _ -> "**" }.build()
+        DiffRowGenerator.create()
+            .mergeOriginalRevised(true)
+            .showInlineDiffs(true)
+            .oldTag { _ -> "~~" }
+            .newTag { _ -> "**" }
+            .build()
 
     override fun getDiff(original: String, str: String): Change? {
         if (original == str) return null

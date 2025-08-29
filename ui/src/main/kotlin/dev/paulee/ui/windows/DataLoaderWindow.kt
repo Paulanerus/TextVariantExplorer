@@ -88,7 +88,7 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
     }
 
     Window(state = windowState, onCloseRequest = { onClose(null) }, title = "Data Import") {
-        MaterialTheme {
+        App.Theme.Current {
             Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
 
                 FieldTypeHelp(

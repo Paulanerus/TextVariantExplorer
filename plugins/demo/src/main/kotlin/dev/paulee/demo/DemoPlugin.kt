@@ -8,14 +8,14 @@ import dev.paulee.api.data.provider.IStorageProvider
 import dev.paulee.api.plugin.*
 import java.awt.Color
 
-@RequiresData(name = "greek_variant")
+@RequiresData(name = "GreekVariant4")
 @PluginMetadata(name = "GreekVariant-Plugin", version = "1.0.0", author = "Paul")
 class DemoPlugin : IPlugin, Taggable, Drawable {
 
     private val names = mutableSetOf<String>()
 
     override fun init(storageProvider: IStorageProvider) {
-        storageProvider.get("names").mapNotNullTo(names) { it["variant"] }
+        storageProvider.get("words").mapNotNullTo(names) { it["variant"] }
     }
 
     @ViewFilter("DemoTag", fields = ["text"], alwaysShow = ["ga"], global = true)

@@ -1,6 +1,14 @@
 package dev.paulee.ui
 
-import java.awt.Color
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material.MaterialTheme
+import androidx.compose.material.Surface
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 
 object App {
     const val NAME = "TextVariant Explorer"
@@ -19,11 +27,44 @@ object App {
 
     object Colors {
 
-        val GREEN_HIGHLIGHT: Color
-            get() = Color(0, 200, 83)
+        val GREEN_HIGHLIGHT: java.awt.Color
+            get() = java.awt.Color(0, 200, 83)
 
-        val RED_HIGHLIGHT: Color
-            get() = Color(200, 0, 0)
+        val RED_HIGHLIGHT: java.awt.Color
+            get() = java.awt.Color(200, 0, 0)
 
+    }
+
+    enum class ThemeMode { Light, Dark, System }
+
+    object Theme {
+        var mode by mutableStateOf(
+            runCatching { ThemeMode.valueOf(Config.theme) }.getOrElse { ThemeMode.System }
+        )
+            private set
+
+        fun set(mode: ThemeMode) {
+            this.mode = mode
+            Config.theme = mode.name
+        }
+
+        private val LightColors = null
+
+        private val DarkColors = null
+
+        @Composable
+        fun Current(content: @Composable () -> Unit) {
+            val useDarkTheme = when (mode) {
+                ThemeMode.Light -> false
+                ThemeMode.Dark -> true
+                ThemeMode.System -> isSystemInDarkTheme()
+            }
+
+            MaterialTheme {
+                Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colors.background) {
+                    content()
+                }
+            }
+        }
     }
 }

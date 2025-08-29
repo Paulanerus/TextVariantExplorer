@@ -39,10 +39,6 @@ import dev.paulee.ui.App
 import dev.paulee.ui.Config
 import dev.paulee.ui.MarkedText
 
-var widthLimitWrapper by mutableStateOf(Config.noWidthRestriction)
-
-var exactHighlightingWrapper by mutableStateOf(Config.exactHighlighting)
-
 @OptIn(ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class)
 @Composable
 fun TableView(
@@ -54,14 +50,15 @@ fun TableView(
     links: Map<String, List<Map<String, String>>> = emptyMap(),
     queryOrder: QueryOrder?,
     onQueryOrderChange: (QueryOrder) -> Unit = {},
-    onRowSelect: (List<Map<String, String>>) -> Unit,
+    totalAmountOfSelectedRows: Int,
+    selectedIndices: Set<Int>,
+    onSelectionChange: (Set<Int>) -> Unit,
     clicked: () -> Unit = {},
 ) {
     val hiddenColumnsScrollState = rememberScrollState()
     val horizontalScrollState = rememberScrollState()
     val verticalScrollState = rememberLazyListState()
 
-    var selectedRows by remember { mutableStateOf(setOf<Int>()) }
     var hiddenColumns by remember { mutableStateOf(Config.getHidden(pool)) }
     var panelExpanded by remember { mutableStateOf(false) }
 
@@ -75,7 +72,7 @@ fun TableView(
     val headerTextStyle = LocalTextStyle.current.copy(fontWeight = FontWeight.SemiBold)
     val cellTextStyle = LocalTextStyle.current
 
-    val columnWidths = remember(columns, data, widthLimitWrapper) {
+    val columnWidths = remember(columns, data, Config.noWidthRestriction) {
         columns.mapIndexed { colIndex, colName ->
             val headerWidthPx = textMeasurer.measure(
                 text = AnnotatedString(colName), style = headerTextStyle
@@ -104,9 +101,8 @@ fun TableView(
             ) {
                 IconButton(
                     onClick = {
-                        selectedRows = emptySet()
-                        onRowSelect(emptyList())
-                    }, enabled = selectedRows.isNotEmpty(), modifier = Modifier.width(48.dp).padding(bottom = 12.dp)
+                        onSelectionChange(emptySet())
+                    }, enabled = selectedIndices.isNotEmpty(), modifier = Modifier.width(48.dp).padding(bottom = 12.dp)
                 ) {
                     Icon(Icons.Default.Delete, contentDescription = "Delete")
                 }
@@ -175,7 +171,7 @@ fun TableView(
                     onClick = clicked,
                     shape = RoundedCornerShape(50.dp),
                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-                    enabled = selectedRows.isNotEmpty(),
+                    enabled = totalAmountOfSelectedRows > 0,
                     modifier = Modifier.width(140.dp).padding(bottom = 12.dp)
                 ) {
                     Text("View Insights")
@@ -271,7 +267,7 @@ fun TableView(
                                 items(data.size) { rowIndex ->
                                     val row = data[rowIndex]
 
-                                    val isSelected = selectedRows.contains(rowIndex)
+                                    val isSelected = selectedIndices.contains(rowIndex)
                                     var hovered by remember { mutableStateOf(false) }
 
                                     val baseRow = if (rowIndex % 2 == 0)
@@ -289,21 +285,17 @@ fun TableView(
                                             .fillMaxWidth()
                                             .onPointerEvent(PointerEventType.Enter) { hovered = true }
                                             .onPointerEvent(PointerEventType.Exit) { hovered = false }
-                                            .pointerInput(rowIndex, selectedRows) {
+                                            .pointerInput(rowIndex, selectedIndices) {
                                                 detectTapGestures(
                                                     onTap = {
                                                         val newSelection =
-                                                            if (selectedRows.contains(rowIndex)) {
-                                                                selectedRows - rowIndex
+                                                            if (selectedIndices.contains(rowIndex)) {
+                                                                selectedIndices - rowIndex
                                                             } else {
-                                                                selectedRows + rowIndex
+                                                                selectedIndices + rowIndex
                                                             }
-                                                        selectedRows = newSelection
-                                                        onRowSelect(
-                                                            newSelection.map { idx ->
-                                                                columns.zip(data[idx]).toMap()
-                                                            }
-                                                        )
+
+                                                        onSelectionChange(newSelection)
                                                     }
                                                 )
                                             }
@@ -353,7 +345,7 @@ fun TableView(
                                                                 App.Colors.GREEN_HIGHLIGHT
                                                             )
                                                         },
-                                                        exact = exactHighlightingWrapper
+                                                        exact = Config.exactHighlighting
                                                     )
                                                 }
                                             }

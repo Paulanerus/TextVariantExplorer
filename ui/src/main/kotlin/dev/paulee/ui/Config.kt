@@ -1,5 +1,8 @@
 package dev.paulee.ui
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import java.nio.file.Path
 import kotlin.io.path.Path
 import kotlin.io.path.bufferedReader
@@ -11,11 +14,21 @@ import kotlin.reflect.full.memberProperties
 
 object Config {
 
-    var noWidthRestriction = false
+    var theme by mutableStateOf("Light")
 
-    var exactHighlighting = true
+    var noWidthRestriction by mutableStateOf(false)
 
-    var selectedPool = ""
+    var exactHighlighting by mutableStateOf(true)
+
+    var selectedPool by mutableStateOf("")
+
+    var windowState by mutableStateOf("Floating")
+
+    var windowWidth by mutableStateOf(1600)
+    var windowHeight by mutableStateOf(900)
+
+    var windowX by mutableStateOf(-1)
+    var windowY by mutableStateOf(-1)
 
     private var configFile = "config"
 

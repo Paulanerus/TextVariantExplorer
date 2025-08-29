@@ -26,6 +26,7 @@ import dev.paulee.api.plugin.Drawable
 import dev.paulee.api.plugin.IPlugin
 import dev.paulee.api.plugin.IPluginService
 import dev.paulee.api.plugin.Taggable
+import dev.paulee.ui.App
 import dev.paulee.ui.HeatmapText
 import dev.paulee.ui.MarkedText
 import dev.paulee.ui.components.TwoSegmentButton
@@ -93,7 +94,7 @@ fun DiffViewerWindow(
     val windowState = rememberWindowState(position = WindowPosition.Aligned(Alignment.Center))
 
     Window(state = windowState, onCloseRequest = onClose, title = "DiffViewer") {
-        MaterialTheme {
+        App.Theme.Current {
             Box(modifier = Modifier.fillMaxSize()) {
                 if (drawablePlugins.isNotEmpty()) {
                     TwoSegmentButton(
@@ -218,10 +219,8 @@ private fun TagView(
     taggable: Taggable?,
     modifier: Modifier = Modifier,
 ) {
-    val entries by remember { mutableStateOf(initialEntries) }
-
     val allFieldsGrouped =
-        entries.flatMap { it.entries }.groupBy({ it.key }, { it.value }).filterValues { it.isNotEmpty() }
+        initialEntries.flatMap { it.entries }.groupBy({ it.key }, { it.value }).filterValues { it.isNotEmpty() }
 
     val filteredFields = allFieldsGrouped.filterKeys { viewFilter.isEmpty() || it in viewFilter }
 
@@ -382,42 +381,45 @@ private fun DiffView(
                         ) {
                             Spacer(Modifier.height(16.dp))
 
+                            val columnName = columns.getOrNull(currentColumnIndex) ?: return@Column
+                            val values = filteredFields[columnName] ?: return@Column
+
                             (0 until greatestSize).forEach { index ->
-                                val columnName = columns.getOrNull(currentColumnIndex) ?: return@forEach
-                                val values = filteredFields[columnName] ?: return@forEach
                                 val value = values.getOrNull(index) ?: ""
                                 val change = diffService.getDiff(values[0], value)
 
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    SelectionContainer {
-                                        if (index == 0) {
-                                            Column {
-                                                Text(value)
-                                                Spacer(Modifier.height(40.dp))
+                                key("$index|$columnName|$value") {
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        SelectionContainer {
+                                            if (index == 0) {
+                                                Column {
+                                                    Text(value)
+                                                    Spacer(Modifier.height(40.dp))
+                                                }
+                                            } else {
+                                                if (value.isEmpty()) Text(value)
+                                                else HeatmapText(change, values[0], textAlign = TextAlign.Left)
                                             }
-                                        } else {
-                                            if (value.isEmpty()) Text(value)
-                                            else HeatmapText(change, values[0], textAlign = TextAlign.Left)
                                         }
-                                    }
 
-                                    if (index != 0) {
-                                        IconButton(
-                                            onClick = {
-                                                val itemIndex = entries.indexOfFirst {
-                                                    it[columnName] == value
-                                                }
-                                                if (itemIndex != -1) {
-                                                    val updatedList = entries.toMutableList()
-                                                    val selectedItem = updatedList.removeAt(itemIndex)
-                                                    updatedList.add(0, selectedItem)
-                                                    entries = updatedList
-                                                }
-                                            }) {
-                                            Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Move up")
+                                        if (index != 0) {
+                                            IconButton(
+                                                onClick = {
+                                                    val itemIndex = entries.indexOfFirst {
+                                                        it[columnName] == value
+                                                    }
+                                                    if (itemIndex != -1) {
+                                                        val updatedList = entries.toMutableList()
+                                                        val selectedItem = updatedList.removeAt(itemIndex)
+                                                        updatedList.add(0, selectedItem)
+                                                        entries = updatedList
+                                                    }
+                                                }) {
+                                                Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Move up")
+                                            }
                                         }
                                     }
                                 }
