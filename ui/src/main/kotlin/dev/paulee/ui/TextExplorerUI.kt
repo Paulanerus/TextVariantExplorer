@@ -179,15 +179,14 @@ class TextExplorerUI(
             DropDownMenu(
                 modifier = Modifier.align(Alignment.TopEnd),
                 items = listOf("Load Plugin", "Load Data", "Plugin Info", "---", "Settings"),
-                clicked = {
-                    when (it) {
-                        "Load Plugin" -> openWindow = Window.LOAD_PLUGIN
-                        "Load Data" -> openWindow = Window.LOAD_DATA
-                        "Settings" -> openWindow = Window.SETTINGS
-                        "Plugin Info" -> openWindow = Window.PLUGIN_INFO
-                    }
+            ) {
+                when (it) {
+                    "Load Plugin" -> openWindow = Window.LOAD_PLUGIN
+                    "Load Data" -> openWindow = Window.LOAD_DATA
+                    "Settings" -> openWindow = Window.SETTINGS
+                    "Plugin Info" -> openWindow = Window.PLUGIN_INFO
                 }
-            )
+            }
 
             Column(
                 modifier = Modifier.fillMaxSize().padding(16.dp),

@@ -12,7 +12,7 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun DropDownMenu(
-    modifier: Modifier = Modifier, items: List<String>, clicked: (String) -> Unit, left: Boolean = false
+    modifier: Modifier = Modifier, items: List<String>, left: Boolean = false, clicked: (String) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
 
