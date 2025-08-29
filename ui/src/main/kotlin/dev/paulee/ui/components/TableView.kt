@@ -39,10 +39,6 @@ import dev.paulee.ui.App
 import dev.paulee.ui.Config
 import dev.paulee.ui.MarkedText
 
-var widthLimitWrapper by mutableStateOf(Config.noWidthRestriction)
-
-var exactHighlightingWrapper by mutableStateOf(Config.exactHighlighting)
-
 @OptIn(ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class)
 @Composable
 fun TableView(
@@ -76,7 +72,7 @@ fun TableView(
     val headerTextStyle = LocalTextStyle.current.copy(fontWeight = FontWeight.SemiBold)
     val cellTextStyle = LocalTextStyle.current
 
-    val columnWidths = remember(columns, data, widthLimitWrapper) {
+    val columnWidths = remember(columns, data, Config.noWidthRestriction) {
         columns.mapIndexed { colIndex, colName ->
             val headerWidthPx = textMeasurer.measure(
                 text = AnnotatedString(colName), style = headerTextStyle
@@ -349,7 +345,7 @@ fun TableView(
                                                                 App.Colors.GREEN_HIGHLIGHT
                                                             )
                                                         },
-                                                        exact = exactHighlightingWrapper
+                                                        exact = Config.exactHighlighting
                                                     )
                                                 }
                                             }

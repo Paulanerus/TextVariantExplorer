@@ -31,6 +31,7 @@ import dev.paulee.ui.components.*
 import dev.paulee.ui.windows.DataLoaderWindow
 import dev.paulee.ui.windows.DiffViewerWindow
 import dev.paulee.ui.windows.PluginInfoWindow
+import dev.paulee.ui.windows.SettingsWindow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.nio.file.Path
@@ -41,7 +42,8 @@ enum class Window {
     LOAD_PLUGIN,
     LOAD_DATA,
     DIFF,
-    PLUGIN_INFO
+    PLUGIN_INFO,
+    SETTINGS,
 }
 
 class TextExplorerUI(
@@ -177,22 +179,12 @@ class TextExplorerUI(
 
                 DropDownMenu(
                     modifier = Modifier.align(Alignment.TopEnd),
-                    items = listOf("Load Plugin", "Load Data", "Width Limit", "Exact Highlighting", "Plugin Info"),
+                    items = listOf("Load Plugin", "Load Data", "Plugin Info", "---", "Settings"),
                     clicked = {
                         when (it) {
                             "Load Plugin" -> openWindow = Window.LOAD_PLUGIN
                             "Load Data" -> openWindow = Window.LOAD_DATA
-
-                            "Width Limit" -> {
-                                Config.noWidthRestriction = !Config.noWidthRestriction
-                                widthLimitWrapper = !widthLimitWrapper
-                            }
-
-                            "Exact Highlighting" -> {
-                                Config.exactHighlighting = !Config.exactHighlighting
-                                exactHighlightingWrapper = !exactHighlightingWrapper
-                            }
-
+                            "Settings" -> openWindow = Window.SETTINGS
                             "Plugin Info" -> openWindow = Window.PLUGIN_INFO
                         }
                     }
@@ -580,6 +572,8 @@ class TextExplorerUI(
                             } else LoadState.Error("Failed to create data pool")
                         }
                     }
+
+                    Window.SETTINGS -> SettingsWindow { openWindow = Window.NONE }
 
                     else -> {}
                 }
