@@ -14,6 +14,8 @@ import kotlin.reflect.full.memberProperties
 
 object Config {
 
+    var theme by mutableStateOf("Light")
+
     var noWidthRestriction by mutableStateOf(false)
 
     var exactHighlighting by mutableStateOf(true)

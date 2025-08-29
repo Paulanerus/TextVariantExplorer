@@ -26,6 +26,7 @@ import dev.paulee.api.plugin.Drawable
 import dev.paulee.api.plugin.IPlugin
 import dev.paulee.api.plugin.IPluginService
 import dev.paulee.api.plugin.Taggable
+import dev.paulee.ui.App
 import dev.paulee.ui.HeatmapText
 import dev.paulee.ui.MarkedText
 import dev.paulee.ui.components.TwoSegmentButton
@@ -93,7 +94,7 @@ fun DiffViewerWindow(
     val windowState = rememberWindowState(position = WindowPosition.Aligned(Alignment.Center))
 
     Window(state = windowState, onCloseRequest = onClose, title = "DiffViewer") {
-        MaterialTheme {
+        App.Theme.Current {
             Box(modifier = Modifier.fillMaxSize()) {
                 if (drawablePlugins.isNotEmpty()) {
                     TwoSegmentButton(

@@ -3,7 +3,10 @@ package dev.paulee.ui.windows
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.*
+import androidx.compose.material.MaterialTheme
+import androidx.compose.material.Switch
+import androidx.compose.material.SwitchDefaults
+import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -15,6 +18,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.rememberWindowState
+import dev.paulee.ui.App
 import dev.paulee.ui.Config
 
 @Composable
@@ -32,7 +36,7 @@ fun SettingsWindow(onClose: () -> Unit) {
         },
         title = "Settings"
     ) {
-        MaterialTheme {
+        App.Theme.Current {
             Column(
                 modifier = Modifier
                     .fillMaxSize()

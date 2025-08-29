@@ -21,6 +21,7 @@ import androidx.compose.ui.window.rememberWindowState
 import dev.paulee.api.data.DataInfo
 import dev.paulee.api.plugin.IPluginService
 import dev.paulee.api.plugin.PluginMetadata
+import dev.paulee.ui.App
 
 @Composable
 fun PluginInfoWindow(pluginService: IPluginService, allDataInfo: Set<DataInfo>, onClose: () -> Unit) {
@@ -30,7 +31,7 @@ fun PluginInfoWindow(pluginService: IPluginService, allDataInfo: Set<DataInfo>, 
         rememberWindowState(position = WindowPosition.Aligned(Alignment.Center), size = DpSize(500.dp, 600.dp))
 
     Window(state = windowState, onCloseRequest = onClose, title = "Plugin Info") {
-        MaterialTheme {
+        App.Theme.Current {
             Box(modifier = Modifier.fillMaxSize()) {
                 Column(
                     verticalArrangement = Arrangement.spacedBy(40.dp),
