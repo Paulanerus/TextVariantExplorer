@@ -29,9 +29,8 @@ fun DropDownMenu(
             offset = DpOffset(if (left) 50.dp else (-50).dp, (-15).dp)
         ) {
             items.forEach { item ->
-                DropdownMenuItem(onClick = { clicked(item).also { expanded = false } }) {
-                    Text(item)
-                }
+                if (item == "---") Divider(modifier = Modifier.padding(horizontal = 16.dp))
+                else DropdownMenuItem(onClick = { clicked(item).also { expanded = false } }) { Text(item) }
             }
         }
     }
