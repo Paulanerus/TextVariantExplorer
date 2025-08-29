@@ -15,7 +15,7 @@ class DemoPlugin : IPlugin, Taggable, Drawable {
     private val names = mutableSetOf<String>()
 
     override fun init(storageProvider: IStorageProvider) {
-        storageProvider.get("names").mapNotNullTo(names) { it["variant"] }
+        storageProvider.get("words").mapNotNullTo(names) { it["variant"] }
     }
 
     @ViewFilter("DemoTag", fields = ["text"], alwaysShow = ["ga"], global = true)
