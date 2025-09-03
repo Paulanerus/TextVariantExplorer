@@ -7,11 +7,12 @@ import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Switch
 import androidx.compose.material.SwitchDefaults
 import androidx.compose.material.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -20,6 +21,7 @@ import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.rememberWindowState
 import dev.paulee.ui.App
 import dev.paulee.ui.Config
+import dev.paulee.ui.components.ButtonDropDown
 
 @Composable
 fun SettingsWindow(onClose: () -> Unit) {
@@ -27,6 +29,12 @@ fun SettingsWindow(onClose: () -> Unit) {
         position = WindowPosition.Aligned(Alignment.Center),
         size = DpSize(600.dp, 500.dp)
     )
+
+    val colorModes = App.ThemeMode.entries.map { it.name }
+    var selectedTheme by remember { mutableStateOf(App.Theme.mode) }
+
+    val supportedLanguages = App.SupportedLanguage.entries.map { it.name }
+    var selectedLanguage by remember { mutableStateOf(App.Language.current) }
 
     Window(
         state = windowState,
@@ -56,6 +64,22 @@ fun SettingsWindow(onClose: () -> Unit) {
                     verticalArrangement = Arrangement.spacedBy(24.dp)
                 ) {
                     SettingRow(
+                        label = "Language",
+                        description = "Select language"
+                    ) {
+                        ButtonDropDown(
+                            items = supportedLanguages,
+                            selected = selectedLanguage.name,
+                            menuOffset = DpOffset(x = (-10).dp, y = 0.dp)
+                        ) {
+                            val lang = App.SupportedLanguage.valueOf(it)
+
+                            selectedLanguage = lang
+                            App.Language.set(lang)
+                        }
+                    }
+
+                    SettingRow(
                         label = "Width Limit",
                         description = "Disable table column width restrictions"
                     ) {
@@ -80,6 +104,23 @@ fun SettingsWindow(onClose: () -> Unit) {
                             )
                         )
                     }
+
+                    SettingRow(
+                        label = "Theme",
+                        description = "Select theme"
+                    ) {
+                        ButtonDropDown(
+                            items = colorModes,
+                            selected = selectedTheme.name,
+                            menuOffset = DpOffset(x = (-10).dp, y = 0.dp)
+
+                        ) {
+                            val mode = App.ThemeMode.valueOf(it)
+
+                            selectedTheme = mode
+                            App.Theme.set(mode)
+                        }
+                    }
                 }
             }
         }
@@ -90,7 +131,7 @@ fun SettingsWindow(onClose: () -> Unit) {
 private fun SettingRow(
     label: String,
     description: String,
-    content: @Composable () -> Unit
+    content: @Composable () -> Unit,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),

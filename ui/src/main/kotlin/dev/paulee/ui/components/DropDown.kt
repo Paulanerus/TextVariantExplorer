@@ -73,7 +73,6 @@ fun ButtonDropDown(
     trigger = { openMenu ->
         Button(
             onClick = openMenu,
-            modifier = Modifier.padding(16.dp)
         ) {
             Text(selected)
         }
