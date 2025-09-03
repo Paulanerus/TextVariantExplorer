@@ -176,7 +176,7 @@ class TextExplorerUI(
                 }
             }
 
-            DropDownMenu(
+            IconDropDown(
                 modifier = Modifier.align(Alignment.TopEnd),
                 items = listOf("Load Plugin", "Load Data", "Plugin Info", "---", "Settings"),
             ) {

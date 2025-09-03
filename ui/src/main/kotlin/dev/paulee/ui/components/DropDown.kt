@@ -11,27 +11,72 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun DropDownMenu(
-    modifier: Modifier = Modifier, items: List<String>, left: Boolean = false, clicked: (String) -> Unit
+private fun DropDownBase(
+    modifier: Modifier = Modifier,
+    items: List<String>,
+    onSelected: (String) -> Unit,
+    trigger: @Composable (openMenu: () -> Unit) -> Unit,
+    menuOffset: DpOffset,
 ) {
     var expanded by remember { mutableStateOf(false) }
 
     Box(modifier = modifier) {
-        IconButton(
-            onClick = { expanded = true }, modifier = Modifier.padding(16.dp)
-        ) {
-            Icon(Icons.Default.Menu, contentDescription = "Menu")
-        }
+        trigger { expanded = true }
 
         DropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
-            offset = DpOffset(if (left) 50.dp else (-50).dp, (-15).dp)
+            offset = menuOffset
         ) {
             items.forEach { item ->
                 if (item == "---") Divider(modifier = Modifier.padding(horizontal = 16.dp))
-                else DropdownMenuItem(onClick = { clicked(item).also { expanded = false } }) { Text(item) }
+                else DropdownMenuItem(onClick = { onSelected(item); expanded = false }) { Text(item) }
             }
         }
     }
 }
+
+@Composable
+fun IconDropDown(
+    modifier: Modifier = Modifier,
+    items: List<String>,
+    left: Boolean = false,
+    menuOffset: DpOffset = DpOffset(if (left) 50.dp else (-50).dp, (-15).dp),
+    onSelected: (String) -> Unit,
+) = DropDownBase(
+    modifier = modifier,
+    items = items,
+    onSelected = onSelected,
+    trigger = { openMenu ->
+        IconButton(
+            onClick = openMenu,
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Icon(Icons.Default.Menu, contentDescription = "Menu")
+        }
+    },
+    menuOffset = menuOffset
+)
+
+@Composable
+fun ButtonDropDown(
+    modifier: Modifier = Modifier,
+    items: List<String>,
+    selected: String,
+    left: Boolean = false,
+    menuOffset: DpOffset = DpOffset(if (left) 50.dp else (-50).dp, (-15).dp),
+    onSelected: (String) -> Unit,
+) = DropDownBase(
+    modifier = modifier,
+    items = items,
+    onSelected = onSelected,
+    trigger = { openMenu ->
+        Button(
+            onClick = openMenu,
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Text(selected)
+        }
+    },
+    menuOffset = menuOffset
+)
