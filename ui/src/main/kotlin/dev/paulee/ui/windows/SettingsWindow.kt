@@ -31,7 +31,7 @@ fun SettingsWindow(onClose: () -> Unit) {
         size = DpSize(600.dp, 600.dp)
     )
 
-    val colorModes = App.ThemeMode.entries.associate { "setting.theme.${it.name.lowercase()}" to it.name }
+    val colorModes = mapOf("setting.theme.light" to "Light")// App.ThemeMode.entries.associate { "setting.theme.${it.name.lowercase()}" to it.name }
     var selectedTheme by remember { mutableStateOf("setting.theme.${App.Theme.mode.name.lowercase()}") }
 
     val supportedLanguages = App.SupportedLanguage.entries.map { it.name }
