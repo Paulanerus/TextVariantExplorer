@@ -21,20 +21,23 @@ import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.rememberWindowState
 import dev.paulee.ui.App
 import dev.paulee.ui.Config
+import dev.paulee.ui.LocalI18n
 import dev.paulee.ui.components.ButtonDropDown
 
 @Composable
 fun SettingsWindow(onClose: () -> Unit) {
     val windowState = rememberWindowState(
         position = WindowPosition.Aligned(Alignment.Center),
-        size = DpSize(600.dp, 500.dp)
+        size = DpSize(600.dp, 600.dp)
     )
 
-    val colorModes = App.ThemeMode.entries.map { it.name }
-    var selectedTheme by remember { mutableStateOf(App.Theme.mode) }
+    val colorModes = App.ThemeMode.entries.associate { "setting.theme.${it.name.lowercase()}" to it.name }
+    var selectedTheme by remember { mutableStateOf("setting.theme.${App.Theme.mode.name.lowercase()}") }
 
     val supportedLanguages = App.SupportedLanguage.entries.map { it.name }
     var selectedLanguage by remember { mutableStateOf(App.Language.current) }
+
+    val locale = LocalI18n.current
 
     Window(
         state = windowState,
@@ -42,7 +45,7 @@ fun SettingsWindow(onClose: () -> Unit) {
             Config.save()
             onClose()
         },
-        title = "Settings"
+        title = locale["settings.title"],
     ) {
         App.Theme.Current {
             Column(
@@ -51,7 +54,7 @@ fun SettingsWindow(onClose: () -> Unit) {
                     .padding(24.dp)
             ) {
                 Text(
-                    text = "Settings",
+                    text = locale["settings.title"],
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(bottom = 32.dp)
@@ -64,13 +67,13 @@ fun SettingsWindow(onClose: () -> Unit) {
                     verticalArrangement = Arrangement.spacedBy(24.dp)
                 ) {
                     SettingRow(
-                        label = "Language",
-                        description = "Select language"
+                        label = locale["settings.language.label"],
+                        description = locale["settings.language.desc"]
                     ) {
                         ButtonDropDown(
                             items = supportedLanguages,
                             selected = selectedLanguage.name,
-                            menuOffset = DpOffset(x = (-10).dp, y = 0.dp)
+                            menuOffset = DpOffset(x = (-6).dp, y = 0.dp)
                         ) {
                             val lang = App.SupportedLanguage.valueOf(it)
 
@@ -80,8 +83,25 @@ fun SettingsWindow(onClose: () -> Unit) {
                     }
 
                     SettingRow(
-                        label = "Width Limit",
-                        description = "Disable table column width restrictions"
+                        label = locale["settings.theme.label"],
+                        description = locale["settings.theme.desc"]
+                    ) {
+                        ButtonDropDown(
+                            items = colorModes.keys.toList(),
+                            selected = selectedTheme,
+                            menuOffset = DpOffset(x = (-6).dp, y = 0.dp)
+
+                        ) {
+                            val mode = App.ThemeMode.valueOf(colorModes[it] ?: App.ThemeMode.System.name)
+
+                            selectedTheme = it
+                            App.Theme.set(mode)
+                        }
+                    }
+
+                    SettingRow(
+                        label = locale["settings.width_limit.label"],
+                        description = locale["settings.width_limit.desc"]
                     ) {
                         Switch(
                             checked = Config.noWidthRestriction,
@@ -93,8 +113,8 @@ fun SettingsWindow(onClose: () -> Unit) {
                     }
 
                     SettingRow(
-                        label = "Exact Highlighting",
-                        description = "Highlight exact word matches only (no substrings)"
+                        label = locale["settings.exact_highlighting.label"],
+                        description = locale["settings.exact_highlighting.desc"]
                     ) {
                         Switch(
                             checked = Config.exactHighlighting,
@@ -103,23 +123,6 @@ fun SettingsWindow(onClose: () -> Unit) {
                                 checkedThumbColor = MaterialTheme.colors.primary
                             )
                         )
-                    }
-
-                    SettingRow(
-                        label = "Theme",
-                        description = "Select theme"
-                    ) {
-                        ButtonDropDown(
-                            items = colorModes,
-                            selected = selectedTheme.name,
-                            menuOffset = DpOffset(x = (-10).dp, y = 0.dp)
-
-                        ) {
-                            val mode = App.ThemeMode.valueOf(it)
-
-                            selectedTheme = mode
-                            App.Theme.set(mode)
-                        }
                     }
                 }
             }

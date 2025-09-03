@@ -45,6 +45,8 @@ enum class DialogState {
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInfo?) -> Unit) {
+    val locale = LocalI18n.current
+
     val windowState = rememberWindowState(
         position = WindowPosition.Aligned(Alignment.Center), size = DpSize(1100.dp, 700.dp)
     )
@@ -87,7 +89,7 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
         }
     }
 
-    Window(state = windowState, onCloseRequest = { onClose(null) }, title = "Data Import") {
+    Window(state = windowState, onCloseRequest = { onClose(null) }, title = locale["data_loader.title"]) {
         App.Theme.Current {
             Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
 
@@ -97,7 +99,7 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
 
                 Row(modifier = Modifier.fillMaxSize()) {
                     Column(modifier = Modifier.width(250.dp)) {
-                        Text("Imported Sources", style = MaterialTheme.typography.h6)
+                        Text(locale["data_loader.imported_sources"], style = MaterialTheme.typography.h6)
 
                         Spacer(modifier = Modifier.height(8.dp))
 
@@ -134,7 +136,7 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                                             if (hasMissingFields) {
                                                 Icon(
                                                     Icons.Default.Warning,
-                                                    contentDescription = "Warning",
+                                                    contentDescription = locale["data_loader.warning"],
                                                     tint = Color.Yellow,
                                                     modifier = Modifier
                                                         .onPointerEvent(PointerEventType.Enter) {
@@ -149,7 +151,7 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                                             if (!hasSourceFile) {
                                                 Icon(
                                                     Icons.Default.Info,
-                                                    contentDescription = "Info",
+                                                    contentDescription = locale["data_loader.info"],
                                                     tint = Color.Red,
                                                     modifier = Modifier
                                                         .onPointerEvent(PointerEventType.Enter) {
@@ -166,7 +168,7 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                                         if (showPopupMissingSourceFile || showPopupMissingFields) {
                                             SimplePopup(offset = IntOffset(170, 16)) {
                                                 Text(
-                                                    if (showPopupMissingSourceFile) "Missing source file." else "Some fields defined in the specification are not found in the source file and will be ignored during loading.",
+                                                    if (showPopupMissingSourceFile) locale["data_loader.missing_source_file"] else locale["data_loader.missing_fields_hint"],
                                                     modifier = Modifier.padding(4.dp)
                                                 )
                                             }
@@ -181,7 +183,7 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                         Button(
                             onClick = { dialogState = DialogState.Add }, modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("Add")
+                            Text(locale["data_loader.add"])
                         }
 
                         Spacer(modifier = Modifier.height(4.dp))
@@ -197,7 +199,7 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                                 selectedSource = null
                             }, enabled = selectedSource != null, modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("Remove")
+                            Text(locale["data_loader.remove"])
                         }
 
                         Spacer(modifier = Modifier.height(4.dp))
@@ -207,7 +209,7 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                             enabled = exportButtonEnabled,
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("Export")
+                            Text(locale["data_loader.export"])
                         }
 
                         Spacer(modifier = Modifier.height(4.dp))
@@ -219,7 +221,7 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                                 dialogState = DialogState.Import
                             }, modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("Import")
+                            Text(locale["data_loader.import"])
                         }
 
                         Spacer(modifier = Modifier.height(18.dp))
@@ -229,24 +231,33 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                             enabled = loadButtonEnabled,
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("Load")
+                            Text(
+                                locale["data_loader.load"]
+                            )
                         }
                     }
 
                     Spacer(modifier = Modifier.width(16.dp))
 
                     Column(modifier = Modifier.fillMaxSize().weight(1f)) {
-                        Text("Source Details", style = MaterialTheme.typography.h6)
+                        Text(locale["data_loader.source_details"], style = MaterialTheme.typography.h6)
 
                         Spacer(modifier = Modifier.height(8.dp))
 
                         if (selectedSource != null) {
-                            Text("Source: ${selectedSource!!.name}", style = MaterialTheme.typography.subtitle1)
+                            Text(
+                                locale["data_loader.source_label", selectedSource!!.name],
+                                style = MaterialTheme.typography.subtitle1
+                            )
 
                             Spacer(modifier = Modifier.height(16.dp))
 
                             var selectedTab by remember { mutableStateOf(0) }
-                            val tabs = listOf("Fields", "Filter", "Variant Mapping")
+                            val tabs = listOf(
+                                locale["data_loader.tabs.fields"],
+                                locale["data_loader.tabs.filter"],
+                                locale["data_loader.tabs.variant_mapping"]
+                            )
 
                             Row(
                                 modifier = Modifier.fillMaxWidth()
@@ -376,7 +387,7 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                                                             modifier = Modifier.weight(1f)
                                                         ) {
                                                             Text(
-                                                                "Field:",
+                                                                locale["data_loader.field.label"],
                                                                 style = MaterialTheme.typography.subtitle1,
 
                                                                 )
@@ -415,13 +426,16 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                                                         Spacer(modifier = Modifier.height(4.dp))
 
                                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                                            Text("Variant: ", modifier = Modifier.width(70.dp))
+                                                            Text(
+                                                                "${locale["data_loader.variant.label"]} ",
+                                                                modifier = Modifier.width(70.dp)
+                                                            )
 
                                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                                 RadioButton(
                                                                     selected = variant == "Basic",
                                                                     onClick = { variant = "Basic" })
-                                                                Text("Basic")
+                                                                Text(locale["data_loader.variant.basic"])
                                                             }
 
                                                             if (fieldType == FieldType.INT) {
@@ -431,7 +445,7 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                                                                     RadioButton(
                                                                         selected = variant == "Unique",
                                                                         onClick = { variant = "Unique" })
-                                                                    Text("Unique")
+                                                                    Text(locale["data_loader.variant.unique"])
                                                                 }
                                                             }
 
@@ -442,7 +456,7 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                                                                     RadioButton(
                                                                         selected = variant == "Index",
                                                                         onClick = { variant = "Index" })
-                                                                    Text("Index")
+                                                                    Text(locale["data_loader.variant.index"])
                                                                 }
                                                             }
                                                         }
@@ -455,7 +469,7 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                                                             Checkbox(
                                                                 checked = uniqueIdentify,
                                                                 onCheckedChange = { uniqueIdentify = it })
-                                                            Text("Identifiable")
+                                                            Text(locale["data_loader.unique.identifiable"])
                                                         }
                                                     }
 
@@ -463,7 +477,7 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                                             var langExpanded by remember { mutableStateOf(false) }
 
-                                                            Text("Language:")
+                                                            Text(locale["data_loader.index.language"])
 
                                                             Spacer(modifier = Modifier.width(8.dp))
 
@@ -492,7 +506,7 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                                                                 checked = indexDefault,
                                                                 onCheckedChange = { indexDefault = it })
 
-                                                            Text("Default")
+                                                            Text(locale["data_loader.default"])
                                                         }
                                                     }
 
@@ -501,13 +515,16 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                                                     Spacer(modifier = Modifier.height(4.dp))
 
                                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                                        Text("Link Source:", modifier = Modifier.width(100.dp))
+                                                        Text(
+                                                            locale["data_loader.link_source"],
+                                                            modifier = Modifier.width(100.dp)
+                                                        )
 
                                                         var linkDropdownExpanded by remember { mutableStateOf(false) }
 
                                                         Box {
                                                             Button(onClick = { linkDropdownExpanded = true }) {
-                                                                Text(linkSource.ifEmpty { "None" })
+                                                                Text(linkSource.ifEmpty { locale["data_loader.none"] })
                                                             }
 
                                                             DropdownMenu(
@@ -517,7 +534,7 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                                                                     linkSource = ""
                                                                     linkDropdownExpanded = false
                                                                 }) {
-                                                                    Text("None")
+                                                                    Text(locale["data_loader.none"])
                                                                 }
 
                                                                 otherSources.forEach { source ->
@@ -574,7 +591,10 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                                             horizontalArrangement = Arrangement.SpaceBetween,
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Text("Filter Configuration", style = MaterialTheme.typography.h6)
+                                            Text(
+                                                locale["data_loader.filter.config"],
+                                                style = MaterialTheme.typography.h6
+                                            )
 
                                             TextButton(
                                                 onClick = {
@@ -584,7 +604,7 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                                                 },
                                                 enabled = pfKey.isNotBlank() || pfLinkKey.isNotBlank() || pfValue.isNotBlank()
                                             ) {
-                                                Text("Clear")
+                                                Text(locale["data_loader.clear"])
                                             }
                                         }
 
@@ -593,7 +613,7 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                                         SimpleTextField(
                                             textValue = pfKey,
                                             onTextValueChange = { pfKey = it },
-                                            placeholderText = "Key",
+                                            placeholderText = locale["data_loader.filter.key"],
                                             Modifier.fillMaxWidth(),
                                             singleLine = true
                                         )
@@ -603,7 +623,7 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                                         SimpleTextField(
                                             textValue = pfLinkKey,
                                             onTextValueChange = { pfLinkKey = it },
-                                            placeholderText = "Link Key",
+                                            placeholderText = locale["data_loader.filter.link_key"],
                                             Modifier.fillMaxWidth(),
                                             singleLine = true
                                         )
@@ -613,7 +633,7 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                                         SimpleTextField(
                                             textValue = pfValue,
                                             onTextValueChange = { pfValue = it },
-                                            placeholderText = "Value",
+                                            placeholderText = locale["data_loader.filter.value"],
                                             Modifier.fillMaxWidth(),
                                             singleLine = true
                                         )
@@ -621,7 +641,7 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                                         Spacer(modifier = Modifier.height(16.dp))
 
                                         Hint(
-                                            "Filters can be used to select objects matching a condition before searching with the initial query. They act on datasets, resembling a bridge between two data sets. Example: @source:key:value",
+                                            locale["data_loader.filter.hint"],
                                             Modifier.fillMaxWidth()
                                         )
                                     }
@@ -660,7 +680,7 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                                             horizontalArrangement = Arrangement.SpaceBetween,
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Text("Variant Mapping Configuration", style = MaterialTheme.typography.h6)
+                                            Text(locale["data_loader.vm.config"], style = MaterialTheme.typography.h6)
 
                                             TextButton(
                                                 onClick = {
@@ -668,7 +688,7 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                                                     vmVariantsText = ""
                                                 }, enabled = vmBase.isNotBlank() || vmVariantsText.isNotBlank()
                                             ) {
-                                                Text("Clear")
+                                                Text(locale["data_loader.clear"])
                                             }
                                         }
 
@@ -677,7 +697,7 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                                         SimpleTextField(
                                             textValue = vmBase,
                                             onTextValueChange = { vmBase = it },
-                                            placeholderText = "Base Field",
+                                            placeholderText = locale["data_loader.vm.base_field"],
                                             Modifier.fillMaxWidth(),
                                             singleLine = true
                                         )
@@ -687,7 +707,7 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                                         SimpleTextField(
                                             textValue = vmVariantsText,
                                             onTextValueChange = { vmVariantsText = it },
-                                            placeholderText = "Variants (comma-separated)",
+                                            placeholderText = locale["data_loader.vm.variants_placeholder"],
                                             Modifier.fillMaxWidth(),
                                             singleLine = true
                                         )
@@ -695,21 +715,21 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
                                         Spacer(modifier = Modifier.height(16.dp))
 
                                         Hint(
-                                            "Variant Mapping allows you to map variant field names to a base field. This is useful when you have multiple fields that represent the same data. Example: @source:key",
+                                            locale["data_loader.vm.hint"],
                                             Modifier.fillMaxWidth()
                                         )
                                     }
                                 }
                             }
-                        } else Text("Select a source to see its details.")
+                        } else Text(locale["data_loader.select_source_hint"])
                     }
                 }
 
                 when (dialogState) {
                     DialogState.Missing -> {
                         YesNoDialog(
-                            title = "Missing values",
-                            text = "Some data fields found in the CSV file are missing from your imported data specification. Do you want to add these missing fields?",
+                            title = locale["data_loader.missing_values.title"],
+                            text = locale["data_loader.missing_values.text"],
                             onDismissRequest = {
                                 dialogState = DialogState.None
                                 updatedSources.clear()
@@ -732,8 +752,8 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
 
                     DialogState.Name -> {
                         CustomInputDialog(
-                            title = "Enter a name",
-                            placeholder = "Name",
+                            title = locale["data_loader.name_dialog.title"],
+                            placeholder = locale["data_loader.name_dialog.placeholder"],
                             onDismissRequest = { dialogState = DialogState.None },
                             onConfirmClick = {
                                 if (dataInfoName.isNotEmpty()) {
@@ -859,18 +879,20 @@ private fun readHeader(path: Path): List<BasicField> {
 private fun parseSourceFromFile(path: Path): Source? {
     val headerFields = readHeader(path)
 
-    return Source(name = path.nameWithoutExtension, fields = headerFields)
+    return if (headerFields.isEmpty()) null else Source(name = path.nameWithoutExtension, fields = headerFields)
 }
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 private fun FieldTypeHelp(modifier: Modifier = Modifier) {
+    val locale = LocalI18n.current
+
     var showPopup by remember { mutableStateOf(false) }
     val maxNameLength = remember { FieldType.entries.maxOf { it.name.length } }
 
     Icon(
         imageVector = Icons.Filled.Info,
-        contentDescription = "Field type help",
+        contentDescription = locale["data_loader.field_type_help"],
         tint = MaterialTheme.colors.onSurface.copy(alpha = 0.6f),
         modifier = modifier.size(24.dp)
             .onPointerEvent(PointerEventType.Enter) { showPopup = true }
@@ -884,7 +906,7 @@ private fun FieldTypeHelp(modifier: Modifier = Modifier) {
                     Text(
                         text = "${
                             type.name.capitalize().padEnd(maxNameLength)
-                        } - " + fieldTypeDescription(type), style = MaterialTheme.typography.body2.copy(
+                        } - " + fieldTypeDescription(type, locale), style = MaterialTheme.typography.body2.copy(
                             fontFamily = FontFamily.Monospace, letterSpacing = (-0.5).sp
                         )
                     )
@@ -894,9 +916,9 @@ private fun FieldTypeHelp(modifier: Modifier = Modifier) {
     }
 }
 
-private fun fieldTypeDescription(fieldType: FieldType): String = when (fieldType) {
-    FieldType.TEXT -> "Plain text such as names, sentences or plain characters"
-    FieldType.INT -> "Whole number (e.g. 7, 42)"
-    FieldType.FLOAT -> "Decimal number (e.g. 3.14)"
-    FieldType.BOOLEAN -> "Logical values (true / false)"
+private fun fieldTypeDescription(fieldType: FieldType, locale: I18n): String = when (fieldType) {
+    FieldType.TEXT -> locale["data_loader.field_type.TEXT"]
+    FieldType.INT -> locale["data_loader.field_type.INT"]
+    FieldType.FLOAT -> locale["data_loader.field_type.FLOAT"]
+    FieldType.BOOLEAN -> locale["data_loader.field_type.BOOLEAN"]
 }

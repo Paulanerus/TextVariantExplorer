@@ -74,6 +74,8 @@ class TextExplorerUI(
 
     @Composable
     private fun content() {
+        val locale = LocalI18n.current
+
         var textField by remember { mutableStateOf(TextFieldValue("")) }
         var selectedRows by remember { mutableStateOf(listOf<Map<String, String>>()) }
         var openWindow by remember { mutableStateOf(Window.NONE) }
@@ -96,7 +98,7 @@ class TextExplorerUI(
         var selectedText = remember(this.poolSelected) {
             val (pool, field) = dataService.getSelectedPool().split(".", limit = 2)
 
-            if (pool == "null") "No source available"
+            if (pool == "null") locale["main.no_source"]
             else "$pool ($field)"
         }
 
@@ -178,13 +180,13 @@ class TextExplorerUI(
 
             IconDropDown(
                 modifier = Modifier.align(Alignment.TopEnd),
-                items = listOf("Load Plugin", "Load Data", "Plugin Info", "---", "Settings"),
+                items = listOf("setting.load_plugin", "setting.load_data", "plugin.title", "---", "settings.title"),
             ) {
                 when (it) {
-                    "Load Plugin" -> openWindow = Window.LOAD_PLUGIN
-                    "Load Data" -> openWindow = Window.LOAD_DATA
-                    "Settings" -> openWindow = Window.SETTINGS
-                    "Plugin Info" -> openWindow = Window.PLUGIN_INFO
+                    "setting.load_plugin" -> openWindow = Window.LOAD_PLUGIN
+                    "setting.load_data" -> openWindow = Window.LOAD_DATA
+                    "plugin.title" -> openWindow = Window.PLUGIN_INFO
+                    "settings.title" -> openWindow = Window.SETTINGS
                 }
             }
 
@@ -222,7 +224,7 @@ class TextExplorerUI(
                                     showSuggestions = false
                                 }
                             },
-                            placeholder = { Text("Search...") },
+                            placeholder = { Text(locale["main.search.placeholder"]) },
                             modifier = Modifier
                                 .width(600.dp)
                                 .background(
@@ -289,7 +291,7 @@ class TextExplorerUI(
                                     showSuggestions = false
                                     showTable = false
                                 }) {
-                                    Icon(Icons.Default.Close, contentDescription = "Close")
+                                    Icon(Icons.Default.Close, contentDescription = locale["main.icon.close"])
                                 }
                             }
                         )
@@ -323,7 +325,7 @@ class TextExplorerUI(
                         modifier = Modifier.height(70.dp).padding(horizontal = 10.dp),
                         enabled = textField.text.isNotBlank() && dataService.hasSelectedPool()
                     ) {
-                        Icon(Icons.Default.Search, contentDescription = "Search")
+                        Icon(Icons.Default.Search, contentDescription = locale["main.icon.search"])
                     }
                 }
 
@@ -335,7 +337,7 @@ class TextExplorerUI(
                     ) inner@{
                         if (totalPages == 0L) {
                             Text(
-                                "No results were found.",
+                                locale["main.no_results"],
                                 fontSize = 24.sp,
                                 modifier = Modifier.align(Alignment.CenterHorizontally).padding(16.dp)
                             )
@@ -395,7 +397,7 @@ class TextExplorerUI(
                         )
 
                         if (totalPages < 2) {
-                            Text("Total: $amount", modifier = Modifier.align(Alignment.CenterHorizontally))
+                            Text(locale["main.total", amount], modifier = Modifier.align(Alignment.CenterHorizontally))
                             return@inner
                         }
 
@@ -420,10 +422,10 @@ class TextExplorerUI(
                                     }
                                 }, enabled = currentPage > 0
                             ) {
-                                Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Left")
+                                Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = locale["main.nav.left"])
                             }
 
-                            Text("Page ${currentPage + 1} of $totalPages (Total: $amount)")
+                            Text(locale["main.page_info", currentPage + 1, totalPages, amount])
 
                             IconButton(
                                 onClick = {
@@ -439,7 +441,7 @@ class TextExplorerUI(
                                     }
                                 }, enabled = currentPage < totalPages - 1
                             ) {
-                                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Right")
+                                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = locale["main.nav.right"])
                             }
                         }
                     }
@@ -480,8 +482,8 @@ class TextExplorerUI(
                     ) {
                         Icon(
                             imageVector = Icons.Filled.CheckCircle,
-                            contentDescription = "Success",
-                            tint = Color(0xFF388E3C),
+                            contentDescription =locale["main.status.success"],
+                            tint = App.Colors.GREEN_HIGHLIGHT.toComposeColor(),
                             modifier = Modifier.size(24.dp)
                         )
 
@@ -506,14 +508,14 @@ class TextExplorerUI(
                     ) {
                         Icon(
                             imageVector = Icons.Filled.Warning,
-                            contentDescription = "Error",
+                            contentDescription = locale["main.status.error"],
                             tint = Color(0xFFD32F2F),
                             modifier = Modifier.size(24.dp)
                         )
 
                         Text(
                             text = (loadState as LoadState.Error).message,
-                            color = Color(0xFFD32F2F)
+                            color = App.Colors.RED_HIGHLIGHT.toComposeColor()
                         )
                     }
                     LaunchedEffect(loadState) {
@@ -550,12 +552,12 @@ class TextExplorerUI(
                     if (dataInfo == null) return@DataLoaderWindow
 
                     scope.launch {
-                        loadState = LoadState.Loading("Loading data pool")
+                        loadState = LoadState.Loading(locale["main.loading"])
 
                         val poolsEmpty = dataService.getAvailablePools().isEmpty()
 
                         val success = dataService.createDataPool(dataInfo, dataDir) { progress ->
-                            loadState = LoadState.Loading("Loading data pool ($progress %)")
+                            loadState = LoadState.Loading(locale["main.loading_progress", progress])
                         }
 
                         loadState = if (success) {
@@ -566,8 +568,8 @@ class TextExplorerUI(
                                 poolSelected = !poolSelected
                             }
 
-                            LoadState.Success("Successfully loaded data pool '${dataInfo.name}'")
-                        } else LoadState.Error("Failed to create data pool")
+                            LoadState.Success(locale["main.success_load", dataInfo.name])
+                        } else LoadState.Error(locale["main.error_load"])
                     }
                 }
 

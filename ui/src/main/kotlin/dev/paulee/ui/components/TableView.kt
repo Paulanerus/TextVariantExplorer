@@ -37,6 +37,7 @@ import dev.paulee.api.data.provider.QueryOrder
 import dev.paulee.api.plugin.Tag
 import dev.paulee.ui.App
 import dev.paulee.ui.Config
+import dev.paulee.ui.LocalI18n
 import dev.paulee.ui.MarkedText
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class)
@@ -55,6 +56,8 @@ fun TableView(
     onSelectionChange: (Set<Int>) -> Unit,
     clicked: () -> Unit = {},
 ) {
+    val locale = LocalI18n.current
+
     val hiddenColumnsScrollState = rememberScrollState()
     val horizontalScrollState = rememberScrollState()
     val verticalScrollState = rememberLazyListState()
@@ -104,7 +107,7 @@ fun TableView(
                         onSelectionChange(emptySet())
                     }, enabled = selectedIndices.isNotEmpty(), modifier = Modifier.width(48.dp).padding(bottom = 12.dp)
                 ) {
-                    Icon(Icons.Default.Delete, contentDescription = "Delete")
+                    Icon(Icons.Default.Delete, contentDescription = locale["table.delete"])
                 }
 
                 Column(
@@ -123,11 +126,13 @@ fun TableView(
                         ) {
                             Icon(
                                 imageVector = if (panelExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                                contentDescription = if (panelExpanded) "Hide columns" else "Show columns",
+                                contentDescription = if (panelExpanded) locale["table.hide"] else locale["table.show"],
                                 modifier = Modifier.size(18.dp)
                             )
+
                             Spacer(Modifier.width(8.dp))
-                            Text(if (panelExpanded) "Hide columns" else "Show columns")
+
+                            Text(if (panelExpanded) locale["table.hide"] else locale["table.show"])
                         }
                     }
 
@@ -174,7 +179,7 @@ fun TableView(
                     enabled = totalAmountOfSelectedRows > 0,
                     modifier = Modifier.width(140.dp).padding(bottom = 12.dp)
                 ) {
-                    Text("View Insights")
+                    Text(locale["table.insights"])
                 }
             }
 
@@ -251,7 +256,7 @@ fun TableView(
                                     if (isSorted) {
                                         Icon(
                                             imageVector = Icons.Default.KeyboardArrowUp,
-                                            contentDescription = if (queryOrder.second) "Desc" else "Asc",
+                                            contentDescription = if (queryOrder.second) locale["table.desc"] else locale["table.asc"],
                                             modifier = Modifier.size(16.dp).graphicsLayer { rotationZ = rotation },
                                             tint = MaterialTheme.colors.primary
                                         )
