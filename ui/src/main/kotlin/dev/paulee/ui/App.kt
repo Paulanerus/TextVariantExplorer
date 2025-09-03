@@ -9,8 +9,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import java.awt.Color
+import java.util.*
 
-object App {
+internal object App {
     const val NAME = "TextVariant Explorer"
 
     const val APP_DIR = ".textexplorer"
@@ -25,22 +27,41 @@ object App {
 
     val VERSION_STRING = "v$VERSION (API - $apiVersion, Core - $coreVersion, UI - $uiVersion)"
 
+    enum class SupportedLanguage(val tag: String) {
+        Deutsch("de"),
+        English("en");
+
+        val locale: Locale = Locale.forLanguageTag(tag)
+
+        companion object {
+            fun fromTag(tag: String?): SupportedLanguage = entries.firstOrNull { it.tag == tag } ?: English
+        }
+    }
+
+    object Language {
+        var current by mutableStateOf(SupportedLanguage.fromTag(Config.lang))
+            private set
+
+        fun set(lang: SupportedLanguage) {
+            this.current = lang
+            Config.lang = lang.tag
+        }
+    }
+
     object Colors {
 
-        val GREEN_HIGHLIGHT: java.awt.Color
-            get() = java.awt.Color(0, 200, 83)
+        val GREEN_HIGHLIGHT: Color
+            get() = Color(0, 200, 83)
 
-        val RED_HIGHLIGHT: java.awt.Color
-            get() = java.awt.Color(200, 0, 0)
+        val RED_HIGHLIGHT: Color
+            get() = Color(200, 0, 0)
 
     }
 
     enum class ThemeMode { Light, Dark, System }
 
     object Theme {
-        var mode by mutableStateOf(
-            runCatching { ThemeMode.valueOf(Config.theme) }.getOrElse { ThemeMode.System }
-        )
+        var mode by mutableStateOf(runCatching { ThemeMode.valueOf(Config.theme) }.getOrElse { ThemeMode.System })
             private set
 
         fun set(mode: ThemeMode) {
@@ -62,7 +83,9 @@ object App {
 
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colors.background) {
-                    content()
+                    WithLangScope(Language.current.locale) {
+                        content()
+                    }
                 }
             }
         }

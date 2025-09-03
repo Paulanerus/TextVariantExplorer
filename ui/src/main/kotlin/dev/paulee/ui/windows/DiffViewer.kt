@@ -28,6 +28,7 @@ import dev.paulee.api.plugin.IPluginService
 import dev.paulee.api.plugin.Taggable
 import dev.paulee.ui.App
 import dev.paulee.ui.HeatmapText
+import dev.paulee.ui.LocalI18n
 import dev.paulee.ui.MarkedText
 import dev.paulee.ui.components.TwoSegmentButton
 import dev.paulee.ui.invokeDrawable
@@ -93,13 +94,15 @@ fun DiffViewerWindow(
 
     val windowState = rememberWindowState(position = WindowPosition.Aligned(Alignment.Center))
 
-    Window(state = windowState, onCloseRequest = onClose, title = "DiffViewer") {
+    val locale = LocalI18n.current
+
+    Window(state = windowState, onCloseRequest = onClose, title = locale["diff.title"]) {
         App.Theme.Current {
             Box(modifier = Modifier.fillMaxSize()) {
                 if (drawablePlugins.isNotEmpty()) {
                     TwoSegmentButton(
-                        "Diff",
-                        "Plugin",
+                        locale["diff.segment.diff"],
+                        locale["diff.segment.plugin"],
                         segment,
                         onClick = { segment = it },
                         modifier = Modifier.align(Alignment.TopCenter).padding(top = 12.dp)
@@ -111,7 +114,7 @@ fun DiffViewerWindow(
 
                         if (selectedDrawablePlugin == null) return@inner
 
-                        Text("Plugin:", fontWeight = FontWeight.Bold)
+                        Text(locale["diff.plugin.label"], fontWeight = FontWeight.Bold)
 
                         Box(Modifier.padding(start = 4.dp, top = 20.dp)) {
                             Text(
@@ -149,7 +152,7 @@ fun DiffViewerWindow(
 
                         if (selectedTaggablePlugin == null) return@inner
 
-                        Text("Tagger:", fontWeight = FontWeight.Bold)
+                        Text(locale["diff.tagger.label"], fontWeight = FontWeight.Bold)
 
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -219,6 +222,8 @@ private fun TagView(
     taggable: Taggable?,
     modifier: Modifier = Modifier,
 ) {
+    val locale = LocalI18n.current
+
     val allFieldsGrouped =
         initialEntries.flatMap { it.entries }.groupBy({ it.key }, { it.value }).filterValues { it.isNotEmpty() }
 
@@ -258,7 +263,7 @@ private fun TagView(
                             onClick = { if (currentColumnIndex > 0) currentColumnIndex-- },
                             enabled = currentColumnIndex > 0
                         ) {
-                            Icon(Icons.AutoMirrored.Default.ArrowBack, contentDescription = "Previous column")
+                            Icon(Icons.AutoMirrored.Default.ArrowBack, contentDescription = locale["diff.prev_column"])
                         }
 
                         Text(
@@ -271,7 +276,7 @@ private fun TagView(
                             onClick = { if (currentColumnIndex < columns.size - 1) currentColumnIndex++ },
                             enabled = currentColumnIndex < columns.size - 1
                         ) {
-                            Icon(Icons.AutoMirrored.Default.ArrowForward, contentDescription = "Next column")
+                            Icon(Icons.AutoMirrored.Default.ArrowForward, contentDescription = locale["diff.next_column"])
                         }
                     }
 
@@ -315,6 +320,8 @@ private fun DiffView(
     alwaysShowFields: List<String> = emptyList(),
     modifier: Modifier = Modifier,
 ) {
+    val locale = LocalI18n.current
+
     var entries by remember { mutableStateOf(initialEntries) }
 
     val allFieldsGrouped =
@@ -355,7 +362,7 @@ private fun DiffView(
                             onClick = { if (currentColumnIndex > 0) currentColumnIndex-- },
                             enabled = currentColumnIndex > 0
                         ) {
-                            Icon(Icons.AutoMirrored.Default.ArrowBack, contentDescription = "Previous column")
+                            Icon(Icons.AutoMirrored.Default.ArrowBack, contentDescription = locale["diff.prev_column"])
                         }
 
                         Text(
@@ -368,7 +375,7 @@ private fun DiffView(
                             onClick = { if (currentColumnIndex < columns.size - 1) currentColumnIndex++ },
                             enabled = currentColumnIndex < columns.size - 1
                         ) {
-                            Icon(Icons.AutoMirrored.Default.ArrowForward, contentDescription = "Next column")
+                            Icon(Icons.AutoMirrored.Default.ArrowForward, contentDescription = locale["diff.next_column"])
                         }
                     }
 
@@ -418,7 +425,7 @@ private fun DiffView(
                                                         entries = updatedList
                                                     }
                                                 }) {
-                                                Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Move up")
+                                                Icon(Icons.Default.KeyboardArrowUp, contentDescription = locale["diff.move_up"])
                                             }
                                         }
                                     }

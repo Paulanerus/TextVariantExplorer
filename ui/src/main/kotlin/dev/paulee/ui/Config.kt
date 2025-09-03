@@ -16,6 +16,8 @@ object Config {
 
     var theme by mutableStateOf("Light")
 
+    var lang by mutableStateOf("en")
+
     var noWidthRestriction by mutableStateOf(false)
 
     var exactHighlighting by mutableStateOf(true)

@@ -7,11 +7,12 @@ import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Switch
 import androidx.compose.material.SwitchDefaults
 import androidx.compose.material.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -20,13 +21,23 @@ import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.rememberWindowState
 import dev.paulee.ui.App
 import dev.paulee.ui.Config
+import dev.paulee.ui.LocalI18n
+import dev.paulee.ui.components.ButtonDropDown
 
 @Composable
 fun SettingsWindow(onClose: () -> Unit) {
     val windowState = rememberWindowState(
         position = WindowPosition.Aligned(Alignment.Center),
-        size = DpSize(600.dp, 500.dp)
+        size = DpSize(600.dp, 600.dp)
     )
+
+    val colorModes = mapOf("setting.theme.light" to "Light")// App.ThemeMode.entries.associate { "setting.theme.${it.name.lowercase()}" to it.name }
+    var selectedTheme by remember { mutableStateOf("setting.theme.${App.Theme.mode.name.lowercase()}") }
+
+    val supportedLanguages = App.SupportedLanguage.entries.map { it.name }
+    var selectedLanguage by remember { mutableStateOf(App.Language.current) }
+
+    val locale = LocalI18n.current
 
     Window(
         state = windowState,
@@ -34,7 +45,7 @@ fun SettingsWindow(onClose: () -> Unit) {
             Config.save()
             onClose()
         },
-        title = "Settings"
+        title = locale["settings.title"],
     ) {
         App.Theme.Current {
             Column(
@@ -43,7 +54,7 @@ fun SettingsWindow(onClose: () -> Unit) {
                     .padding(24.dp)
             ) {
                 Text(
-                    text = "Settings",
+                    text = locale["settings.title"],
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(bottom = 32.dp)
@@ -56,8 +67,41 @@ fun SettingsWindow(onClose: () -> Unit) {
                     verticalArrangement = Arrangement.spacedBy(24.dp)
                 ) {
                     SettingRow(
-                        label = "Width Limit",
-                        description = "Disable table column width restrictions"
+                        label = locale["settings.language.label"],
+                        description = locale["settings.language.desc"]
+                    ) {
+                        ButtonDropDown(
+                            items = supportedLanguages,
+                            selected = selectedLanguage.name,
+                            menuOffset = DpOffset(x = (-6).dp, y = 0.dp)
+                        ) {
+                            val lang = App.SupportedLanguage.valueOf(it)
+
+                            selectedLanguage = lang
+                            App.Language.set(lang)
+                        }
+                    }
+
+                    SettingRow(
+                        label = locale["settings.theme.label"],
+                        description = locale["settings.theme.desc"]
+                    ) {
+                        ButtonDropDown(
+                            items = colorModes.keys.toList(),
+                            selected = selectedTheme,
+                            menuOffset = DpOffset(x = (-6).dp, y = 0.dp)
+
+                        ) {
+                            val mode = App.ThemeMode.valueOf(colorModes[it] ?: App.ThemeMode.System.name)
+
+                            selectedTheme = it
+                            App.Theme.set(mode)
+                        }
+                    }
+
+                    SettingRow(
+                        label = locale["settings.width_limit.label"],
+                        description = locale["settings.width_limit.desc"]
                     ) {
                         Switch(
                             checked = Config.noWidthRestriction,
@@ -69,8 +113,8 @@ fun SettingsWindow(onClose: () -> Unit) {
                     }
 
                     SettingRow(
-                        label = "Exact Highlighting",
-                        description = "Highlight exact word matches only (no substrings)"
+                        label = locale["settings.exact_highlighting.label"],
+                        description = locale["settings.exact_highlighting.desc"]
                     ) {
                         Switch(
                             checked = Config.exactHighlighting,
@@ -90,7 +134,7 @@ fun SettingsWindow(onClose: () -> Unit) {
 private fun SettingRow(
     label: String,
     description: String,
-    content: @Composable () -> Unit
+    content: @Composable () -> Unit,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),

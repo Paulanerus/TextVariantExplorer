@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.rememberScrollbarAdapter
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -22,6 +21,7 @@ import dev.paulee.api.data.DataInfo
 import dev.paulee.api.plugin.IPluginService
 import dev.paulee.api.plugin.PluginMetadata
 import dev.paulee.ui.App
+import dev.paulee.ui.LocalI18n
 
 @Composable
 fun PluginInfoWindow(pluginService: IPluginService, allDataInfo: Set<DataInfo>, onClose: () -> Unit) {
@@ -30,7 +30,9 @@ fun PluginInfoWindow(pluginService: IPluginService, allDataInfo: Set<DataInfo>, 
     val windowState =
         rememberWindowState(position = WindowPosition.Aligned(Alignment.Center), size = DpSize(500.dp, 600.dp))
 
-    Window(state = windowState, onCloseRequest = onClose, title = "Plugin Info") {
+    val locale = LocalI18n.current
+
+    Window(state = windowState, onCloseRequest = onClose, title = locale["plugin.title"]) {
         App.Theme.Current {
             Box(modifier = Modifier.fillMaxSize()) {
                 Column(
@@ -38,10 +40,10 @@ fun PluginInfoWindow(pluginService: IPluginService, allDataInfo: Set<DataInfo>, 
                     modifier = Modifier.padding(50.dp)
                         .verticalScroll(scrollState)
                 ) {
-                    Text("Plugins:", fontWeight = FontWeight.Bold, fontSize = 26.sp)
+                    Text(locale["plugin.plugins"], fontWeight = FontWeight.Bold, fontSize = 26.sp)
 
                     if (pluginService.getPlugins().isEmpty())
-                        Text("No plugins loaded.")
+                        Text(locale["plugin.no_plugins"])
 
                     pluginService.getPlugins().forEach {
                         val metadata = pluginService.getPluginMetadata(it) ?: return@forEach
@@ -65,19 +67,21 @@ fun PluginInfoWindow(pluginService: IPluginService, allDataInfo: Set<DataInfo>, 
 
 @Composable
 private fun PluginInfo(metadata: PluginMetadata, dataInfo: DataInfo?) {
+    val locale = LocalI18n.current
+
     Column(modifier = Modifier.padding(start = 6.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("${metadata.name} (${metadata.version})", fontSize = 18.sp, fontWeight = FontWeight.Bold)
 
             metadata.author.takeIf { it.isNotBlank() }?.let {
-                Text("by $it")
+                Text(locale["plugin.by", it])
             }
         }
 
         val isNotBlank = metadata.description.isNotBlank()
 
         Text(
-            if (isNotBlank) metadata.description else "No Description.",
+            if (isNotBlank) metadata.description else locale["plugin.no_description"],
             fontStyle = if (isNotBlank) FontStyle.Normal else FontStyle.Italic
         )
 
@@ -85,14 +89,14 @@ private fun PluginInfo(metadata: PluginMetadata, dataInfo: DataInfo?) {
 
         Column {
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Data Pool:", fontWeight = FontWeight.Bold)
-                Text(dataInfo?.name ?: "None", fontStyle = if (dataInfo == null) FontStyle.Italic else FontStyle.Normal)
+                Text(locale["plugin.data_pool.label"], fontWeight = FontWeight.Bold)
+                Text(dataInfo?.name ?: locale["plugin.none"], fontStyle = if (dataInfo == null) FontStyle.Italic else FontStyle.Normal)
             }
 
             dataInfo?.sources.orEmpty().takeIf { it.isNotEmpty() }?.let {
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Sources:", fontWeight = FontWeight.Bold)
-                    Text(it.joinToString(", ") { it.name })
+                    Text(locale["plugin.sources.label"], fontWeight = FontWeight.Bold)
+                    Text(it.joinToString(", ") { entry -> entry.name })
                 }
             }
         }
@@ -102,10 +106,10 @@ private fun PluginInfo(metadata: PluginMetadata, dataInfo: DataInfo?) {
                 Spacer(Modifier.height(8.dp))
 
                 Column {
-                    Text("Variants:", fontWeight = FontWeight.Bold)
+                    Text(locale["plugin.variants.label"], fontWeight = FontWeight.Bold)
 
 
-                    it.forEach { Text(it, modifier = Modifier.padding(start = 4.dp)) }
+                    it.forEach { text -> Text(text, modifier = Modifier.padding(start = 4.dp)) }
                 }
             }
 
@@ -114,10 +118,10 @@ private fun PluginInfo(metadata: PluginMetadata, dataInfo: DataInfo?) {
                 Spacer(Modifier.height(8.dp))
 
                 Column {
-                    Text("Pre filters:", fontWeight = FontWeight.Bold)
+                    Text(locale["plugin.pre_filters.label"], fontWeight = FontWeight.Bold)
 
 
-                    it.forEach { Text(it, modifier = Modifier.padding(start = 4.dp)) }
+                    it.forEach { text -> Text(text, modifier = Modifier.padding(start = 4.dp)) }
                 }
             }
     }

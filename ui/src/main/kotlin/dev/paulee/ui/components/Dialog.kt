@@ -8,6 +8,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.AwtWindow
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import dev.paulee.ui.LocalI18n
 import dev.paulee.ui.SimpleTextField
 import java.awt.FileDialog
 import java.awt.Frame
@@ -24,45 +25,49 @@ fun FileDialog(
     dialogType: DialogType = DialogType.LOAD,
     extension: String? = null,
     onCloseRequest: (result: List<Path>) -> Unit,
-) = AwtWindow(
-    create = {
-        object :
-            FileDialog(parent, if (dialogType == DialogType.SAVE) "Save file" else "Open file", dialogType.ordinal) {
+) {
+    val locale = LocalI18n.current
 
-            init {
-                isMultipleMode = dialogType == DialogType.LOAD
+    AwtWindow(
+        create = {
+            object :
+                FileDialog(parent, if (dialogType == DialogType.SAVE) locale["dialog.save"] else locale["dialog.open"], dialogType.ordinal) {
 
-                if (!extension.isNullOrBlank()) {
-                    filenameFilter = FilenameFilter { _, name ->
-                        name.endsWith(".$extension", ignoreCase = true)
-                    }
+                init {
+                    isMultipleMode = dialogType == DialogType.LOAD
 
-                    if (dialogType == DialogType.SAVE) file = "untitled"
-                }
-            }
-
-            override fun setVisible(value: Boolean) {
-                super.setVisible(value)
-
-                if (value) {
-                    val paths = files.map {
-                        val path = it.toPath()
-
-                        if (dialogType == DialogType.SAVE && extension != null && !path.toString().lowercase()
-                                .endsWith(".$extension")
-                        ) {
-                            Path.of("${path}.$extension")
-                        } else {
-                            path
+                    if (!extension.isNullOrBlank()) {
+                        filenameFilter = FilenameFilter { _, name ->
+                            name.endsWith(".$extension", ignoreCase = true)
                         }
-                    }.toList()
 
-                    onCloseRequest(paths)
+                        if (dialogType == DialogType.SAVE) file = "untitled"
+                    }
+                }
+
+                override fun setVisible(value: Boolean) {
+                    super.setVisible(value)
+
+                    if (value) {
+                        val paths = files.map {
+                            val path = it.toPath()
+
+                            if (dialogType == DialogType.SAVE && extension != null && !path.toString().lowercase()
+                                    .endsWith(".$extension")
+                            ) {
+                                Path.of("${path}.$extension")
+                            } else {
+                                path
+                            }
+                        }.toList()
+
+                        onCloseRequest(paths)
+                    }
                 }
             }
-        }
-    }, dispose = FileDialog::dispose
-)
+        }, dispose = FileDialog::dispose
+    )
+}
 
 @Composable
 fun CustomInputDialog(
@@ -73,6 +78,8 @@ fun CustomInputDialog(
     textFieldValue: String,
     onTextFieldValueChange: (String) -> Unit,
 ) {
+    val locale = LocalI18n.current
+
     Dialog(
         onDismissRequest = onDismissRequest,
         properties = DialogProperties(dismissOnBackPress = true, dismissOnClickOutside = true)
@@ -101,7 +108,7 @@ fun CustomInputDialog(
                     horizontalArrangement = Arrangement.End
                 ) {
                     TextButton(onClick = onDismissRequest) {
-                        Text("Cancel")
+                        Text(locale["input.cancel"])
                     }
 
                     Spacer(modifier = Modifier.width(8.dp))
@@ -109,7 +116,7 @@ fun CustomInputDialog(
                     Button(
                         onClick = { onConfirmClick(textFieldValue) }, enabled = textFieldValue.isNotBlank()
                     ) {
-                        Text("OK")
+                        Text(locale["input.confirm"])
                     }
                 }
             }
@@ -124,6 +131,8 @@ fun YesNoDialog(
     onDismissRequest: () -> Unit,
     onResult: (Boolean) -> Unit,
 ) {
+    val locale = LocalI18n.current
+
     Dialog(
         onDismissRequest = onDismissRequest,
         properties = DialogProperties(dismissOnBackPress = true, dismissOnClickOutside = true)
@@ -145,14 +154,16 @@ fun YesNoDialog(
                         onResult(false)
                         onDismissRequest()
                     }) {
-                        Text("No")
+                        Text(locale["dialog.no"])
                     }
+
                     Spacer(modifier = Modifier.width(8.dp))
+
                     Button(onClick = {
                         onResult(true)
                         onDismissRequest()
                     }) {
-                        Text("Yes")
+                        Text(locale["dialog.yes"])
                     }
                 }
             }
