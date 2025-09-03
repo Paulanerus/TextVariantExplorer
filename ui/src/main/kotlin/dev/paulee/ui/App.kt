@@ -83,7 +83,9 @@ internal object App {
 
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colors.background) {
-                    content()
+                    WithLangScope(Language.current.locale) {
+                        content()
+                    }
                 }
             }
         }
