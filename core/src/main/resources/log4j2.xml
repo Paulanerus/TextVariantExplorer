@@ -19,6 +19,10 @@
         </RollingFile>
     </Appenders>
     <Loggers>
+        <Logger name="ai.djl" level="warn" additivity="false">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="RollingFileAppender"/>
+        </Logger>
         <Root level="debug">
             <AppenderRef ref="Console"/>
             <AppenderRef ref="RollingFileAppender"/>
