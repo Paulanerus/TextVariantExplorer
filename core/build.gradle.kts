@@ -38,6 +38,7 @@ dependencies {
 
     implementation("ai.djl.huggingface:tokenizers:${rootProject.extra["tokenizers.version"]}")
     implementation("com.microsoft.onnxruntime:onnxruntime_gpu:${rootProject.extra["onnx.version"]}")
+    implementation("org.duckdb:duckdb_jdbc:${rootProject.extra["duckdb.version"]}")
 
     testImplementation(kotlin("test"))
 }
