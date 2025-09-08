@@ -81,7 +81,6 @@ class TextExplorerUI(
 
         var textField by remember { mutableStateOf(TextFieldValue("")) }
         var isSemantic by remember { mutableStateOf(false) }
-        var isExpanded by remember { mutableStateOf(true) }
 
         var selectedRows by remember { mutableStateOf(listOf<Map<String, String>>()) }
         var openWindow by remember { mutableStateOf(Window.NONE) }
@@ -209,7 +208,7 @@ class TextExplorerUI(
                     val sharedCorner = 24.dp
 
                     val outerBorderColor by animateColorAsState(
-                        targetValue = if (!isExpanded && isSemantic) MaterialTheme.colors.primary else Color.LightGray
+                        targetValue = if (!Config.searchExpanded && isSemantic) MaterialTheme.colors.primary else Color.LightGray
                     )
 
                     Box(
@@ -315,8 +314,8 @@ class TextExplorerUI(
                                                     contentDescription = locale["main.icon.close"]
                                                 )
                                             }
-                                            IconButton(onClick = { isExpanded = !isExpanded }) {
-                                                if (isExpanded) {
+                                            IconButton(onClick = { Config.searchExpanded = !Config.searchExpanded }) {
+                                                if (Config.searchExpanded) {
                                                     Icon(
                                                         Icons.Default.KeyboardArrowDown,
                                                         contentDescription = locale["main.search.collapse"]
@@ -357,7 +356,7 @@ class TextExplorerUI(
                             }
 
                             AnimatedVisibility(
-                                visible = isExpanded,
+                                visible = Config.searchExpanded,
                                 enter = expandVertically() + fadeIn(),
                                 exit = shrinkVertically() + fadeOut()
                             ) {
