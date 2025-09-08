@@ -33,6 +33,7 @@ import dev.paulee.ui.components.IconDropDown
 import dev.paulee.ui.components.TableView
 import dev.paulee.ui.windows.DataLoaderWindow
 import dev.paulee.ui.windows.DiffViewerWindow
+import dev.paulee.ui.windows.ModelManagerWindow
 import dev.paulee.ui.windows.PluginInfoWindow
 import dev.paulee.ui.windows.SettingsWindow
 import kotlinx.coroutines.delay
@@ -41,12 +42,13 @@ import java.nio.file.Path
 import kotlin.io.path.*
 
 enum class Window {
-    NONE,
-    LOAD_PLUGIN,
-    LOAD_DATA,
-    DIFF,
-    PLUGIN_INFO,
-    SETTINGS,
+    None,
+    LoadPlugin,
+    LoadData,
+    Diff,
+    PluginInfo,
+    Settings,
+    ModelManagement,
 }
 
 class TextExplorerUI(
@@ -83,7 +85,7 @@ class TextExplorerUI(
         var isSemantic by remember { mutableStateOf(false) }
 
         var selectedRows by remember { mutableStateOf(listOf<Map<String, String>>()) }
-        var openWindow by remember { mutableStateOf(Window.NONE) }
+        var openWindow by remember { mutableStateOf(Window.None) }
         var showTable by remember { mutableStateOf(false) }
         var showPopup by remember { mutableStateOf(false) }
         var totalPages by remember { mutableStateOf(0L) }
@@ -185,13 +187,14 @@ class TextExplorerUI(
 
             IconDropDown(
                 modifier = Modifier.align(Alignment.TopEnd),
-                items = listOf("setting.load_plugin", "setting.load_data", "plugin.title", "---", "settings.title"),
+                items = listOf("setting.load_plugin", "setting.load_data", "plugin.title", "model_management.title", "---", "settings.title"),
             ) {
                 when (it) {
-                    "setting.load_plugin" -> openWindow = Window.LOAD_PLUGIN
-                    "setting.load_data" -> openWindow = Window.LOAD_DATA
-                    "plugin.title" -> openWindow = Window.PLUGIN_INFO
-                    "settings.title" -> openWindow = Window.SETTINGS
+                    "setting.load_plugin" -> openWindow = Window.LoadPlugin
+                    "setting.load_data" -> openWindow = Window.LoadData
+                    "plugin.title" -> openWindow = Window.PluginInfo
+                    "model_management.title" -> openWindow = Window.ModelManagement
+                    "settings.title" -> openWindow = Window.Settings
                 }
             }
 
@@ -461,7 +464,7 @@ class TextExplorerUI(
                                     .map { header.zip(it).toMap() }
                                     .toList()
                             },
-                            clicked = { openWindow = Window.DIFF }
+                            clicked = { openWindow = Window.Diff }
                         )
 
                         if (totalPages < 2) {
@@ -602,26 +605,26 @@ class TextExplorerUI(
             }
 
             when (openWindow) {
-                Window.PLUGIN_INFO -> PluginInfoWindow(
+                Window.PluginInfo -> PluginInfoWindow(
                     pluginService,
                     dataService.getAvailableDataInfo()
-                ) { openWindow = Window.NONE }
+                ) { openWindow = Window.None }
 
-                Window.DIFF -> DiffViewerWindow(
+                Window.Diff -> DiffViewerWindow(
                     diffService,
                     pluginService,
                     dataService.getSelectedPool(),
                     selectedRows
-                ) { openWindow = Window.NONE }
+                ) { openWindow = Window.None }
 
-                Window.LOAD_PLUGIN -> FileDialog { paths ->
-                    openWindow = Window.NONE
+                Window.LoadPlugin -> FileDialog { paths ->
+                    openWindow = Window.None
 
                     paths.filter { it.extension == "jar" }.forEach { loadPlugin(it) }
                 }
 
-                Window.LOAD_DATA -> DataLoaderWindow(dataService, dataDir) { dataInfo ->
-                    openWindow = Window.NONE
+                Window.LoadData -> DataLoaderWindow(dataService, dataDir) { dataInfo ->
+                    openWindow = Window.None
 
                     if (dataInfo == null) return@DataLoaderWindow
 
@@ -647,7 +650,9 @@ class TextExplorerUI(
                     }
                 }
 
-                Window.SETTINGS -> SettingsWindow { openWindow = Window.NONE }
+                Window.Settings -> SettingsWindow { openWindow = Window.None }
+
+                Window.ModelManagement -> ModelManagerWindow { openWindow = Window.None }
 
                 else -> {}
             }
