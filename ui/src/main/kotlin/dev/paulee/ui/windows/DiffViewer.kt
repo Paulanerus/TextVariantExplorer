@@ -96,7 +96,7 @@ fun DiffViewerWindow(
 
     val locale = LocalI18n.current
 
-    Window(state = windowState, onCloseRequest = onClose, title = locale["diff.title"]) {
+    Window(state = windowState, icon = App.icon, onCloseRequest = onClose, title = locale["diff.title"]) {
         App.Theme.Current {
             Box(modifier = Modifier.fillMaxSize()) {
                 if (drawablePlugins.isNotEmpty()) {

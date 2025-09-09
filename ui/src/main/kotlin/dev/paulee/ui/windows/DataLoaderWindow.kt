@@ -89,7 +89,7 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
         }
     }
 
-    Window(state = windowState, onCloseRequest = { onClose(null) }, title = locale["data_loader.title"]) {
+    Window(state = windowState, icon = App.icon, onCloseRequest = { onClose(null) }, title = locale["data_loader.title"]) {
         App.Theme.Current {
             Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
 

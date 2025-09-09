@@ -48,6 +48,10 @@ compose.desktop {
             packageName = "TextVariantExplorer"
 
             modules += listOf("java.sql")
+
+            linux {
+                iconFile.set(project.file("ui/src/main/resources/icon.png"))
+            }
         }
     }
 }

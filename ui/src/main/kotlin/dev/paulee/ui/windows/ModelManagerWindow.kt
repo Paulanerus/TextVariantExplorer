@@ -43,6 +43,7 @@ fun ModelManagerWindow(modelDir: Path, onClose: () -> Unit) {
 
     Window(
         state = windowState,
+        icon = App.icon,
         onCloseRequest = {
             Config.save()
             onClose()

@@ -32,7 +32,7 @@ fun PluginInfoWindow(pluginService: IPluginService, allDataInfo: Set<DataInfo>, 
 
     val locale = LocalI18n.current
 
-    Window(state = windowState, onCloseRequest = onClose, title = locale["plugin.title"]) {
+    Window(state = windowState, icon = App.icon, onCloseRequest = onClose, title = locale["plugin.title"]) {
         App.Theme.Current {
             Box(modifier = Modifier.fillMaxSize()) {
                 Column(

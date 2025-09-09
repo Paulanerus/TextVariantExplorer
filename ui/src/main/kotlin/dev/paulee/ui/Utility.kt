@@ -8,6 +8,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.decodeToImageBitmap
+import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.buildAnnotatedString
@@ -330,3 +333,13 @@ fun SimplePopup(
         }
     }
 }
+
+internal fun readBitmapResource(path: String): Painter = BitmapPainter(readResourceBytes(path).decodeToImageBitmap())
+
+private object ResourceLoader
+
+private fun readResourceBytes(resourcePath: String) =
+    ResourceLoader::class.java.classLoader
+        ?.getResourceAsStream(resourcePath)
+        ?.readAllBytes()
+        ?: ByteArray(0)

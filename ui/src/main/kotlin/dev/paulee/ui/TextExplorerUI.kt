@@ -31,11 +31,7 @@ import dev.paulee.api.plugin.IPluginService
 import dev.paulee.ui.components.FileDialog
 import dev.paulee.ui.components.IconDropDown
 import dev.paulee.ui.components.TableView
-import dev.paulee.ui.windows.DataLoaderWindow
-import dev.paulee.ui.windows.DiffViewerWindow
-import dev.paulee.ui.windows.ModelManagerWindow
-import dev.paulee.ui.windows.PluginInfoWindow
-import dev.paulee.ui.windows.SettingsWindow
+import dev.paulee.ui.windows.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.nio.file.Path
@@ -128,7 +124,7 @@ class TextExplorerUI(
 
             val queryText = textField.text
 
-            val (count, pages, indexed) = dataService.getPageCount(queryText)
+            val (count, pages, indexed) = dataService.getPageCount(queryText, isSemantic)
             amount = count
 
             totalPages = pages
@@ -136,7 +132,7 @@ class TextExplorerUI(
             indexStrings = indexed
 
             if (totalPages > 0) {
-                dataService.getPage(queryText, queryOrderState, currentPage).let { (pageEntries, pageLinks) ->
+                dataService.getPage(queryText, isSemantic, queryOrderState, currentPage).let { (pageEntries, pageLinks) ->
                     val first = pageEntries.firstOrNull() ?: return@let
 
                     header = first.keys.toList()
@@ -431,7 +427,7 @@ class TextExplorerUI(
                                 selectedRows = emptyList()
 
                                 currentPage = 0
-                                dataService.getPage(textField.text, queryOrderState, currentPage).let { result ->
+                                dataService.getPage(textField.text, isSemantic, queryOrderState, currentPage).let { result ->
                                     data = result.first.map { it.values.toList() }
                                     links = result.second
                                 }
@@ -484,7 +480,7 @@ class TextExplorerUI(
                                     if (currentPage > 0) {
                                         currentPage--
 
-                                        dataService.getPage(textField.text, queryOrderState, currentPage)
+                                        dataService.getPage(textField.text, isSemantic, queryOrderState, currentPage)
                                             .let { result ->
                                                 data = result.first.map { it.values.toList() }
 
@@ -506,7 +502,7 @@ class TextExplorerUI(
                                     if (currentPage < totalPages - 1) {
                                         currentPage++
 
-                                        dataService.getPage(textField.text, queryOrderState, currentPage)
+                                        dataService.getPage(textField.text,  isSemantic,queryOrderState, currentPage)
                                             .let { result ->
                                                 data = result.first.map { it.values.toList() }
 
@@ -652,7 +648,7 @@ class TextExplorerUI(
 
                 Window.Settings -> SettingsWindow { openWindow = Window.None }
 
-                Window.ModelManagement -> ModelManagerWindow { openWindow = Window.None }
+                Window.ModelManagement -> ModelManagerWindow(Path("testfiles")) { openWindow = Window.None }
 
                 else -> {}
             }
@@ -688,7 +684,7 @@ class TextExplorerUI(
             }
         }
 
-        Window(title = App.NAME.replace(" ", ""), state = windowState, onCloseRequest = {
+        Window(title = App.NAME.replace(" ", ""), icon = App.icon, state = windowState, onCloseRequest = {
             dataService.close()
             Config.save()
             exitApplication()

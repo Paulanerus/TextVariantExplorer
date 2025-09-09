@@ -27,6 +27,8 @@ internal object App {
 
     val VERSION_STRING = "v$VERSION (API - $apiVersion, Core - $coreVersion, UI - $uiVersion)"
 
+    val icon by lazy { readBitmapResource("icon.png") }
+
     enum class SupportedLanguage(val tag: String) {
         Deutsch("de"),
         English("en");
