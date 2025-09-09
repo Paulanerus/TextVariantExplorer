@@ -23,9 +23,9 @@ interface IDataService : Closeable {
 
     fun getSuggestions(field: String, value: String): List<String>
 
-    fun getPage(query: String, order: QueryOrder?, pageCount: Int): Pair<List<Map<String, String>>, Map<String, List<Map<String, String>>>>
+    fun getPage(query: String, isSemantic: Boolean, order: QueryOrder?, pageCount: Int): Pair<List<Map<String, String>>, Map<String, List<Map<String, String>>>>
 
-    fun getPageCount(query: String): Triple<Long, Long, Set<String>>
+    fun getPageCount(query: String, isSemantic: Boolean): Triple<Long, Long, Set<String>>
 
     fun createStorageProvider(infoName: String, path: Path): IStorageProvider?
 

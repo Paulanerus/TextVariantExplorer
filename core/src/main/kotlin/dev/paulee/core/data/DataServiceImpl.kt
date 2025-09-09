@@ -21,11 +21,11 @@ import kotlin.coroutines.cancellation.CancellationException
 import kotlin.io.path.*
 import kotlin.math.ceil
 
-private val logger = getLogger(DataServiceImpl::class.java)
-
 typealias PageResult = Pair<List<Map<String, String>>, Map<String, List<Map<String, String>>>>
 
 object DataServiceImpl : IDataService {
+
+    private val logger = getLogger(DataServiceImpl::class.java)
 
     private const val PAGE_SIZE = 50
 
@@ -48,6 +48,9 @@ object DataServiceImpl : IDataService {
     private val storageProvider = mutableMapOf<String, IStorageProvider>()
 
     private val dataPools = mutableMapOf<String, DataPool>()
+
+    init {
+    }
 
     override suspend fun createDataPool(dataInfo: DataInfo, path: Path, onProgress: (progress: Int) -> Unit): Boolean =
         withContext(Dispatchers.IO) {
@@ -227,7 +230,7 @@ object DataServiceImpl : IDataService {
         return dataPool.storageProvider.suggestions(current, field, value, 6)
     }
 
-    override fun getPage(query: String, order: QueryOrder?, pageCount: Int): PageResult {
+    override fun getPage(query: String, isSemantic: Boolean, order: QueryOrder?, pageCount: Int): PageResult {
 
         if (this.currentPool == null || this.currentField == null) return Pair(emptyList(), emptyMap())
 
@@ -277,7 +280,7 @@ object DataServiceImpl : IDataService {
         return result
     }
 
-    override fun getPageCount(query: String): Triple<Long, Long, Set<String>> {
+    override fun getPageCount(query: String, isSemantic: Boolean): Triple<Long, Long, Set<String>> {
 
         if (this.currentPool == null || this.currentField == null) return Triple(-1, -1, emptySet())
 
