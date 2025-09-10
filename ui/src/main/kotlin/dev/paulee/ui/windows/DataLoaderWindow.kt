@@ -44,7 +44,7 @@ enum class DialogState {
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInfo?) -> Unit) {
+fun DataLoaderWindow(dataService: IDataService, onClose: (DataInfo?) -> Unit) {
     val locale = LocalI18n.current
 
     val windowState = rememberWindowState(
@@ -89,7 +89,12 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
         }
     }
 
-    Window(state = windowState, icon = App.icon, onCloseRequest = { onClose(null) }, title = locale["data_loader.title"]) {
+    Window(
+        state = windowState,
+        icon = App.icon,
+        onCloseRequest = { onClose(null) },
+        title = locale["data_loader.title"]
+    ) {
         App.Theme.Current {
             Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
 
@@ -761,7 +766,9 @@ fun DataLoaderWindow(dataService: IDataService, dataDir: Path, onClose: (DataInf
 
                                     sourcePaths.forEach { path ->
                                         Files.copy(
-                                            path, dataDir.resolve(path.name), StandardCopyOption.REPLACE_EXISTING
+                                            path,
+                                            dataService.dataDir().resolve(path.name),
+                                            StandardCopyOption.REPLACE_EXISTING
                                         )
                                     }
                                     onClose(DataInfo(dataInfoName, sources.toList()))

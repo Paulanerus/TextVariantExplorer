@@ -8,7 +8,7 @@ import java.nio.file.Path
 
 interface IDataService : Closeable {
 
-    suspend fun createDataPool(dataInfo: DataInfo, path: Path, onProgress: (progress: Int) -> Unit): Boolean
+    suspend fun createDataPool(dataInfo: DataInfo, onProgress: (progress: Int) -> Unit): Boolean
 
     fun selectDataPool(selection: String)
 
@@ -24,7 +24,12 @@ interface IDataService : Closeable {
 
     suspend fun downloadModel(model: Embedding.Model, path: Path, onProgress: (progress: Int) -> Unit)
 
-    fun getPage(query: String, isSemantic: Boolean, order: QueryOrder?, pageCount: Int): Pair<List<Map<String, String>>, Map<String, List<Map<String, String>>>>
+    fun getPage(
+        query: String,
+        isSemantic: Boolean,
+        order: QueryOrder?,
+        pageCount: Int,
+    ): Pair<List<Map<String, String>>, Map<String, List<Map<String, String>>>>
 
     fun getPageCount(query: String, isSemantic: Boolean): Triple<Long, Long, Set<String>>
 
@@ -33,4 +38,10 @@ interface IDataService : Closeable {
     fun dataInfoToString(dataInfo: DataInfo): String?
 
     fun dataInfoFromString(dataInfo: String): DataInfo?
+
+    fun appDir(): Path
+
+    fun dataDir(): Path
+
+    fun modelDir(): Path
 }

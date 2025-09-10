@@ -138,6 +138,8 @@ object PluginServiceImpl : IPluginService {
         return taggable::class.functions.find { it.name == "tag" }?.findAnnotation<ViewFilter>()
     }
 
+    override fun pluginDir(): Path = FileService.pluginsDir
+
     private fun getPluginEntryPoint(path: Path): String? =
         JarFile(path.toFile()).use { return it.manifest.mainAttributes.getValue("Main-Class") }
 

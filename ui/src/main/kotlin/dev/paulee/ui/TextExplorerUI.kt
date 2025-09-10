@@ -52,25 +52,12 @@ class TextExplorerUI(
     private val dataService: IDataService,
     private val diffService: DiffService,
 ) {
-    private val appDir = Path(System.getProperty("user.home")).resolve(App.APP_DIR)
-
-    private val pluginsDir = appDir.resolve("plugins")
-
-    private val dataDir = appDir.resolve("data")
-
-    private val modelDir = appDir.resolve("models")
-
     private var poolSelected by mutableStateOf(false)
 
     init {
-        if (!this.pluginsDir.exists()) this.pluginsDir.createDirectories()
+        Config.load(dataService.appDir())
 
-        Config.load(this.appDir)
-
-        this.pluginService.loadFromDirectory(this.pluginsDir)
-        this.dataService.loadDataPools(this.dataDir)
-
-        this.pluginService.initAll(this.dataService, this.dataDir)
+        this.pluginService.initAll(this.dataService)
 
         if (Config.selectedPool in this.dataService.getAvailablePools()) this.dataService.selectDataPool(Config.selectedPool)
     }
@@ -621,7 +608,7 @@ class TextExplorerUI(
                     paths.filter { it.extension == "jar" }.forEach { loadPlugin(it) }
                 }
 
-                Window.LoadData -> DataLoaderWindow(dataService, dataDir) { dataInfo ->
+                Window.LoadData -> DataLoaderWindow(dataService) { dataInfo ->
                     openWindow = Window.None
 
                     if (dataInfo == null) return@DataLoaderWindow
@@ -631,7 +618,7 @@ class TextExplorerUI(
 
                         val poolsEmpty = dataService.getAvailablePools().isEmpty()
 
-                        val success = dataService.createDataPool(dataInfo, dataDir) { progress ->
+                        val success = dataService.createDataPool(dataInfo) { progress ->
                             loadState = LoadState.Loading(locale["main.loading_progress", progress])
                         }
 
@@ -650,7 +637,7 @@ class TextExplorerUI(
 
                 Window.Settings -> SettingsWindow { openWindow = Window.None }
 
-                Window.ModelManagement -> ModelManagerWindow(dataService, modelDir) { openWindow = Window.None }
+                Window.ModelManagement -> ModelManagerWindow(dataService) { openWindow = Window.None }
 
                 else -> {}
             }
@@ -698,7 +685,7 @@ class TextExplorerUI(
     }
 
     private fun loadPlugin(path: Path): Boolean {
-        val pluginPath = pluginsDir.resolve(path.name)
+        val pluginPath = pluginService.pluginDir().resolve(path.name)
 
         if (pluginPath.exists()) return true
 
@@ -706,7 +693,7 @@ class TextExplorerUI(
 
         this.pluginService.getDataInfo(plugin)?.let { dataInfo ->
             val provider =
-                this.dataService.createStorageProvider(dataInfo, this.dataDir.resolve(dataInfo)) ?: return true
+                this.dataService.createStorageProvider(dataInfo, dataService.dataDir().resolve(dataInfo)) ?: return true
 
             plugin.init(provider)
         }

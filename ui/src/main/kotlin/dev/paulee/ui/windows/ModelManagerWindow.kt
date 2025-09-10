@@ -34,8 +34,10 @@ import kotlin.io.path.*
 
 @OptIn(ExperimentalPathApi::class)
 @Composable
-fun ModelManagerWindow(dataService: IDataService, modelDir: Path, onClose: () -> Unit) {
+fun ModelManagerWindow(dataService: IDataService, onClose: () -> Unit) {
     val locale = LocalI18n.current
+
+    val modelDir = remember { dataService.modelDir() }
 
     val windowState = rememberWindowState(
         position = WindowPosition.Aligned(Alignment.Center), size = DpSize(800.dp, 600.dp)

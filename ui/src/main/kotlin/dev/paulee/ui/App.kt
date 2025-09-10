@@ -15,8 +15,6 @@ import java.util.*
 internal object App {
     const val NAME = "TextVariant Explorer"
 
-    const val APP_DIR = ".textexplorer"
-
     private val VERSION: String? by lazy { System.getProperty("app.version") }
 
     private val apiVersion: String? by lazy { System.getProperty("api.version") }

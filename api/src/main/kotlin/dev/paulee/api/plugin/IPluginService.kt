@@ -17,4 +17,6 @@ interface IPluginService {
     fun getPlugins(): List<IPlugin>
 
     fun getViewFilter(plugin: IPlugin): ViewFilter?
+
+    fun pluginDir(): Path
 }
