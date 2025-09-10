@@ -2,6 +2,7 @@ package dev.paulee.core.data
 
 import dev.paulee.api.data.DataInfo
 import dev.paulee.api.data.IDataService
+import dev.paulee.api.data.IndexField
 import dev.paulee.api.data.PreFilter
 import dev.paulee.api.data.VariantMapping
 import dev.paulee.api.data.provider.IStorageProvider
@@ -232,14 +233,14 @@ object DataServiceImpl : IDataService {
         return dataPool.storageProvider.suggestions(current, field, value, 6)
     }
 
-    override suspend fun downloadModel(models: Embedding.Models, path: Path, onProgress: (progress: Int) -> Unit) =
-        EmbeddingProvider.downloadModel(models, path, onProgress)
+    override suspend fun downloadModel(model: Embedding.Model, path: Path, onProgress: (progress: Int) -> Unit) =
+        EmbeddingProvider.downloadModel(model, path, onProgress)
 
     override fun getPage(query: String, isSemantic: Boolean, order: QueryOrder?, pageCount: Int): PageResult {
 
         if (this.currentPool == null || this.currentField == null) return Pair(emptyList(), emptyMap())
 
-        logger.info("Query (${order ?: "None"}): $query")
+        logger.info("Query (${order ?: "None"} | Semantic: $isSemantic): $query")
 
         val key = Triple(pageCount, query, order)
 
@@ -286,7 +287,6 @@ object DataServiceImpl : IDataService {
     }
 
     override fun getPageCount(query: String, isSemantic: Boolean): Triple<Long, Long, Set<String>> {
-
         if (this.currentPool == null || this.currentField == null) return Triple(-1, -1, emptySet())
 
         val dataPool = this.dataPools[this.currentPool] ?: return Triple(-1, -1, emptySet())

@@ -24,7 +24,7 @@ interface IDataService : Closeable {
 
     fun getSuggestions(field: String, value: String): List<String>
 
-    suspend fun downloadModel(models: Embedding.Models, path: Path, onProgress: (progress: Int) -> Unit)
+    suspend fun downloadModel(model: Embedding.Model, path: Path, onProgress: (progress: Int) -> Unit)
 
     fun getPage(query: String, isSemantic: Boolean, order: QueryOrder?, pageCount: Int): Pair<List<Map<String, String>>, Map<String, List<Map<String, String>>>>
 

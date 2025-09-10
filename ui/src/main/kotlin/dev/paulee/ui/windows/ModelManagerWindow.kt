@@ -52,14 +52,14 @@ fun ModelManagerWindow(dataService: IDataService, modelDir: Path, onClose: () ->
     ) {
         App.Theme.Current {
             val scope = rememberCoroutineScope()
-            val models = remember { Embedding.Models.entries }
+            val models = remember { Embedding.Model.entries }
 
             var downloadProgress by remember { mutableStateOf<Float?>(null) }
 
             var installedDirs by remember { mutableStateOf<Set<String>>(emptySet()) }
-            val busy = remember { mutableStateMapOf<Embedding.Models, Boolean>() }
+            val busy = remember { mutableStateMapOf<Embedding.Model, Boolean>() }
 
-            fun markBusy(m: Embedding.Models, v: Boolean) = if (v) busy[m] = true else busy.remove(m)
+            fun markBusy(m: Embedding.Model, v: Boolean) = if (v) busy[m] = true else busy.remove(m)
 
             LaunchedEffect(modelDir) {
                 installedDirs = scanModelDirs(modelDir)
@@ -69,7 +69,7 @@ fun ModelManagerWindow(dataService: IDataService, modelDir: Path, onClose: () ->
                 installedDirs = withContext(Dispatchers.IO) { scanModelDirs(modelDir) }
             }
 
-            suspend fun download(model: Embedding.Models) {
+            suspend fun download(model: Embedding.Model) {
                 downloadProgress = 0f
 
                 dataService.downloadModel(model, modelDir) {
@@ -81,7 +81,7 @@ fun ModelManagerWindow(dataService: IDataService, modelDir: Path, onClose: () ->
                 downloadProgress = null
             }
 
-            suspend fun remove(model: Embedding.Models) {
+            suspend fun remove(model: Embedding.Model) {
                 withContext(Dispatchers.IO) {
                     val path = modelDir.resolve(model.name)
 

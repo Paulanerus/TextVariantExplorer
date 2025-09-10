@@ -1,7 +1,7 @@
 package dev.paulee.api.internal
 
 object Embedding {
-    enum class Models(
+    enum class Model(
         val id: String,
         val description: String,
         val author: String,
