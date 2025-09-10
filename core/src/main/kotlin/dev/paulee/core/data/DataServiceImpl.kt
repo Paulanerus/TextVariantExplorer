@@ -7,9 +7,11 @@ import dev.paulee.api.data.VariantMapping
 import dev.paulee.api.data.provider.IStorageProvider
 import dev.paulee.api.data.provider.ProviderStatus
 import dev.paulee.api.data.provider.QueryOrder
+import dev.paulee.api.internal.Embedding
 import dev.paulee.core.data.analysis.Indexer
 import dev.paulee.core.data.io.BufferedCSVReader
 import dev.paulee.core.data.model.DataPool
+import dev.paulee.core.data.provider.EmbeddingProvider
 import dev.paulee.core.data.provider.StorageProvider
 import dev.paulee.core.splitStr
 import kotlinx.coroutines.Dispatchers
@@ -229,6 +231,9 @@ object DataServiceImpl : IDataService {
 
         return dataPool.storageProvider.suggestions(current, field, value, 6)
     }
+
+    override suspend fun downloadModel(models: Embedding.Models, path: Path, onProgress: (progress: Int) -> Unit) =
+        EmbeddingProvider.downloadModel(models, path, onProgress)
 
     override fun getPage(query: String, isSemantic: Boolean, order: QueryOrder?, pageCount: Int): PageResult {
 

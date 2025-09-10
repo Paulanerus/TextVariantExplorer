@@ -2,6 +2,7 @@ package dev.paulee.api.data
 
 import dev.paulee.api.data.provider.IStorageProvider
 import dev.paulee.api.data.provider.QueryOrder
+import dev.paulee.api.internal.Embedding
 import java.io.Closeable
 import java.nio.file.Path
 
@@ -22,6 +23,8 @@ interface IDataService : Closeable {
     fun getAvailableDataInfo(): Set<DataInfo>
 
     fun getSuggestions(field: String, value: String): List<String>
+
+    suspend fun downloadModel(models: Embedding.Models, path: Path, onProgress: (progress: Int) -> Unit)
 
     fun getPage(query: String, isSemantic: Boolean, order: QueryOrder?, pageCount: Int): Pair<List<Map<String, String>>, Map<String, List<Map<String, String>>>>
 
