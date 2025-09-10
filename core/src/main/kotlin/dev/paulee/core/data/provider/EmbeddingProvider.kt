@@ -6,6 +6,7 @@ import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import dev.paulee.api.internal.Embedding
+import dev.paulee.core.data.FileService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
@@ -31,17 +32,13 @@ internal object EmbeddingProvider {
 
     private val env = OrtEnvironment.getEnvironment()
 
-    //TODO: Change db path
-    private val connection = DriverManager.getConnection("jdbc:duckdb:embeddings") as DuckDBConnection
+    private val connection = DriverManager.getConnection("jdbc:duckdb:${FileService.appDir}/embeddings") as DuckDBConnection
 
     private val tokenizer = mutableMapOf<Embedding.Model, HuggingFaceTokenizer>()
 
     private val sessions = mutableMapOf<Embedding.Model, OrtSession?>()
 
     private val models = mutableMapOf<String, Embedding.Model>()
-
-    // TODO: Pass actual model path
-    private val modelDir = Path(System.getProperty("user.home"), ".textexplorer", "models")
 
     init {
         connection.createStatement().use {
@@ -63,9 +60,9 @@ internal object EmbeddingProvider {
             tokenizer.computeIfAbsent(model) {
                 HuggingFaceTokenizer.builder()
                     .optTokenizerConfigPath(
-                        modelDir.resolve(model.name).resolve(model.modelData.tokenizerConfig).toString()
+                        FileService.modelsDir.resolve(model.name).resolve(model.modelData.tokenizerConfig).toString()
                     )
-                    .optTokenizerPath(modelDir.resolve(model.name).resolve(model.modelData.tokenizer))
+                    .optTokenizerPath(FileService.modelsDir.resolve(model.name).resolve(model.modelData.tokenizer))
 
                     // TODO store/read values instead of fixed ones
                     .optMaxLength(2048)
@@ -335,7 +332,7 @@ internal object EmbeddingProvider {
 
         return runCatching {
             env.createSession(
-                modelDir.resolve(model.name).resolve(model.modelData.model).toString(),
+                FileService.modelsDir.resolve(model.name).resolve(model.modelData.model).toString(),
                 options
             )
         }.getOrElse {

@@ -12,7 +12,7 @@ import kotlin.io.path.notExists
 
 internal object FileService {
 
-    private val appDir = Path(System.getProperty("user.home"), ".textexplorer")
+    val appDir: Path get() = ensureDir(".textexplorer", true)
 
     val pluginsDir: Path get() = ensureDir("plugins")
 
@@ -36,16 +36,16 @@ internal object FileService {
             null
         }
 
-    private fun ensureDir(name: String): Path {
-        val subDir = appDir.resolve(name)
+    private fun ensureDir(name: String, main: Boolean = false): Path {
+        val dir = if (main) Path(System.getProperty("user.home"), name) else appDir.resolve(name)
 
-        if (subDir.notExists()) {
-            runCatching { subDir.createDirectories() }
+        if (dir.notExists()) {
+            runCatching { dir.createDirectories() }
                 .onFailure {
                     logger.error("Failed to create directory '$name'.", it)
                 }
         }
 
-        return subDir
+        return dir
     }
 }
