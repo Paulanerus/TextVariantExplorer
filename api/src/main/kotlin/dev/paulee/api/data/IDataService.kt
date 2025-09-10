@@ -10,8 +10,6 @@ interface IDataService : Closeable {
 
     suspend fun createDataPool(dataInfo: DataInfo, path: Path, onProgress: (progress: Int) -> Unit): Boolean
 
-    fun loadDataPools(path: Path): Int
-
     fun selectDataPool(selection: String)
 
     fun getSelectedPool(): String

@@ -51,6 +51,10 @@ object DataServiceImpl : IDataService {
 
     private val dataPools = mutableMapOf<String, DataPool>()
 
+    init {
+        loadDataPools(FileService.dataDir)
+    }
+
     override suspend fun createDataPool(dataInfo: DataInfo, path: Path, onProgress: (progress: Int) -> Unit): Boolean =
         withContext(Dispatchers.IO) {
             try {
@@ -144,8 +148,11 @@ object DataServiceImpl : IDataService {
         }
 
     @OptIn(ExperimentalPathApi::class)
-    override fun loadDataPools(path: Path): Int {
-        if (!path.exists()) path.createDirectories()
+    fun loadDataPools(path: Path) {
+        if (path.notExists()) {
+            logger.warn("Data pool directory does not exist.")
+            return
+        }
 
         path.forEachDirectoryEntry { child ->
             if (!child.isDirectory()) return@forEachDirectoryEntry
@@ -190,8 +197,6 @@ object DataServiceImpl : IDataService {
 
         if (amount > 0) logger.info("Loaded $amount data ${if (amount == 1) "pool" else "pools"}.")
         else logger.info("No data pools in '$path' available.")
-
-        return dataPools.size
     }
 
     override fun selectDataPool(selection: String) {
@@ -292,7 +297,18 @@ object DataServiceImpl : IDataService {
 
         val (filterQuery, filter) = this.getPreFilter(query)
 
-        val indexResult = dataPool.search(this.handleReplacements(dataPool.metadata, filterQuery))
+        val queryWithReplacements = handleReplacements(dataPool.metadata, filterQuery)
+
+        if (isSemantic) {
+            val ids =
+                EmbeddingProvider.topKMatching("${dataPool.dataInfo.name}_${currentField}", queryWithReplacements, 10)
+
+            dataPool.storageProvider.get(this.currentField!!, ids, emptyList(), emptyList()).let {
+                it.forEach { row -> println(row) }
+            }
+        }
+
+        val indexResult = dataPool.search(queryWithReplacements)
 
         if (filter.isEmpty() && indexResult.isEmpty()) return Triple(0, 0, emptySet())
 
