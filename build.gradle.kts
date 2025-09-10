@@ -47,10 +47,25 @@ compose.desktop {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "TextVariantExplorer"
 
+            licenseFile.set(project.file("LICENSE.md"))
+
             modules += listOf("java.sql")
 
             linux {
                 iconFile.set(project.file("ui/src/main/resources/icon.png"))
+            }
+
+            windows {
+                iconFile.set(project.file("ui/src/main/resources/icon.ico"))
+
+                menu = true
+                upgradeUuid = "C4AF61D5-8472-482D-B2A0-F92E32D7A18C"
+            }
+
+            macOS {
+                iconFile.set(project.file("ui/src/main/resources/icon.icns"))
+
+                appCategory = "public.app-category.utilities"
             }
         }
     }
