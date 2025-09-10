@@ -2,7 +2,6 @@ package dev.paulee.core.data
 
 import dev.paulee.api.data.DataInfo
 import dev.paulee.api.data.IDataService
-import dev.paulee.api.data.IndexField
 import dev.paulee.api.data.PreFilter
 import dev.paulee.api.data.VariantMapping
 import dev.paulee.api.data.provider.IStorageProvider
@@ -52,9 +51,6 @@ object DataServiceImpl : IDataService {
 
     private val dataPools = mutableMapOf<String, DataPool>()
 
-    init {
-    }
-
     override suspend fun createDataPool(dataInfo: DataInfo, path: Path, onProgress: (progress: Int) -> Unit): Boolean =
         withContext(Dispatchers.IO) {
             try {
@@ -73,7 +69,7 @@ object DataServiceImpl : IDataService {
 
                 val dataPool = runCatching {
                     DataPool(
-                        indexer = Indexer(poolPath.resolve("index"), dataInfo.sources),
+                        indexer = Indexer(poolPath.resolve("index"), dataInfo),
                         dataInfo = dataInfo,
                         storageProvider = storageProvider
                     )
@@ -116,6 +112,7 @@ object DataServiceImpl : IDataService {
                             else line + ("${file}_ag_id" to idGenerator.next().toString())
                         }
 
+                        // EmbeddingProvider.insertEmbedding("", emptyList())
                         dataPool.indexer.indexEntries(file, entries)
                         storageProvider.insert(file, entries)
 
@@ -167,7 +164,7 @@ object DataServiceImpl : IDataService {
 
             if (storageProvider.init(dataInfo, child) == ProviderStatus.EXISTS) {
                 dataPools[dataInfo.name] =
-                    DataPool(Indexer(child.resolve("index"), dataInfo.sources), dataInfo, storageProvider)
+                    DataPool(Indexer(child.resolve("index"), dataInfo), dataInfo, storageProvider)
 
                 logger.info("Loaded ${dataInfo.name} data pool.")
             } else {
@@ -177,6 +174,8 @@ object DataServiceImpl : IDataService {
                     .onFailure { e -> logger.error("Failed to delete directory ${child.fileName}.", e) }
             }
         }
+
+        // TODO create Embedding for previous added data pools
 
         val amount = dataPools.size
         if (amount == 1) {
@@ -336,6 +335,8 @@ object DataServiceImpl : IDataService {
             it.storageProvider.close()
             it.indexer.close()
         }
+
+        EmbeddingProvider.close()
     }
 
     private fun handleReplacements(replacements: Map<String, Any>, query: String): String {

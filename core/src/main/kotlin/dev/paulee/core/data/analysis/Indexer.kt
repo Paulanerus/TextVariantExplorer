@@ -1,9 +1,10 @@
 package dev.paulee.core.data.analysis
 
+import dev.paulee.api.data.DataInfo
 import dev.paulee.api.data.IndexField
 import dev.paulee.api.data.Language
-import dev.paulee.api.data.Source
 import dev.paulee.api.data.UniqueField
+import dev.paulee.core.data.provider.EmbeddingProvider
 import dev.paulee.core.normalizeDataSource
 import org.apache.lucene.analysis.Analyzer
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer
@@ -40,7 +41,7 @@ internal class CustomParser(private val defaultField: String, defaultAnalyzer: A
     }
 }
 
-internal class Indexer(path: Path, sources: List<Source>) : Closeable {
+internal class Indexer(path: Path, dataInfo: DataInfo) : Closeable {
 
     companion object {
         private val OPERATOR_CASCADE_REGEX =
@@ -69,21 +70,25 @@ internal class Indexer(path: Path, sources: List<Source>) : Closeable {
         //See https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/store/NIOFSDirectory.html
         this.directory = if (this.isWindows()) FSDirectory.open(path) else NIOFSDirectory.open(path)
 
-        sources.forEach {
+        dataInfo.sources.forEach {
             val normalized = normalizeDataSource(it.name)
 
             if (it.fields.none { field -> field is IndexField }) return@forEach
 
             it.fields.forEach { field ->
-                val fieldName = field.name
+                val fieldName = "${normalized}.${field.name}"
 
                 when (field) {
                     is IndexField -> {
-                        this.mappedAnalyzer["$normalized.$fieldName"] = LangAnalyzer.new(field.lang)
-                        this.mappedAnalyzer["$normalized.$fieldName.ws"] = whitespaceAnalyzer
+                        this.mappedAnalyzer[fieldName] = LangAnalyzer.new(field.lang)
+                        this.mappedAnalyzer["$fieldName.ws"] = whitespaceAnalyzer
+
+                        field.embeddingModel?.let { model ->
+                            EmbeddingProvider.createTable("${dataInfo.name}_$fieldName", model)
+                        }
                     }
 
-                    is UniqueField -> if (field.identify) this.idFields.add("$normalized.$fieldName")
+                    is UniqueField -> if (field.identify) this.idFields.add(fieldName)
                     else -> {}
                 }
             }
