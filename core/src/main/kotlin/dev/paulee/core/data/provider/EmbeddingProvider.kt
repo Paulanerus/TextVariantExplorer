@@ -50,7 +50,11 @@ internal object EmbeddingProvider {
     }
 
     fun createTable(name: String, model: Embedding.Model) {
+        if (name.isBlank()) return
+
         val tableName = name.replace(".", "_")
+
+        //TODO Check for existing model
 
         try {
             connection.createStatement().use {
@@ -73,13 +77,15 @@ internal object EmbeddingProvider {
             }
 
             models[tableName] = model
+
+            logger.info(tableName)
         } catch (e: Exception) {
             logger.error("Failed to create table $tableName", e)
         }
     }
 
     fun topKMatching(name: String, query: String, k: Int): Set<Long> {
-        if (query.isBlank()) return emptySet()
+        if (name.isBlank() || query.isBlank()) return emptySet()
 
         val tableName = name.replace(".", "_")
 
@@ -91,11 +97,13 @@ internal object EmbeddingProvider {
             }
         }
 
+        val limit = if (k < 1) 1 else 1
+
         return connection.prepareStatement("SELECT id FROM $tableName ORDER BY array_negative_inner_product(embedding, ?::FLOAT[${model.modelData.dimension}]) LIMIT ?;")
             .use { ps ->
                 val qArr: java.sql.Array = connection.createArrayOf("FLOAT", embedding.toTypedArray())
                 ps.setArray(1, qArr)
-                ps.setInt(2, k)
+                ps.setInt(2, limit)
 
                 val rs = ps.executeQuery()
 
@@ -107,7 +115,7 @@ internal object EmbeddingProvider {
     }
 
     fun insertEmbedding(name: String, entries: List<Pair<Long, String>>) {
-        if (entries.isEmpty()) return
+        if (name.isBlank() || entries.isEmpty()) return
 
         val tableName = name.replace(".", "_")
 
@@ -271,6 +279,8 @@ internal object EmbeddingProvider {
     }
 
     private fun tokenize(model: Embedding.Model, values: List<String>): Pair<Array<LongArray>, Array<LongArray>>? {
+        if (values.isEmpty()) return null
+
         val encodings: Array<Encoding> = tokenizer[model]?.batchEncode(values) ?: return null
 
         val seqLen = encodings[0].ids.size
@@ -327,14 +337,10 @@ internal object EmbeddingProvider {
     }
 
     private fun createSession(model: Embedding.Model): OrtSession? {
-        val options = OrtSession.SessionOptions().apply {
-            addCUDA()
-        }
-
         return runCatching {
             env.createSession(
                 FileService.modelsDir.resolve(model.name).resolve(model.modelData.model).toString(),
-                options
+                OrtSession.SessionOptions()
             )
         }.getOrElse {
             logger.error("Failed to create session for model ${model.name}", it)

@@ -83,7 +83,8 @@ object DataServiceImpl : IDataService {
                 }
 
                 val totalBatches = dataInfo.sources.sumOf { source ->
-                    val sourcePath = FileService.dataDir.resolve(source.name.let { if (it.endsWith(".csv")) it else "$it.csv" })
+                    val sourcePath =
+                        FileService.dataDir.resolve(source.name.let { if (it.endsWith(".csv")) it else "$it.csv" })
 
                     if (sourcePath.exists()) BufferedCSVReader.estimateBatches(sourcePath, CSV_READER_BATCH_SIZE)
                     else 0
@@ -101,7 +102,8 @@ object DataServiceImpl : IDataService {
                         return@forEach
                     }
 
-                    val sourcePath = FileService.dataDir.resolve(file.let { if (it.endsWith(".csv")) it else "$it.csv" })
+                    val sourcePath =
+                        FileService.dataDir.resolve(file.let { if (it.endsWith(".csv")) it else "$it.csv" })
 
                     if (!sourcePath.exists()) {
                         logger.warn("Source file '$sourcePath' not found.")
@@ -116,7 +118,9 @@ object DataServiceImpl : IDataService {
                             else line + ("${file}_ag_id" to idGenerator.next().toString())
                         }
 
-                        // EmbeddingProvider.insertEmbedding("", emptyList())
+
+                        // TODO: Insert embeddings
+
                         dataPool.indexer.indexEntries(file, entries)
                         storageProvider.insert(file, entries)
 
@@ -297,18 +301,7 @@ object DataServiceImpl : IDataService {
 
         val (filterQuery, filter) = this.getPreFilter(query)
 
-        val queryWithReplacements = handleReplacements(dataPool.metadata, filterQuery)
-
-        if (isSemantic) {
-            val ids =
-                EmbeddingProvider.topKMatching("${dataPool.dataInfo.name}_${currentField}", queryWithReplacements, 10)
-
-            dataPool.storageProvider.get(this.currentField!!, ids, emptyList(), emptyList()).let {
-                it.forEach { row -> println(row) }
-            }
-        }
-
-        val indexResult = dataPool.search(queryWithReplacements)
+        val indexResult = dataPool.search(handleReplacements(dataPool.metadata, filterQuery))
 
         if (filter.isEmpty() && indexResult.isEmpty()) return Triple(0, 0, emptySet())
 
