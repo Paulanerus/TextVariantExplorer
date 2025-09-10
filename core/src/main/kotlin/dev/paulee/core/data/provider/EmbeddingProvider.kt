@@ -32,7 +32,8 @@ internal object EmbeddingProvider {
 
     private val env = OrtEnvironment.getEnvironment()
 
-    private val connection = DriverManager.getConnection("jdbc:duckdb:${FileService.appDir}/embeddings") as DuckDBConnection
+    private val connection =
+        DriverManager.getConnection("jdbc:duckdb:${FileService.appDir}/embeddings") as DuckDBConnection
 
     private val tokenizer = mutableMapOf<Embedding.Model, HuggingFaceTokenizer>()
 
