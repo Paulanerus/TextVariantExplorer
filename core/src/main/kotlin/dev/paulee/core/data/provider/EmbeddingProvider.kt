@@ -1,18 +1,27 @@
 package dev.paulee.core.data.provider
 
+import ai.djl.huggingface.tokenizers.Encoding
+import ai.djl.huggingface.tokenizers.HuggingFaceTokenizer
+import ai.onnxruntime.OnnxTensor
+import ai.onnxruntime.OrtEnvironment
+import ai.onnxruntime.OrtSession
 import dev.paulee.api.internal.Embedding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
+import org.duckdb.DuckDBConnection
 import org.slf4j.LoggerFactory.getLogger
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.file.Path
+import java.sql.DriverManager
 import java.time.Duration
 import kotlin.coroutines.cancellation.CancellationException
+import kotlin.io.DEFAULT_BUFFER_SIZE
 import kotlin.io.path.*
+import kotlin.use
 
 internal object EmbeddingProvider {
 
@@ -20,8 +29,122 @@ internal object EmbeddingProvider {
 
     private const val HF_URL = "https://huggingface.co/%s/resolve/main"
 
+    private val env = OrtEnvironment.getEnvironment()
+
+    //TODO: Change db path
+    private val connection = DriverManager.getConnection("jdbc:duckdb:embeddings") as DuckDBConnection
+
+    private val tokenizer = mutableMapOf<Embedding.Model, HuggingFaceTokenizer>()
+
+    private val sessions = mutableMapOf<Embedding.Model, OrtSession?>()
+
+    private val models = mutableMapOf<String, Embedding.Model>()
+
+    // TODO: Pass actual model path
+    private val modelDir = Path(System.getProperty("user.home"), ".textexplorer", "models")
+
+    init {
+        connection.createStatement().use {
+            it.execute("INSTALL vss; LOAD vss")
+
+            it.execute("SET hnsw_enable_experimental_persistence = true;")
+        }
+    }
+
+    fun createTable(name: String, model: Embedding.Model) {
+        val tableName = name.replace(".", "_")
+
+        try {
+            connection.createStatement().use {
+                it.execute("CREATE TABLE IF NOT EXISTS $tableName (id BIGINT PRIMARY KEY, embedding FLOAT[${model.modelData.dimension}]);")
+                it.execute("CREATE INDEX IF NOT EXISTS ${tableName}_hnsw ON $tableName USING HNSW(embedding) WITH (metric='ip');")
+            }
+
+            tokenizer.computeIfAbsent(model) {
+                HuggingFaceTokenizer.builder()
+                    .optTokenizerConfigPath(
+                        modelDir.resolve(model.name).resolve(model.modelData.tokenizerConfig).toString()
+                    )
+                    .optTokenizerPath(modelDir.resolve(model.name).resolve(model.modelData.tokenizer))
+
+                    // TODO store/read values instead of fixed ones
+                    .optMaxLength(2048)
+                    .optTruncation(true)
+                    .optPadding(true)
+                    .build()
+            }
+
+            models[tableName] = model
+        } catch (e: Exception) {
+            logger.error("Failed to create table $tableName", e)
+        }
+    }
+
+    fun topKMatching(name: String, query: String, k: Int): Set<Long> {
+        if (query.isBlank()) return emptySet()
+
+        val tableName = name.replace(".", "_")
+
+        val model = models[tableName] ?: return emptySet()
+
+        val embedding = when (model) {
+            Embedding.Model.EmbeddingGemma -> {
+                createRawEmbeddings(model, listOf("task: search result | query: $query"))[0]
+            }
+        }
+
+        return connection.prepareStatement("SELECT id FROM $tableName ORDER BY array_negative_inner_product(embedding, ?::FLOAT[${model.modelData.dimension}]) LIMIT ?;")
+            .use { ps ->
+                val qArr: java.sql.Array = connection.createArrayOf("FLOAT", embedding.toTypedArray())
+                ps.setArray(1, qArr)
+                ps.setInt(2, k)
+
+                val rs = ps.executeQuery()
+
+
+                buildSet {
+                    while (rs.next()) add(rs.getLong(1))
+                }
+            }
+    }
+
+    fun insertEmbedding(name: String, entries: List<Pair<Long, String>>) {
+        if (entries.isEmpty()) return
+
+        val tableName = name.replace(".", "_")
+
+        val model = models[tableName] ?: return
+
+        when (model) {
+            Embedding.Model.EmbeddingGemma -> {
+                val texts = entries.map { (_, text) -> "title: none | text: $text" }
+                val embeddings: Array<FloatArray> = createRawEmbeddings(model, texts)
+
+                connection.prepareStatement("INSERT OR REPLACE INTO $tableName (id, embedding) VALUES (?, ?::FLOAT[${model.modelData.dimension}]);")
+                    .use { ps ->
+                        for (i in entries.indices) {
+                            val (id, _) = entries[i]
+
+                            ps.setLong(1, id)
+
+                            val arr: java.sql.Array = connection.createArrayOf(
+                                "FLOAT",
+                                embeddings[i].map { it }.toTypedArray()
+                            )
+
+                            ps.setArray(2, arr)
+
+                            ps.addBatch()
+                        }
+
+                        ps.executeBatch()
+                    }
+            }
+        }
+    }
+
     @OptIn(ExperimentalPathApi::class)
-    suspend fun downloadModel(model: Embedding.Models, path: Path, onProgress: (progress: Int) -> Unit) =
+    suspend fun downloadModel(model: Embedding.Model, path: Path, onProgress: (progress: Int) -> Unit) =
         withContext(Dispatchers.IO) {
             logger.info("Downloading model: ${model.name}")
 
@@ -138,4 +261,86 @@ internal object EmbeddingProvider {
 
             logger.info("Downloaded model: ${model.name}")
         }
+
+    fun close() {
+        connection.close()
+
+        tokenizer.values.forEach { it.close() }
+
+        sessions.values.forEach { it?.close() }
+
+        env.close()
+    }
+
+    private fun tokenize(model: Embedding.Model, values: List<String>): Pair<Array<LongArray>, Array<LongArray>>? {
+        val encodings: Array<Encoding> = tokenizer[model]?.batchEncode(values) ?: return null
+
+        val seqLen = encodings[0].ids.size
+        val batch = encodings.size
+
+        encodings.forEach { encoding ->
+            require(encoding.ids.size == seqLen && encoding.attentionMask.size == seqLen) {
+                "Tokenizer did not produce uniform lengths; check padding settings."
+            }
+        }
+
+        val inputIds = Array(batch) { i -> encodings[i].ids }
+        val attentionMask = Array(batch) { i -> encodings[i].attentionMask }
+
+        return inputIds to attentionMask
+    }
+
+    private fun createRawEmbeddings(model: Embedding.Model, values: List<String>): Array<FloatArray> {
+        val session = sessions.getOrPut(model) {
+            createSession(model)
+        }
+
+        if (session == null) return emptyArray()
+
+        val (inputIds, attentionMask) = tokenize(model, values) ?: return emptyArray()
+
+        return OnnxTensor.createTensor(env, inputIds).use { idsTensor ->
+            OnnxTensor.createTensor(env, attentionMask).use { maskTensor ->
+                val inputs = mapOf(
+                    "input_ids" to idsTensor,
+                    "attention_mask" to maskTensor
+                )
+                session.run(inputs).use { result ->
+                    val outName = session.outputNames.firstOrNull { it.contains("sentence_embedding") }
+
+                    @Suppress("UNCHECKED_CAST")
+                    val embeddings: Array<FloatArray> = when {
+                        outName != null -> {
+                            val ov = result.get(outName)
+                                .orElseThrow { IllegalStateException("No output named $outName") }
+                            (ov as OnnxTensor).value as Array<FloatArray>
+                        }
+
+                        else -> {
+                            val ov = result.get(1)
+                            (ov as OnnxTensor).value as Array<FloatArray>
+                        }
+                    }
+
+                    embeddings
+                }
+            }
+        }
+    }
+
+    private fun createSession(model: Embedding.Model): OrtSession? {
+        val options = OrtSession.SessionOptions().apply {
+            addCUDA()
+        }
+
+        return runCatching {
+            env.createSession(
+                modelDir.resolve(model.name).resolve(model.modelData.model).toString(),
+                options
+            )
+        }.getOrElse {
+            logger.error("Failed to create session for model ${model.name}", it)
+            null
+        }
+    }
 }
