@@ -58,6 +58,8 @@ class TextExplorerUI(
 
     private val dataDir = appDir.resolve("data")
 
+    private val modelDir = appDir.resolve("models")
+
     private var poolSelected by mutableStateOf(false)
 
     init {
@@ -648,7 +650,7 @@ class TextExplorerUI(
 
                 Window.Settings -> SettingsWindow { openWindow = Window.None }
 
-                Window.ModelManagement -> ModelManagerWindow(Path("testfiles")) { openWindow = Window.None }
+                Window.ModelManagement -> ModelManagerWindow(dataService, modelDir) { openWindow = Window.None }
 
                 else -> {}
             }

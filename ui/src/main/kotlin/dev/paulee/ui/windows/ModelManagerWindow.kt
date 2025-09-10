@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollbarAdapter
 import androidx.compose.material.Button
+import androidx.compose.material.LinearProgressIndicator
 import androidx.compose.material.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,12 +21,12 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.rememberWindowState
+import dev.paulee.api.data.IDataService
 import dev.paulee.api.internal.Embedding
 import dev.paulee.ui.App
 import dev.paulee.ui.Config
 import dev.paulee.ui.LocalI18n
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.nio.file.Path
@@ -33,12 +34,11 @@ import kotlin.io.path.*
 
 @OptIn(ExperimentalPathApi::class)
 @Composable
-fun ModelManagerWindow(modelDir: Path, onClose: () -> Unit) {
+fun ModelManagerWindow(dataService: IDataService, modelDir: Path, onClose: () -> Unit) {
     val locale = LocalI18n.current
 
     val windowState = rememberWindowState(
-        position = WindowPosition.Aligned(Alignment.Center),
-        size = DpSize(800.dp, 600.dp)
+        position = WindowPosition.Aligned(Alignment.Center), size = DpSize(800.dp, 600.dp)
     )
 
     Window(
@@ -54,6 +54,8 @@ fun ModelManagerWindow(modelDir: Path, onClose: () -> Unit) {
             val scope = rememberCoroutineScope()
             val models = remember { Embedding.Models.entries }
 
+            var downloadProgress by remember { mutableStateOf<Float?>(null) }
+
             var installedDirs by remember { mutableStateOf<Set<String>>(emptySet()) }
             val busy = remember { mutableStateMapOf<Embedding.Models, Boolean>() }
 
@@ -68,14 +70,15 @@ fun ModelManagerWindow(modelDir: Path, onClose: () -> Unit) {
             }
 
             suspend fun download(model: Embedding.Models) {
-                withContext(Dispatchers.IO) {
+                downloadProgress = 0f
 
-                    delay(4000)
-
-                    // TODO: download and save model
+                dataService.downloadModel(model, modelDir) {
+                    downloadProgress = it / 100f
                 }
 
                 refresh()
+
+                downloadProgress = null
             }
 
             suspend fun remove(model: Embedding.Models) {
@@ -89,9 +92,7 @@ fun ModelManagerWindow(modelDir: Path, onClose: () -> Unit) {
             }
 
             Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(24.dp)
+                modifier = Modifier.fillMaxSize().padding(24.dp)
             ) {
                 Text(
                     text = locale["model_management.title"],
@@ -105,9 +106,7 @@ fun ModelManagerWindow(modelDir: Path, onClose: () -> Unit) {
                 Box(modifier = Modifier.fillMaxSize()) {
                     LazyColumn(
                         state = listState,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(end = 8.dp),
+                        modifier = Modifier.fillMaxSize().padding(end = 8.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         items(models) { model ->
@@ -115,53 +114,68 @@ fun ModelManagerWindow(modelDir: Path, onClose: () -> Unit) {
 
                             val isBusy = busy[model] == true
 
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.Top
-                            ) {
-                                Column(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .padding(end = 16.dp)
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.Top
                                 ) {
-                                    Text(
-                                        text = model.name,
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Column(
+                                        modifier = Modifier.weight(1f).padding(end = 16.dp)
+                                    ) {
                                         Text(
-                                            text = "${locale["model_management.by", model.author]} • ${model.parameter}",
-                                            fontSize = 12.sp,
-                                            color = Color.Gray,
+                                            text = model.name,
+                                            fontSize = 16.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
+
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                text = "${locale["model_management.by", model.author]} • ${model.parameter}",
+                                                fontSize = 12.sp,
+                                                color = Color.Gray,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+
+                                        Text(
+                                            text = model.description,
+                                            fontSize = 12.sp,
+                                            color = Color.Gray,
+                                            modifier = Modifier.padding(top = 6.dp)
+                                        )
                                     }
-                                    Text(
-                                        text = model.description,
-                                        fontSize = 12.sp,
-                                        color = Color.Gray,
-                                        modifier = Modifier.padding(top = 6.dp)
-                                    )
+
+                                    Button(
+                                        modifier = Modifier.width(150.dp), enabled = !isBusy, onClick = {
+                                            scope.launch {
+                                                markBusy(model, true)
+
+                                                runCatching { if (installed) remove(model) else download(model) }
+
+                                                markBusy(model, false)
+                                            }
+                                        }) {
+                                        Text(if (installed) locale["model_management.remove"] else locale["model_management.download"])
+                                    }
                                 }
 
-                                Button(
-                                    modifier = Modifier.width(150.dp),
-                                    enabled = !isBusy,
-                                    onClick = {
-                                        scope.launch {
-                                            markBusy(model, true)
+                                if (downloadProgress != null) {
+                                    Column(
+                                        modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp)
+                                    ) {
+                                        LinearProgressIndicator(
+                                            progress = downloadProgress ?: 0f, modifier = Modifier.fillMaxWidth()
+                                        )
 
-                                            runCatching { if (installed) remove(model) else download(model) }
-
-                                            markBusy(model, false)
-                                        }
+                                        Text(
+                                            text = "${((downloadProgress ?: 0f) * 100).toInt()} %",
+                                            fontSize = 12.sp,
+                                            modifier = Modifier.align(Alignment.End).padding(top = 4.dp)
+                                        )
                                     }
-                                ) {
-                                    Text(if (installed) locale["model_management.remove"] else locale["model_management.download"])
                                 }
                             }
                         }
