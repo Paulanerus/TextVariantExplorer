@@ -10,18 +10,17 @@ import dev.paulee.core.data.FileService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
-import org.duckdb.DuckDBConnection
 import org.slf4j.LoggerFactory.getLogger
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.file.Path
-import java.sql.DriverManager
 import java.time.Duration
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.io.DEFAULT_BUFFER_SIZE
 import kotlin.io.path.*
+import kotlin.math.max
 import kotlin.use
 
 internal object EmbeddingProvider {
@@ -32,22 +31,11 @@ internal object EmbeddingProvider {
 
     private val env = OrtEnvironment.getEnvironment()
 
-    private val connection =
-        DriverManager.getConnection("jdbc:duckdb:${FileService.appDir}/embeddings") as DuckDBConnection
-
     private val tokenizer = mutableMapOf<Embedding.Model, HuggingFaceTokenizer>()
 
     private val sessions = mutableMapOf<Embedding.Model, OrtSession?>()
 
     private val models = mutableMapOf<String, Embedding.Model>()
-
-    init {
-        connection.createStatement().use {
-            it.execute("INSTALL vss; LOAD vss")
-
-            it.execute("SET hnsw_enable_experimental_persistence = true;")
-        }
-    }
 
     fun createTable(name: String, model: Embedding.Model) {
         if (name.isBlank()) return
@@ -57,11 +45,6 @@ internal object EmbeddingProvider {
         //TODO Check for existing model
 
         try {
-            connection.createStatement().use {
-                it.execute("CREATE TABLE IF NOT EXISTS $tableName (id BIGINT PRIMARY KEY, embedding FLOAT[${model.modelData.dimension}]);")
-                it.execute("CREATE INDEX IF NOT EXISTS ${tableName}_hnsw ON $tableName USING HNSW(embedding) WITH (metric='ip');")
-            }
-
             tokenizer.computeIfAbsent(model) {
                 HuggingFaceTokenizer.builder()
                     .optTokenizerConfigPath(
@@ -97,21 +80,9 @@ internal object EmbeddingProvider {
             }
         }
 
-        val limit = if (k < 1) 1 else 1
+        val limit = max(1, k)
 
-        return connection.prepareStatement("SELECT id FROM $tableName ORDER BY array_negative_inner_product(embedding, ?::FLOAT[${model.modelData.dimension}]) LIMIT ?;")
-            .use { ps ->
-                val qArr: java.sql.Array = connection.createArrayOf("FLOAT", embedding.toTypedArray())
-                ps.setArray(1, qArr)
-                ps.setInt(2, limit)
-
-                val rs = ps.executeQuery()
-
-
-                buildSet {
-                    while (rs.next()) add(rs.getLong(1))
-                }
-            }
+        TODO("Implement topKMatching")
     }
 
     fun insertEmbedding(name: String, entries: List<Pair<Long, String>>) {
@@ -121,32 +92,15 @@ internal object EmbeddingProvider {
 
         val model = models[tableName] ?: return
 
-        when (model) {
+        val embeddings = when (model) {
             Embedding.Model.EmbeddingGemma -> {
                 val texts = entries.map { (_, text) -> "title: none | text: $text" }
-                val embeddings: Array<FloatArray> = createRawEmbeddings(model, texts)
 
-                connection.prepareStatement("INSERT OR REPLACE INTO $tableName (id, embedding) VALUES (?, ?::FLOAT[${model.modelData.dimension}]);")
-                    .use { ps ->
-                        for (i in entries.indices) {
-                            val (id, _) = entries[i]
-
-                            ps.setLong(1, id)
-
-                            val arr: java.sql.Array = connection.createArrayOf(
-                                "FLOAT",
-                                embeddings[i].map { it }.toTypedArray()
-                            )
-
-                            ps.setArray(2, arr)
-
-                            ps.addBatch()
-                        }
-
-                        ps.executeBatch()
-                    }
+                createRawEmbeddings(model, texts)
             }
         }
+
+        TODO("Implement insertEmbedding")
     }
 
     @OptIn(ExperimentalPathApi::class)
@@ -269,8 +223,6 @@ internal object EmbeddingProvider {
         }
 
     fun close() {
-        connection.close()
-
         tokenizer.values.forEach { it.close() }
 
         sessions.values.forEach { it?.close() }
