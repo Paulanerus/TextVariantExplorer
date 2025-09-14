@@ -4,20 +4,16 @@ import dev.paulee.api.data.DataInfo
 import dev.paulee.api.data.IndexField
 import dev.paulee.api.data.Language
 import dev.paulee.api.data.UniqueField
+import dev.paulee.api.internal.Embedding
 import dev.paulee.core.data.provider.EmbeddingProvider
 import dev.paulee.core.normalizeDataSource
 import org.apache.lucene.analysis.Analyzer
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer
 import org.apache.lucene.analysis.miscellaneous.PerFieldAnalyzerWrapper
-import org.apache.lucene.document.Document
-import org.apache.lucene.document.Field
-import org.apache.lucene.document.LongField
-import org.apache.lucene.document.TextField
-import org.apache.lucene.index.DirectoryReader
-import org.apache.lucene.index.IndexWriter
-import org.apache.lucene.index.IndexWriterConfig
-import org.apache.lucene.index.Term
+import org.apache.lucene.document.*
+import org.apache.lucene.index.*
 import org.apache.lucene.queryparser.classic.QueryParser
+import org.apache.lucene.search.FloatVectorSimilarityQuery
 import org.apache.lucene.search.IndexSearcher
 import org.apache.lucene.search.Query
 import org.apache.lucene.store.BaseDirectory
@@ -70,6 +66,8 @@ internal class Indexer(path: Path, dataInfo: DataInfo) : Closeable {
 
     private val idFields = mutableSetOf<String>()
 
+    private val embeddingFields = mutableMapOf<String, Embedding.Model>()
+
     init {
         //See https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/store/NIOFSDirectory.html
         this.directory = if (this.isWindows()) FSDirectory.open(path) else NIOFSDirectory.open(path)
@@ -88,7 +86,8 @@ internal class Indexer(path: Path, dataInfo: DataInfo) : Closeable {
                         this.mappedAnalyzer["$fieldName.ws"] = whitespaceAnalyzer
 
                         field.embeddingModel?.let { model ->
-                            EmbeddingProvider.createTable("${dataInfo.name}_$fieldName", model)
+                            EmbeddingProvider.registerTokenizer(model)
+                            embeddingFields[fieldName] = model
                         }
                     }
 
@@ -115,6 +114,9 @@ internal class Indexer(path: Path, dataInfo: DataInfo) : Closeable {
         val analyzer =
             this.mappedAnalyzer.entries.joinToString(", ") { (key, value) -> "$key (${value::class.simpleName})" }
         this.logger.info("Indexer fields: $analyzer")
+
+        val embeddings = embeddingFields.entries.joinToString(", ") { (key, value) -> "$key (${value.name})" }
+        if (embeddingFields.isNotEmpty()) this.logger.info("Indexer embedding fields: $embeddings")
     }
 
     fun indexEntries(name: String, entries: List<Map<String, String>>) {
@@ -128,8 +130,8 @@ internal class Indexer(path: Path, dataInfo: DataInfo) : Closeable {
             this.writer.updateDocument(Term(fieldName, fieldValue), this.createDoc(name, entry))
         }
 
-        runCatching { this.writer.commit() }.getOrElse { e ->
-            this.logger.error("Exception: Failed to commit changes.", e)
+        runCatching { this.writer.commit() }.onFailure {
+            this.logger.error("Exception: Failed to commit changes.", it)
         }
     }
 
@@ -163,9 +165,30 @@ internal class Indexer(path: Path, dataInfo: DataInfo) : Closeable {
         return hits.scoreDocs.map { searcher.storedFields().document(it.doc) }
     }
 
+    fun searchMatchingVec(field: String, query: String, similarity: Float): List<Document> {
+        val model = embeddingFields[field] ?: return emptyList()
+
+        DirectoryReader.openIfChanged(this.reader)?.let {
+            this.reader.close()
+
+            this.reader = it
+        }
+
+        val searcher = IndexSearcher(this.reader)
+
+        val embedding =
+            EmbeddingProvider.createEmbeddings(model, true, listOf(query)).firstOrNull() ?: return emptyList()
+
+        val query = FloatVectorSimilarityQuery("$field.vec", embedding, similarity)
+
+        val hits = searcher.search(query, Int.MAX_VALUE)
+        return hits.scoreDocs.map { searcher.storedFields().document(it.doc) }
+    }
+
     override fun close() {
         this.writer.close()
         this.reader.close()
+        this.directory.close()
     }
 
     private fun normalizeOperator(query: String): String {
@@ -185,6 +208,12 @@ internal class Indexer(path: Path, dataInfo: DataInfo) : Closeable {
             if (mappedAnalyzer.contains(id)) {
                 add(TextField(id, value, Field.Store.YES))
                 add(TextField("$id.ws", value, Field.Store.YES))
+            }
+
+            embeddingFields[id]?.let { model ->
+                val embedding = EmbeddingProvider.createEmbeddings(model, false, listOf(value)).first()
+
+                add(KnnFloatVectorField("$id.vec", embedding, VectorSimilarityFunction.COSINE))
             }
         }
     }
