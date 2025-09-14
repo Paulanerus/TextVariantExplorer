@@ -35,17 +35,20 @@ internal object EmbeddingProvider {
     private val sessions = mutableMapOf<Embedding.Model, OrtSession?>()
 
     fun registerTokenizer(model: Embedding.Model) {
-        //TODO Check for existing model
-
         val modelName = model.name
+
+        val modelPath = FileService.modelsDir.resolve(modelName)
+
+        if (modelPath.notExists()) {
+            logger.error("Model directory for $modelName does not exist.")
+            return
+        }
 
         try {
             tokenizer.computeIfAbsent(model) {
                 HuggingFaceTokenizer.builder()
-                    .optTokenizerConfigPath(
-                        FileService.modelsDir.resolve(modelName).resolve(model.modelData.tokenizerConfig).toString()
-                    )
-                    .optTokenizerPath(FileService.modelsDir.resolve(modelName).resolve(model.modelData.tokenizer))
+                    .optTokenizerConfigPath(modelPath.resolve(model.modelData.tokenizerConfig).toString())
+                    .optTokenizerPath(modelPath.resolve(model.modelData.tokenizer))
 
                     // TODO store/read values instead of fixed ones
                     .optMaxLength(2048)
@@ -221,13 +224,13 @@ internal object EmbeddingProvider {
     }
 
     private fun createRawEmbeddings(model: Embedding.Model, values: List<String>): Array<FloatArray> {
+        val (inputIds, attentionMask) = tokenize(model, values) ?: return emptyArray()
+
         val session = sessions.getOrPut(model) {
             createSession(model)
         }
 
         if (session == null) return emptyArray()
-
-        val (inputIds, attentionMask) = tokenize(model, values) ?: return emptyArray()
 
         return OnnxTensor.createTensor(env, inputIds).use { idsTensor ->
             OnnxTensor.createTensor(env, attentionMask).use { maskTensor ->
