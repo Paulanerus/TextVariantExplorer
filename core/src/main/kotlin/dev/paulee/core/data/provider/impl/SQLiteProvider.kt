@@ -52,7 +52,7 @@ internal class SQLiteProvider : IStorageProvider {
 
     override fun get(
         name: String,
-        ids: Set<Long>,
+        ids: List<Long>,
         whereClause: List<String>,
         filter: List<String>,
         order: QueryOrder?,
@@ -65,7 +65,7 @@ internal class SQLiteProvider : IStorageProvider {
 
     override fun count(
         name: String,
-        ids: Set<Long>,
+        ids: List<Long>,
         whereClause: List<String>,
         filter: List<String>,
     ): Long {
@@ -84,7 +84,7 @@ internal class SQLiteProvider : IStorageProvider {
 
     private fun getEntries(
         name: String,
-        ids: Set<Long>,
+        ids: List<Long>,
         whereClause: List<String>,
         filter: List<String>,
     ): MutableMap<String, List<String>>? {
