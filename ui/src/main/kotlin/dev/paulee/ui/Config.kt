@@ -32,6 +32,8 @@ object Config {
     var windowX by mutableStateOf(-1)
     var windowY by mutableStateOf(-1)
 
+    var searchExpanded by mutableStateOf(true)
+
     private var configFile = "config"
 
     private var configPath = Path(configFile)

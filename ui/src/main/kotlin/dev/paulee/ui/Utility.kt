@@ -8,6 +8,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.decodeToImageBitmap
+import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.buildAnnotatedString
@@ -107,7 +110,6 @@ fun MarkedText(
                     if (foundIndex == -1) break
 
                     val endIndex = foundIndex + word.length
-
 
                     val isStartBoundary = foundIndex == 0 || !text[foundIndex - 1].isLetterOrDigit()
                     val isEndBoundary = endIndex == text.length || !text[endIndex].isLetterOrDigit()
@@ -293,10 +295,10 @@ fun SimpleTextField(
 }
 
 @Composable
-fun Hint(text: String, modifier: Modifier = Modifier) {
+fun Hint(text: String, modifier: Modifier = Modifier, transparent: Boolean = false) {
     Card(
         modifier = modifier,
-        backgroundColor = Color(0xFFF5F5F5),
+        backgroundColor = if (transparent) Color.Transparent else Color(0xFFF5F5F5),
         shape = RoundedCornerShape(8.dp),
         elevation = 0.dp
     ) {
@@ -330,3 +332,13 @@ fun SimplePopup(
         }
     }
 }
+
+internal fun readBitmapResource(path: String): Painter = BitmapPainter(readResourceBytes(path).decodeToImageBitmap())
+
+private object ResourceLoader
+
+private fun readResourceBytes(resourcePath: String) =
+    ResourceLoader::class.java.classLoader
+        ?.getResourceAsStream(resourcePath)
+        ?.readAllBytes()
+        ?: ByteArray(0)

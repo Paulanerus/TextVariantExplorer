@@ -1,7 +1,10 @@
 package dev.paulee.ui
 
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -9,13 +12,11 @@ import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.text.input.TextFieldValue
@@ -27,23 +28,23 @@ import dev.paulee.api.data.DiffService
 import dev.paulee.api.data.IDataService
 import dev.paulee.api.data.provider.QueryOrder
 import dev.paulee.api.plugin.IPluginService
-import dev.paulee.ui.components.*
-import dev.paulee.ui.windows.DataLoaderWindow
-import dev.paulee.ui.windows.DiffViewerWindow
-import dev.paulee.ui.windows.PluginInfoWindow
-import dev.paulee.ui.windows.SettingsWindow
+import dev.paulee.ui.components.FileDialog
+import dev.paulee.ui.components.IconDropDown
+import dev.paulee.ui.components.TableView
+import dev.paulee.ui.windows.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.nio.file.Path
 import kotlin.io.path.*
 
 enum class Window {
-    NONE,
-    LOAD_PLUGIN,
-    LOAD_DATA,
-    DIFF,
-    PLUGIN_INFO,
-    SETTINGS,
+    None,
+    LoadPlugin,
+    LoadData,
+    Diff,
+    PluginInfo,
+    Settings,
+    ModelManagement,
 }
 
 class TextExplorerUI(
@@ -51,23 +52,12 @@ class TextExplorerUI(
     private val dataService: IDataService,
     private val diffService: DiffService,
 ) {
-    private val appDir = Path(System.getProperty("user.home")).resolve(App.APP_DIR)
-
-    private val pluginsDir = appDir.resolve("plugins")
-
-    private val dataDir = appDir.resolve("data")
-
     private var poolSelected by mutableStateOf(false)
 
     init {
-        if (!this.pluginsDir.exists()) this.pluginsDir.createDirectories()
+        Config.load(dataService.appDir())
 
-        Config.load(this.appDir)
-
-        this.pluginService.loadFromDirectory(this.pluginsDir)
-        this.dataService.loadDataPools(this.dataDir)
-
-        this.pluginService.initAll(this.dataService, this.dataDir)
+        this.pluginService.initAll(this.dataService)
 
         if (Config.selectedPool in this.dataService.getAvailablePools()) this.dataService.selectDataPool(Config.selectedPool)
     }
@@ -77,8 +67,10 @@ class TextExplorerUI(
         val locale = LocalI18n.current
 
         var textField by remember { mutableStateOf(TextFieldValue("")) }
+        var isSemantic by remember { mutableStateOf(false) }
+
         var selectedRows by remember { mutableStateOf(listOf<Map<String, String>>()) }
-        var openWindow by remember { mutableStateOf(Window.NONE) }
+        var openWindow by remember { mutableStateOf(Window.None) }
         var showTable by remember { mutableStateOf(false) }
         var showPopup by remember { mutableStateOf(false) }
         var totalPages by remember { mutableStateOf(0L) }
@@ -121,7 +113,7 @@ class TextExplorerUI(
 
             val queryText = textField.text
 
-            val (count, pages, indexed) = dataService.getPageCount(queryText)
+            val (count, pages, indexed) = dataService.getPageCount(queryText, isSemantic)
             amount = count
 
             totalPages = pages
@@ -129,7 +121,7 @@ class TextExplorerUI(
             indexStrings = indexed
 
             if (totalPages > 0) {
-                dataService.getPage(queryText, queryOrderState, currentPage).let { (pageEntries, pageLinks) ->
+                dataService.getPage(queryText, isSemantic, queryOrderState, currentPage).let { (pageEntries, pageLinks) ->
                     val first = pageEntries.firstOrNull() ?: return@let
 
                     header = first.keys.toList()
@@ -180,13 +172,14 @@ class TextExplorerUI(
 
             IconDropDown(
                 modifier = Modifier.align(Alignment.TopEnd),
-                items = listOf("setting.load_plugin", "setting.load_data", "plugin.title", "---", "settings.title"),
+                items = listOf("setting.load_plugin", "setting.load_data", "plugin.title", "model_management.title", "---", "settings.title"),
             ) {
                 when (it) {
-                    "setting.load_plugin" -> openWindow = Window.LOAD_PLUGIN
-                    "setting.load_data" -> openWindow = Window.LOAD_DATA
-                    "plugin.title" -> openWindow = Window.PLUGIN_INFO
-                    "settings.title" -> openWindow = Window.SETTINGS
+                    "setting.load_plugin" -> openWindow = Window.LoadPlugin
+                    "setting.load_data" -> openWindow = Window.LoadData
+                    "plugin.title" -> openWindow = Window.PluginInfo
+                    "model_management.title" -> openWindow = Window.ModelManagement
+                    "settings.title" -> openWindow = Window.Settings
                 }
             }
 
@@ -200,132 +193,195 @@ class TextExplorerUI(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box {
-                        TextField(
-                            value = textField,
-                            onValueChange = { newValue ->
-                                textField = newValue
-                                val text = newValue.text
-                                val caret = newValue.selection.start
+                    val sharedCorner = 24.dp
 
-                                val ctx = Autocomplete.getAutocompleteContext(text, caret)
+                    val outerBorderColor by animateColorAsState(
+                        targetValue = if (!Config.searchExpanded && isSemantic) MaterialTheme.colors.primary else Color.LightGray
+                    )
 
-                                if (ctx != null && ctx.value.isNotEmpty()) {
-                                    scope.launch {
-                                        delay(300)
+                    Box(
+                        modifier = Modifier
+                            .width(600.dp)
+                            .clip(RoundedCornerShape(sharedCorner))
+                            .border(1.dp, outerBorderColor, RoundedCornerShape(sharedCorner))
+                            .background(Color.White, RoundedCornerShape(sharedCorner))
+                            .animateContentSize(animationSpec = tween(durationMillis = 50))
+                            .padding(horizontal = 12.dp, vertical = 10.dp)
+                    ) {
+                        Column {
+                            Box {
+                                TextField(
+                                    value = textField,
+                                    onValueChange = { newValue ->
+                                        textField = newValue
+                                        val text = newValue.text
+                                        val caret = newValue.selection.start
 
-                                        if (textField.text == text) {
-                                            suggestions = dataService.getSuggestions(ctx.field, ctx.value)
-                                            highlightedIndex = 0
-                                            showSuggestions = suggestions.isNotEmpty()
-                                        }
-                                    }
-                                } else {
-                                    showSuggestions = false
-                                }
-                            },
-                            placeholder = { Text(locale["main.search.placeholder"]) },
-                            modifier = Modifier
-                                .width(600.dp)
-                                .background(
-                                    color = Color.LightGray,
-                                    shape = RoundedCornerShape(24.dp),
-                                )
-                                .onPreviewKeyEvent { event ->
-                                    if (showSuggestions) {
-                                        when (event.type) {
-                                            KeyEventType.KeyDown if event.key == Key.DirectionDown -> {
-                                                highlightedIndex =
-                                                    (highlightedIndex + 1).coerceAtMost(suggestions.lastIndex)
-                                                true
+                                        val ctx = Autocomplete.getAutocompleteContext(text, caret)
+
+                                        if (ctx != null && ctx.value.isNotEmpty()) {
+                                            scope.launch {
+                                                delay(300)
+
+                                                if (textField.text == text) {
+                                                    suggestions = dataService.getSuggestions(ctx.field, ctx.value)
+                                                    highlightedIndex = 0
+                                                    showSuggestions = suggestions.isNotEmpty()
+                                                }
                                             }
-
-                                            KeyEventType.KeyDown if event.key == Key.DirectionUp -> {
-                                                highlightedIndex = (highlightedIndex - 1).coerceAtLeast(0)
-                                                true
-                                            }
-
-                                            KeyEventType.KeyDown if (event.key == Key.Enter || event.key == Key.Tab) -> {
-                                                suggestions.getOrNull(highlightedIndex)
-                                                    ?.let {
-                                                        Autocomplete.acceptSuggestion(textField, it)
-                                                            ?.let { newValue ->
-                                                                textField = newValue
-                                                                showSuggestions = false
-                                                            }
-                                                    }
-                                                suppressNextEnterSearch = event.key == Key.Enter
-                                                true
-                                            }
-
-                                            KeyEventType.KeyDown if event.key == Key.Escape -> {
-                                                showSuggestions = false
-                                                true
-                                            }
-
-                                            else -> false
-                                        }
-                                    } else {
-                                        if (event.key == Key.Enter && event.type == KeyEventType.KeyUp) {
-                                            if (suppressNextEnterSearch) {
-                                                suppressNextEnterSearch = false
-                                                return@onPreviewKeyEvent true
-                                            }
-                                            if (textField.text.isNotBlank() && dataService.hasSelectedPool()) {
-                                                performSearch()
-                                                return@onPreviewKeyEvent true
-                                            }
-                                        }
-                                        false
-                                    }
-                                },
-                            colors = TextFieldDefaults.textFieldColors(
-                                backgroundColor = Color.Transparent,
-                                focusedIndicatorColor = Color.Transparent,
-                                unfocusedIndicatorColor = Color.Transparent
-                            ),
-                            singleLine = true,
-                            trailingIcon = {
-                                IconButton(onClick = {
-                                    textField = TextFieldValue("")
-                                    showSuggestions = false
-                                    showTable = false
-                                }) {
-                                    Icon(Icons.Default.Close, contentDescription = locale["main.icon.close"])
-                                }
-                            }
-                        )
-
-                        DropdownMenu(
-                            expanded = showSuggestions,
-                            onDismissRequest = { showSuggestions = false },
-                            properties = PopupProperties(focusable = false)
-                        ) {
-                            suggestions.forEachIndexed { idx, s ->
-                                DropdownMenuItem(
-                                    onClick = {
-                                        Autocomplete.acceptSuggestion(textField, s)?.let { newValue ->
-                                            textField = newValue
+                                        } else {
                                             showSuggestions = false
                                         }
+                                    },
+                                    placeholder = { Text(locale["main.search.placeholder"]) },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .onPreviewKeyEvent { event ->
+                                            if (showSuggestions) {
+                                                when (event.type) {
+                                                    KeyEventType.KeyDown if event.key == Key.DirectionDown -> {
+                                                        highlightedIndex =
+                                                            (highlightedIndex + 1).coerceAtMost(suggestions.lastIndex)
+                                                        true
+                                                    }
+
+                                                    KeyEventType.KeyDown if event.key == Key.DirectionUp -> {
+                                                        highlightedIndex = (highlightedIndex - 1).coerceAtLeast(0)
+                                                        true
+                                                    }
+
+                                                    KeyEventType.KeyDown if (event.key == Key.Enter || event.key == Key.Tab) -> {
+                                                        suggestions.getOrNull(highlightedIndex)
+                                                            ?.let {
+                                                                Autocomplete.acceptSuggestion(textField, it)
+                                                                    ?.let { newValue ->
+                                                                        textField = newValue
+                                                                        showSuggestions = false
+                                                                    }
+                                                            }
+                                                        suppressNextEnterSearch = event.key == Key.Enter
+                                                        true
+                                                    }
+
+                                                    KeyEventType.KeyDown if event.key == Key.Escape -> {
+                                                        showSuggestions = false
+                                                        true
+                                                    }
+
+                                                    else -> false
+                                                }
+                                            } else {
+                                                if (event.key == Key.Enter && event.type == KeyEventType.KeyUp) {
+                                                    if (suppressNextEnterSearch) {
+                                                        suppressNextEnterSearch = false
+                                                        return@onPreviewKeyEvent true
+                                                    }
+                                                    if (textField.text.isNotBlank() && dataService.hasSelectedPool()) {
+                                                        performSearch()
+                                                        return@onPreviewKeyEvent true
+                                                    }
+                                                }
+                                                false
+                                            }
+                                        },
+                                    colors = TextFieldDefaults.textFieldColors(
+                                        backgroundColor = Color.Transparent,
+                                        focusedIndicatorColor = Color.Transparent,
+                                        unfocusedIndicatorColor = Color.Transparent
+                                    ),
+                                    singleLine = true,
+                                    trailingIcon = {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            IconButton(onClick = {
+                                                textField = TextFieldValue("")
+                                                showSuggestions = false
+                                                showTable = false
+                                            }) {
+                                                Icon(
+                                                    Icons.Default.Close,
+                                                    contentDescription = locale["main.icon.close"]
+                                                )
+                                            }
+                                            IconButton(onClick = { Config.searchExpanded = !Config.searchExpanded }) {
+                                                if (Config.searchExpanded) {
+                                                    Icon(
+                                                        Icons.Default.KeyboardArrowDown,
+                                                        contentDescription = locale["main.search.collapse"]
+                                                    )
+                                                } else {
+                                                    Icon(
+                                                        Icons.Default.KeyboardArrowUp,
+                                                        contentDescription = locale["main.search.expand"]
+                                                    )
+                                                }
+                                            }
+                                        }
                                     }
+                                )
+
+                                DropdownMenu(
+                                    expanded = showSuggestions,
+                                    onDismissRequest = { showSuggestions = false },
+                                    properties = PopupProperties(focusable = false)
                                 ) {
-                                    val isSel = idx == highlightedIndex
-                                    Text(
-                                        text = s,
-                                        color = if (isSel) MaterialTheme.colors.primary else MaterialTheme.colors.onSurface
+                                    suggestions.forEachIndexed { idx, s ->
+                                        DropdownMenuItem(
+                                            onClick = {
+                                                Autocomplete.acceptSuggestion(textField, s)?.let { newValue ->
+                                                    textField = newValue
+                                                    showSuggestions = false
+                                                }
+                                            }
+                                        ) {
+                                            val isSel = idx == highlightedIndex
+                                            Text(
+                                                text = s,
+                                                color = if (isSel) MaterialTheme.colors.primary else MaterialTheme.colors.onSurface
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            AnimatedVisibility(
+                                visible = Config.searchExpanded,
+                                enter = expandVertically() + fadeIn(),
+                                exit = shrinkVertically() + fadeOut()
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    val semanticOutlineColor by animateColorAsState(
+                                        targetValue = if (isSemantic) MaterialTheme.colors.primary else Color.LightGray
                                     )
+
+                                    OutlinedButton(
+                                        onClick = { isSemantic = !isSemantic },
+                                        shape = RoundedCornerShape(sharedCorner),
+                                        border = BorderStroke(1.dp, semanticOutlineColor),
+                                        colors = ButtonDefaults.outlinedButtonColors(
+                                            backgroundColor = if (isSemantic)
+                                                MaterialTheme.colors.primary.copy(alpha = 0.08f)
+                                            else Color.White,
+                                            contentColor = if (isSemantic) MaterialTheme.colors.primary else Color.Gray
+                                        ),
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                    ) {
+                                        Text(locale["main.search.semantic"])
+                                    }
+
+                                    Spacer(Modifier.weight(1f))
+
+                                    IconButton(
+                                        onClick = { performSearch() },
+                                        enabled = textField.text.isNotBlank() && dataService.hasSelectedPool()
+                                    ) {
+                                        Icon(Icons.Default.Search, contentDescription = locale["main.icon.search"])
+                                    }
                                 }
                             }
                         }
-                    }
-
-                    IconButton(
-                        onClick = { performSearch() },
-                        modifier = Modifier.height(70.dp).padding(horizontal = 10.dp),
-                        enabled = textField.text.isNotBlank() && dataService.hasSelectedPool()
-                    ) {
-                        Icon(Icons.Default.Search, contentDescription = locale["main.icon.search"])
                     }
                 }
 
@@ -360,7 +416,7 @@ class TextExplorerUI(
                                 selectedRows = emptyList()
 
                                 currentPage = 0
-                                dataService.getPage(textField.text, queryOrderState, currentPage).let { result ->
+                                dataService.getPage(textField.text, isSemantic, queryOrderState, currentPage).let { result ->
                                     data = result.first.map { it.values.toList() }
                                     links = result.second
                                 }
@@ -393,7 +449,7 @@ class TextExplorerUI(
                                     .map { header.zip(it).toMap() }
                                     .toList()
                             },
-                            clicked = { openWindow = Window.DIFF }
+                            clicked = { openWindow = Window.Diff }
                         )
 
                         if (totalPages < 2) {
@@ -413,7 +469,7 @@ class TextExplorerUI(
                                     if (currentPage > 0) {
                                         currentPage--
 
-                                        dataService.getPage(textField.text, queryOrderState, currentPage)
+                                        dataService.getPage(textField.text, isSemantic, queryOrderState, currentPage)
                                             .let { result ->
                                                 data = result.first.map { it.values.toList() }
 
@@ -422,7 +478,10 @@ class TextExplorerUI(
                                     }
                                 }, enabled = currentPage > 0
                             ) {
-                                Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = locale["main.nav.left"])
+                                Icon(
+                                    Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                                    contentDescription = locale["main.nav.left"]
+                                )
                             }
 
                             Text(locale["main.page_info", currentPage + 1, totalPages, amount])
@@ -432,7 +491,7 @@ class TextExplorerUI(
                                     if (currentPage < totalPages - 1) {
                                         currentPage++
 
-                                        dataService.getPage(textField.text, queryOrderState, currentPage)
+                                        dataService.getPage(textField.text,  isSemantic,queryOrderState, currentPage)
                                             .let { result ->
                                                 data = result.first.map { it.values.toList() }
 
@@ -441,7 +500,10 @@ class TextExplorerUI(
                                     }
                                 }, enabled = currentPage < totalPages - 1
                             ) {
-                                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = locale["main.nav.right"])
+                                Icon(
+                                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                    contentDescription = locale["main.nav.right"]
+                                )
                             }
                         }
                     }
@@ -482,7 +544,7 @@ class TextExplorerUI(
                     ) {
                         Icon(
                             imageVector = Icons.Filled.CheckCircle,
-                            contentDescription =locale["main.status.success"],
+                            contentDescription = locale["main.status.success"],
                             tint = App.Colors.GREEN_HIGHLIGHT.toComposeColor(),
                             modifier = Modifier.size(24.dp)
                         )
@@ -528,26 +590,26 @@ class TextExplorerUI(
             }
 
             when (openWindow) {
-                Window.PLUGIN_INFO -> PluginInfoWindow(
+                Window.PluginInfo -> PluginInfoWindow(
                     pluginService,
                     dataService.getAvailableDataInfo()
-                ) { openWindow = Window.NONE }
+                ) { openWindow = Window.None }
 
-                Window.DIFF -> DiffViewerWindow(
+                Window.Diff -> DiffViewerWindow(
                     diffService,
                     pluginService,
                     dataService.getSelectedPool(),
                     selectedRows
-                ) { openWindow = Window.NONE }
+                ) { openWindow = Window.None }
 
-                Window.LOAD_PLUGIN -> FileDialog { paths ->
-                    openWindow = Window.NONE
+                Window.LoadPlugin -> FileDialog { paths ->
+                    openWindow = Window.None
 
                     paths.filter { it.extension == "jar" }.forEach { loadPlugin(it) }
                 }
 
-                Window.LOAD_DATA -> DataLoaderWindow(dataService, dataDir) { dataInfo ->
-                    openWindow = Window.NONE
+                Window.LoadData -> DataLoaderWindow(dataService) { dataInfo ->
+                    openWindow = Window.None
 
                     if (dataInfo == null) return@DataLoaderWindow
 
@@ -556,7 +618,7 @@ class TextExplorerUI(
 
                         val poolsEmpty = dataService.getAvailablePools().isEmpty()
 
-                        val success = dataService.createDataPool(dataInfo, dataDir) { progress ->
+                        val success = dataService.createDataPool(dataInfo) { progress ->
                             loadState = LoadState.Loading(locale["main.loading_progress", progress])
                         }
 
@@ -568,12 +630,14 @@ class TextExplorerUI(
                                 poolSelected = !poolSelected
                             }
 
-                            LoadState.Success(locale["main.success_load", dataInfo.name])
+                            LoadState.Success(locale["main.success_load", "'${dataInfo.name}'"])
                         } else LoadState.Error(locale["main.error_load"])
                     }
                 }
 
-                Window.SETTINGS -> SettingsWindow { openWindow = Window.NONE }
+                Window.Settings -> SettingsWindow { openWindow = Window.None }
+
+                Window.ModelManagement -> ModelManagerWindow(dataService) { openWindow = Window.None }
 
                 else -> {}
             }
@@ -609,7 +673,7 @@ class TextExplorerUI(
             }
         }
 
-        Window(title = App.NAME.replace(" ", ""), state = windowState, onCloseRequest = {
+        Window(title = App.NAME.replace(" ", ""), icon = App.icon, state = windowState, onCloseRequest = {
             dataService.close()
             Config.save()
             exitApplication()
@@ -621,7 +685,7 @@ class TextExplorerUI(
     }
 
     private fun loadPlugin(path: Path): Boolean {
-        val pluginPath = pluginsDir.resolve(path.name)
+        val pluginPath = pluginService.pluginDir().resolve(path.name)
 
         if (pluginPath.exists()) return true
 
@@ -629,7 +693,7 @@ class TextExplorerUI(
 
         this.pluginService.getDataInfo(plugin)?.let { dataInfo ->
             val provider =
-                this.dataService.createStorageProvider(dataInfo, this.dataDir.resolve(dataInfo)) ?: return true
+                this.dataService.createStorageProvider(dataInfo, dataService.dataDir().resolve(dataInfo)) ?: return true
 
             plugin.init(provider)
         }

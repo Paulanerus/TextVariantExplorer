@@ -5,12 +5,14 @@ import dev.paulee.api.data.RequiresData
 import dev.paulee.api.data.ViewFilter
 import dev.paulee.api.data.provider.IStorageProvider
 import dev.paulee.api.plugin.*
+import dev.paulee.core.data.FileService
 import org.slf4j.LoggerFactory.getLogger
 import java.net.URLClassLoader
 import java.nio.file.Path
 import java.util.jar.JarFile
 import kotlin.io.path.extension
 import kotlin.io.path.isDirectory
+import kotlin.io.path.notExists
 import kotlin.io.path.walk
 import kotlin.reflect.KClass
 import kotlin.reflect.full.declaredFunctions
@@ -24,7 +26,16 @@ object PluginServiceImpl : IPluginService {
 
     private val plugins = mutableListOf<IPlugin>()
 
-    override fun loadFromDirectory(path: Path): Int {
+    init {
+        loadFromDirectory(FileService.pluginsDir)
+    }
+
+    fun loadFromDirectory(path: Path): Int {
+        if (path.notExists()) {
+            this.logger.warn("Plugin directory does not exist.")
+            return 0
+        }
+
         if (!path.isDirectory()) {
             this.logger.warn("$path is not a directory.")
             return -1
@@ -98,13 +109,16 @@ object PluginServiceImpl : IPluginService {
 
     override fun getDataInfo(plugin: IPlugin): String? = plugin::class.findAnnotation<RequiresData>()?.name
 
-    override fun initAll(dataService: IDataService, path: Path) {
+    override fun initAll(dataService: IDataService) {
         this.plugins.sortBy { it::class.findAnnotation<PluginOrder>()?.order ?: 0 }
 
         this.plugins.forEach {
             val dataInfo = this.getDataInfo(it) ?: return@forEach
 
-            val provider = dataService.createStorageProvider(dataInfo, path.resolve(dataInfo)) ?: return@forEach
+            val provider = dataService.createStorageProvider(
+                dataInfo,
+                FileService.dataDir.resolve(dataInfo)
+            ) ?: return@forEach
 
             runCatching { it.init(provider) }.getOrElse { e ->
                 this.logger.error(
@@ -123,6 +137,8 @@ object PluginServiceImpl : IPluginService {
 
         return taggable::class.functions.find { it.name == "tag" }?.findAnnotation<ViewFilter>()
     }
+
+    override fun pluginDir(): Path = FileService.pluginsDir
 
     private fun getPluginEntryPoint(path: Path): String? =
         JarFile(path.toFile()).use { return it.manifest.mainAttributes.getValue("Main-Class") }

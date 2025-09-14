@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonSubTypes
 import com.fasterxml.jackson.annotation.JsonTypeInfo
 import dev.paulee.api.data.provider.StorageType
+import dev.paulee.api.internal.Embedding
 
 enum class Language {
     ARABIC,
@@ -62,7 +63,7 @@ annotation class ViewFilter(
     val name: String,
     val fields: Array<String> = [],
     val alwaysShow: Array<String> = [],
-    val global: Boolean = true
+    val global: Boolean = true,
 )
 
 enum class FieldType {
@@ -93,7 +94,7 @@ sealed interface SourceField {
 data class BasicField(
     override val name: String,
     override val fieldType: FieldType,
-    @param:JsonInclude(JsonInclude.Include.NON_EMPTY) override val sourceLink: String = ""
+    @param:JsonInclude(JsonInclude.Include.NON_EMPTY) override val sourceLink: String = "",
 ) :
     SourceField
 
@@ -103,7 +104,8 @@ data class IndexField(
     @param:JsonInclude(JsonInclude.Include.NON_EMPTY)
     override val sourceLink: String = "",
     val lang: Language,
-    val default: Boolean = false
+    val default: Boolean = false,
+    val embeddingModel: Embedding.Model? = null,
 ) : SourceField
 
 data class UniqueField(
@@ -111,7 +113,7 @@ data class UniqueField(
     override val fieldType: FieldType,
     @param:JsonInclude(JsonInclude.Include.NON_EMPTY)
     override val sourceLink: String = "",
-    val identify: Boolean = false
+    val identify: Boolean = false,
 ) : SourceField
 
 data class VariantMapping(val base: String, val variants: List<String>)
@@ -123,7 +125,7 @@ data class Source(
     val name: String,
     val fields: List<SourceField>,
     val variantMapping: VariantMapping? = null,
-    val preFilter: PreFilter? = null
+    val preFilter: PreFilter? = null,
 )
 
 data class DataInfo(val name: String, val sources: List<Source>, val storageType: StorageType = StorageType.SQLITE)
