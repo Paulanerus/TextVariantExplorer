@@ -27,6 +27,7 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.rememberWindowState
 import dev.paulee.api.data.*
+import dev.paulee.api.internal.Embedding
 import dev.paulee.ui.*
 import dev.paulee.ui.components.CustomInputDialog
 import dev.paulee.ui.components.DialogType
@@ -321,12 +322,22 @@ fun DataLoaderWindow(dataService: IDataService, onClose: (DataInfo?) -> Unit) {
                                                 mutableStateOf((field as? IndexField)?.default == true)
                                             }
 
+                                            var embeddingModel by remember(selectedSource, field) {
+                                                mutableStateOf((field as? IndexField)?.embeddingModel)
+                                            }
+
                                             var linkSource by remember(
                                                 selectedSource, field
                                             ) { mutableStateOf(field.sourceLink) }
 
                                             LaunchedEffect(
-                                                variant, fieldType, uniqueIdentify, indexLang, indexDefault, linkSource
+                                                variant,
+                                                fieldType,
+                                                uniqueIdentify,
+                                                indexLang,
+                                                indexDefault,
+                                                linkSource,
+                                                embeddingModel
                                             ) {
                                                 if ((fieldType != FieldType.INT && variant == "Unique") || (fieldType != FieldType.TEXT && variant == "Index")) variant =
                                                     "Basic"
@@ -347,7 +358,8 @@ fun DataLoaderWindow(dataService: IDataService, onClose: (DataInfo?) -> Unit) {
                                                                 fieldType,
                                                                 linkSource,
                                                                 indexLang,
-                                                                indexDefault
+                                                                indexDefault,
+                                                                embeddingModel
                                                             )
 
                                                             else -> BasicField(field.name, fieldType, linkSource)
@@ -479,39 +491,88 @@ fun DataLoaderWindow(dataService: IDataService, onClose: (DataInfo?) -> Unit) {
                                                     }
 
                                                     if (variant == "Index") {
-                                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                                            var langExpanded by remember { mutableStateOf(false) }
+                                                        Column {
+                                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                                var langExpanded by remember { mutableStateOf(false) }
 
-                                                            Text(locale["data_loader.index.language"])
+                                                                Text(locale["data_loader.index.language"])
 
-                                                            Spacer(modifier = Modifier.width(8.dp))
+                                                                Spacer(modifier = Modifier.width(8.dp))
 
-                                                            Box {
-                                                                Button(onClick = { langExpanded = true }) {
-                                                                    Text(indexLang.name)
-                                                                }
+                                                                Box {
+                                                                    Button(onClick = { langExpanded = true }) {
+                                                                        Text(indexLang.name)
+                                                                    }
 
-                                                                DropdownMenu(
-                                                                    expanded = langExpanded,
-                                                                    onDismissRequest = { langExpanded = false }) {
-                                                                    Language.entries.forEach { lang ->
-                                                                        DropdownMenuItem(onClick = {
-                                                                            indexLang = lang
-                                                                            langExpanded = false
-                                                                        }) {
-                                                                            Text(lang.name)
+                                                                    DropdownMenu(
+                                                                        expanded = langExpanded,
+                                                                        onDismissRequest = { langExpanded = false }) {
+                                                                        Language.entries.forEach { lang ->
+                                                                            DropdownMenuItem(onClick = {
+                                                                                indexLang = lang
+                                                                                langExpanded = false
+                                                                            }) {
+                                                                                Text(lang.name)
+                                                                            }
                                                                         }
                                                                     }
                                                                 }
+
+                                                                Spacer(modifier = Modifier.width(8.dp))
+
+                                                                Checkbox(
+                                                                    checked = indexDefault,
+                                                                    onCheckedChange = { indexDefault = it })
+
+                                                                Text(locale["data_loader.default"])
+
                                                             }
 
-                                                            Spacer(modifier = Modifier.width(8.dp))
+                                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                                var embeddingExpanded by remember { mutableStateOf(false) }
 
-                                                            Checkbox(
-                                                                checked = indexDefault,
-                                                                onCheckedChange = { indexDefault = it })
+                                                                Text(locale["data_loader.index.embedding"])
 
-                                                            Text(locale["data_loader.default"])
+                                                                Spacer(modifier = Modifier.width(8.dp))
+
+                                                                Box {
+                                                                    Button(onClick = { embeddingExpanded = true }) {
+                                                                        Text(
+                                                                            embeddingModel?.name
+                                                                                ?: locale["data_loader.index.embedding.no"]
+                                                                        )
+                                                                    }
+
+                                                                    DropdownMenu(
+                                                                        expanded = embeddingExpanded,
+                                                                        onDismissRequest = {
+                                                                            embeddingExpanded = false
+                                                                        }) {
+                                                                        DropdownMenuItem(onClick = {
+                                                                            embeddingModel = null
+                                                                            embeddingExpanded = false
+                                                                        }) {
+                                                                            Text(locale["data_loader.index.embedding.no"])
+                                                                        }
+
+                                                                        Embedding.Model.entries.forEach { model ->
+                                                                            DropdownMenuItem(onClick = {
+                                                                                embeddingModel = model
+                                                                                embeddingExpanded = false
+                                                                            }) {
+                                                                                Text(model.name)
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
+
+                                                            }
+
+                                                            Hint(
+                                                                locale["data_loader.index.embedding.hint"],
+                                                                Modifier.fillMaxWidth(),
+                                                                true
+                                                            )
                                                         }
                                                     }
 
