@@ -37,6 +37,7 @@ compose.desktop {
 
         jvmArgs += listOf(
             "--add-modules", "java.sql",
+            "--add-modules", "jdk.incubator.vector",
             "-Dapi.version=${property("api.version")}",
             "-Dcore.version=${property("core.version")}",
             "-Dui.version=${property("ui.version")}",
