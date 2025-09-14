@@ -36,8 +36,12 @@ internal class CustomParser(private val defaultField: String, defaultAnalyzer: A
         queryText: String?,
         quoted: Boolean,
     ): Query? {
-        val target = if (quoted) "$defaultField.ws" else (field ?: defaultField)
+        val target = if (quoted) "${field ?: defaultField}.ws" else (field ?: defaultField)
         return super.newFieldQuery(analyzer, target, queryText, quoted)
+    }
+
+    override fun getWildcardQuery(field: String?, termStr: String?): Query? {
+        return super.getWildcardQuery("${field ?: defaultField}.ws", termStr)
     }
 }
 
