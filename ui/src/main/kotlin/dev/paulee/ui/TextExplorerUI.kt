@@ -630,7 +630,7 @@ class TextExplorerUI(
                                 poolSelected = !poolSelected
                             }
 
-                            LoadState.Success(locale["main.success_load", dataInfo.name])
+                            LoadState.Success(locale["main.success_load", "'${dataInfo.name}'"])
                         } else LoadState.Error(locale["main.error_load"])
                     }
                 }
