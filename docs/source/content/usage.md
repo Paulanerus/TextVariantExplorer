@@ -35,6 +35,7 @@ Certain field types can have additional variants, which define how the data in t
 - **Index** (for Text fields): Adds properties such as:
   - **Language**: Specifies the language of the data for indexing purposes. Currently, only one language per field is supported.
   - **Default**: Marks the field as the default for searches, allowing queries to omit specifying the field explicitly. Only one default field is allowed per data set, and at least one index field is required. The source file containing the index field becomes the **main source file**, which is used to display all data from the source (e.g., if the source CSV file has columns like `text`, `author`, and `year`, all columns will be displayed unless disabled).
+  - **Embedding Model**: Selects the model used to generate text embeddings for this field. Embeddings enable semantic search and vector similarity matching beyond exact keyword overlap. Search quality and recall depend on the chosen model and its size: larger or higher‑quality models generally produce better semantic representations but require more memory/compute and take longer to index. Choose a model that fits your language needs and resource budget.
 - **Unique** (for Int fields): Adds the **Identifiable** property, which designates the field as the unique identifier for the source. It optimizes the initial data loading process and is needed for the **Filter** feature for identification.
 
 **Float** and **Boolean** fields do not support additional properties or variants.
