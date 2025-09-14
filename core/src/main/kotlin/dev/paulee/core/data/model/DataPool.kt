@@ -10,7 +10,7 @@ import dev.paulee.core.splitStr
 import org.slf4j.LoggerFactory.getLogger
 
 internal data class IndexSearchResult(
-    val ids: Set<Long> = emptySet(),
+    val ids: List<Long> = emptyList(),
     val tokens: List<String> = emptyList(),
     val indexedValues: Set<String> = emptySet(),
 ) {
@@ -89,8 +89,10 @@ internal class DataPool(val indexer: Indexer, val dataInfo: DataInfo, val storag
         }
     }
 
-    fun search(query: String): IndexSearchResult {
-        val ids = mutableSetOf<Long>()
+    fun search(query: String, semantic: Boolean): IndexSearchResult {
+        val ids = mutableListOf<Long>()
+
+        val similarityThreshold = 0.6f
 
         val indexedValues = mutableSetOf<String>()
 
@@ -126,9 +128,13 @@ internal class DataPool(val indexer: Indexer, val dataInfo: DataInfo, val storag
 
                     indexedValues.add(value)
 
-                    indexer.searchFieldIndex(field, value)
-                        .mapTo(ids) { doc -> doc.getField(identifier[fieldClass]).numericValue().toLong() }
+                    val fields =
+                        if (semantic) indexer.searchMatchingVec(fieldClass, value, similarityThreshold)
+                        else indexer.searchFieldIndex(field, value)
 
+                    fields.mapTo(ids) { doc ->
+                        doc.getField(identifier[fieldClass]).numericValue().toLong()
+                    }
                 } else token.add(str)
             }
 
@@ -138,19 +144,25 @@ internal class DataPool(val indexer: Indexer, val dataInfo: DataInfo, val storag
                 indexedValues.add(joined)
 
                 defaultIndexField?.let { defaultField ->
-                    indexer.searchFieldIndex(defaultField, joined).mapTo(ids) { doc ->
+                    val fields =
+                        if (semantic) indexer.searchMatchingVec(defaultField, joined, similarityThreshold)
+                        else indexer.searchFieldIndex(defaultField, joined)
+
+                    fields.mapTo(ids) { doc ->
                         doc.getField(identifier[defaultClass]).numericValue().toLong()
                     }
                 }
             }
         } else {
-            defaultIndexField?.let { indexer.searchFieldIndex(it, query) }
-                ?.mapTo(ids) { doc -> doc.getField(identifier[defaultClass]).numericValue().toLong() }
+            defaultIndexField?.let {
+                if (semantic) indexer.searchMatchingVec(it, query, similarityThreshold)
+                else indexer.searchFieldIndex(it, query)
+            }?.mapTo(ids) { doc -> doc.getField(identifier[defaultClass]).numericValue().toLong() }
 
             indexedValues.add(query)
         }
 
-        return IndexSearchResult(ids, token, indexedValues)
+        return IndexSearchResult(ids.distinct(), token, indexedValues)
     }
 
     fun hasIdentifier(name: String, entries: Map<String, String>): Boolean {

@@ -118,9 +118,6 @@ object DataServiceImpl : IDataService {
                             else line + ("${file}_ag_id" to idGenerator.next().toString())
                         }
 
-
-                        // TODO: Insert embeddings
-
                         dataPool.indexer.indexEntries(file, entries)
                         storageProvider.insert(file, entries)
 
@@ -185,8 +182,6 @@ object DataServiceImpl : IDataService {
                     .onFailure { e -> logger.error("Failed to delete directory ${child.fileName}.", e) }
             }
         }
-
-        // TODO create Embedding for previous added data pools
 
         val amount = dataPools.size
         if (amount == 1) {
@@ -258,7 +253,7 @@ object DataServiceImpl : IDataService {
 
         val (filterQuery, filter) = this.getPreFilter(query)
 
-        val indexResult = dataPool.search(this.handleReplacements(dataPool.metadata, filterQuery))
+        val indexResult = dataPool.search(this.handleReplacements(dataPool.metadata, filterQuery), isSemantic)
 
         if (filter.isEmpty() && indexResult.isEmpty()) return Pair(emptyList(), emptyMap())
 
@@ -301,7 +296,7 @@ object DataServiceImpl : IDataService {
 
         val (filterQuery, filter) = this.getPreFilter(query)
 
-        val indexResult = dataPool.search(handleReplacements(dataPool.metadata, filterQuery))
+        val indexResult = dataPool.search(handleReplacements(dataPool.metadata, filterQuery), isSemantic)
 
         if (filter.isEmpty() && indexResult.isEmpty()) return Triple(0, 0, emptySet())
 
