@@ -20,7 +20,6 @@ import java.time.Duration
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.io.DEFAULT_BUFFER_SIZE
 import kotlin.io.path.*
-import kotlin.math.max
 import kotlin.use
 
 internal object EmbeddingProvider {
@@ -35,22 +34,18 @@ internal object EmbeddingProvider {
 
     private val sessions = mutableMapOf<Embedding.Model, OrtSession?>()
 
-    private val models = mutableMapOf<String, Embedding.Model>()
-
-    fun createTable(name: String, model: Embedding.Model) {
-        if (name.isBlank()) return
-
-        val tableName = name.replace(".", "_")
-
+    fun registerTokenizer(model: Embedding.Model) {
         //TODO Check for existing model
+
+        val modelName = model.name
 
         try {
             tokenizer.computeIfAbsent(model) {
                 HuggingFaceTokenizer.builder()
                     .optTokenizerConfigPath(
-                        FileService.modelsDir.resolve(model.name).resolve(model.modelData.tokenizerConfig).toString()
+                        FileService.modelsDir.resolve(modelName).resolve(model.modelData.tokenizerConfig).toString()
                     )
-                    .optTokenizerPath(FileService.modelsDir.resolve(model.name).resolve(model.modelData.tokenizer))
+                    .optTokenizerPath(FileService.modelsDir.resolve(modelName).resolve(model.modelData.tokenizer))
 
                     // TODO store/read values instead of fixed ones
                     .optMaxLength(2048)
@@ -59,48 +54,23 @@ internal object EmbeddingProvider {
                     .build()
             }
 
-            models[tableName] = model
-
-            logger.info(tableName)
+            logger.info("Registered tokenizer for $modelName.")
         } catch (e: Exception) {
-            logger.error("Failed to create table $tableName", e)
+            logger.error("Failed to register tokenizer for $modelName", e)
         }
     }
 
-    fun topKMatching(name: String, query: String, k: Int): Set<Long> {
-        if (name.isBlank() || query.isBlank()) return emptySet()
-
-        val tableName = name.replace(".", "_")
-
-        val model = models[tableName] ?: return emptySet()
-
-        val embedding = when (model) {
-            Embedding.Model.EmbeddingGemma -> {
-                createRawEmbeddings(model, listOf("task: search result | query: $query"))[0]
-            }
-        }
-
-        val limit = max(1, k)
-
-        TODO("Implement topKMatching")
-    }
-
-    fun insertEmbedding(name: String, entries: List<Pair<Long, String>>) {
-        if (name.isBlank() || entries.isEmpty()) return
-
-        val tableName = name.replace(".", "_")
-
-        val model = models[tableName] ?: return
-
+    fun createEmbeddings(model: Embedding.Model, query: Boolean, values: List<String>): Array<FloatArray> {
         val embeddings = when (model) {
             Embedding.Model.EmbeddingGemma -> {
-                val texts = entries.map { (_, text) -> "title: none | text: $text" }
+                val texts =
+                    values.map { if (query) "task: search result | query: $it" else "title: none | text: $it" }
 
                 createRawEmbeddings(model, texts)
             }
         }
 
-        TODO("Implement insertEmbedding")
+        return embeddings
     }
 
     @OptIn(ExperimentalPathApi::class)
