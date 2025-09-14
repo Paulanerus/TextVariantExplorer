@@ -111,7 +111,6 @@ fun MarkedText(
 
                     val endIndex = foundIndex + word.length
 
-
                     val isStartBoundary = foundIndex == 0 || !text[foundIndex - 1].isLetterOrDigit()
                     val isEndBoundary = endIndex == text.length || !text[endIndex].isLetterOrDigit()
 
@@ -296,10 +295,10 @@ fun SimpleTextField(
 }
 
 @Composable
-fun Hint(text: String, modifier: Modifier = Modifier) {
+fun Hint(text: String, modifier: Modifier = Modifier, transparent: Boolean = false) {
     Card(
         modifier = modifier,
-        backgroundColor = Color(0xFFF5F5F5),
+        backgroundColor = if (transparent) Color.Transparent else Color(0xFFF5F5F5),
         shape = RoundedCornerShape(8.dp),
         elevation = 0.dp
     ) {
