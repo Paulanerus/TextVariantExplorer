@@ -59,9 +59,7 @@ fun ModelManagerWindow(dataService: IDataService, onClose: () -> Unit) {
             var downloadProgress by remember { mutableStateOf<Float?>(null) }
 
             var installedDirs by remember { mutableStateOf<Set<String>>(emptySet()) }
-            val busy = remember { mutableStateMapOf<Embedding.Model, Boolean>() }
-
-            fun markBusy(m: Embedding.Model, v: Boolean) = if (v) busy[m] = true else busy.remove(m)
+            var busy by remember { mutableStateOf<Embedding.Model?>(null) }
 
             LaunchedEffect(modelDir) {
                 installedDirs = scanModelDirs(modelDir)
@@ -114,8 +112,6 @@ fun ModelManagerWindow(dataService: IDataService, onClose: () -> Unit) {
                         items(models) { model ->
                             val installed = installedDirs.contains(model.name) || installedDirs.contains(model.name)
 
-                            val isBusy = busy[model] == true
-
                             Column(modifier = Modifier.fillMaxWidth()) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
@@ -151,20 +147,20 @@ fun ModelManagerWindow(dataService: IDataService, onClose: () -> Unit) {
                                     }
 
                                     Button(
-                                        modifier = Modifier.width(150.dp), enabled = !isBusy, onClick = {
+                                        modifier = Modifier.width(150.dp), enabled = busy == null, onClick = {
                                             scope.launch {
-                                                markBusy(model, true)
+                                                busy = model
 
                                                 runCatching { if (installed) remove(model) else download(model) }
 
-                                                markBusy(model, false)
+                                                busy = null
                                             }
                                         }) {
                                         Text(if (installed) locale["model_management.remove"] else locale["model_management.download"])
                                     }
                                 }
 
-                                if (downloadProgress != null) {
+                                if (downloadProgress != null && (busy == model)) {
                                     Column(
                                         modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp)
                                     ) {
