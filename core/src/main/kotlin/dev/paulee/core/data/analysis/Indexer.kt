@@ -180,7 +180,7 @@ internal class Indexer(path: Path, dataInfo: DataInfo) : Closeable {
         val searcher = IndexSearcher(this.reader)
 
         val embedding =
-            EmbeddingProvider.createEmbeddings(model, true, listOf(query)).firstOrNull() ?: return emptyList()
+            EmbeddingProvider.createEmbeddings(model, listOf(query), true).firstOrNull() ?: return emptyList()
 
         val query = FloatVectorSimilarityQuery("$field.vec", embedding, similarity)
 
@@ -214,7 +214,7 @@ internal class Indexer(path: Path, dataInfo: DataInfo) : Closeable {
             }
 
             embeddingFields[id]?.let { model ->
-                val embedding = EmbeddingProvider.createEmbeddings(model, false, listOf(value)).first()
+                val embedding = EmbeddingProvider.createEmbeddings(model, listOf(value)).first()
 
                 add(KnnFloatVectorField("$id.vec", embedding, VectorSimilarityFunction.COSINE))
             }

@@ -16,10 +16,12 @@ import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.file.Path
+import java.text.Normalizer
 import java.time.Duration
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.io.DEFAULT_BUFFER_SIZE
 import kotlin.io.path.*
+import kotlin.math.sqrt
 import kotlin.use
 
 internal object EmbeddingProvider {
@@ -28,7 +30,9 @@ internal object EmbeddingProvider {
 
     private const val HF_URL = "https://huggingface.co/%s/resolve/main"
 
-    private val env = OrtEnvironment.getEnvironment()
+    private val env = OrtEnvironment.getEnvironment().apply {
+        setTelemetry(false)
+    }
 
     private val tokenizer = mutableMapOf<Embedding.Model, HuggingFaceTokenizer>()
 
@@ -49,9 +53,7 @@ internal object EmbeddingProvider {
                 HuggingFaceTokenizer.builder()
                     .optTokenizerConfigPath(modelPath.resolve(model.modelData.tokenizerConfig).toString())
                     .optTokenizerPath(modelPath.resolve(model.modelData.tokenizer))
-
-                    // TODO store/read values instead of fixed ones
-                    .optMaxLength(2048)
+                    .optMaxLength(model.modelData.maxLength)
                     .optTruncation(true)
                     .optPadding(true)
                     .build()
@@ -63,11 +65,16 @@ internal object EmbeddingProvider {
         }
     }
 
-    fun createEmbeddings(model: Embedding.Model, query: Boolean, values: List<String>): Array<FloatArray> {
+    fun createEmbeddings(model: Embedding.Model, values: List<String>, query: Boolean = false): Array<FloatArray> {
         val embeddings = when (model) {
             Embedding.Model.EmbeddingGemma -> {
-                val texts =
-                    values.map { if (query) "task: search result | query: $it" else "title: none | text: $it" }
+                val texts = values.map { if (query) "task: search result | query: $it" else "title: none | text: $it" }
+
+                createRawEmbeddings(model, texts)
+            }
+
+            Embedding.Model.AncientGreekBert -> {
+                val texts = values.map { it.stripAccentsAndLowercase() }
 
                 createRawEmbeddings(model, texts)
             }
@@ -237,31 +244,91 @@ internal object EmbeddingProvider {
 
         if (session == null) return emptyArray()
 
-        return OnnxTensor.createTensor(env, inputIds).use { idsTensor ->
-            OnnxTensor.createTensor(env, attentionMask).use { maskTensor ->
-                val inputs = mapOf(
-                    "input_ids" to idsTensor,
-                    "attention_mask" to maskTensor
-                )
-                session.run(inputs).use { result ->
-                    val outName = session.outputNames.firstOrNull { it.contains("sentence_embedding") }
+        fun runSession(sessionInputs: Map<String, OnnxTensor>): Array<FloatArray> {
+            session.run(sessionInputs).use { result ->
+                return when (model) {
+                    Embedding.Model.AncientGreekBert -> {
+                        val ov = result.get("last_hidden_state")
+                            .orElseThrow { IllegalStateException("No output named last_hidden_state") }
 
-                    @Suppress("UNCHECKED_CAST")
-                    val embeddings: Array<FloatArray> = when {
-                        outName != null -> {
-                            val ov = result.get(outName)
-                                .orElseThrow { IllegalStateException("No output named $outName") }
-                            (ov as OnnxTensor).value as Array<FloatArray>
+                        @Suppress("UNCHECKED_CAST")
+                        val lastHidden = (ov as OnnxTensor).value as Array<Array<FloatArray>>
+
+                        val batchSize = lastHidden.size
+                        val seqLen = lastHidden[0].size
+                        val dim = lastHidden[0][0].size
+
+                        val embeddings = Array(batchSize) { FloatArray(dim) }
+
+                        for (i in 0 until batchSize) {
+                            var validTokens = 0f
+
+                            for (j in 0 until seqLen) {
+                                if (attentionMask[i][j] != 0L) {
+                                    val tok = lastHidden[i][j]
+
+                                    for (k in 0 until dim)
+                                        embeddings[i][k] += tok[k]
+
+                                    validTokens += 1f
+                                }
+                            }
+
+                            if (validTokens == 0f)
+                                validTokens = 1f
+
+                            for (k in 0 until dim)
+                                embeddings[i][k] /= validTokens
+
+                            var normSq = 0.0
+                            for (k in 0 until dim) {
+                                val v = embeddings[i][k]
+
+                                normSq += (v * v).toDouble()
+                            }
+
+                            val norm = sqrt(normSq).coerceAtLeast(1e-12)
+
+                            for (k in 0 until dim)
+                                embeddings[i][k] = (embeddings[i][k] / norm).toFloat()
                         }
 
-                        else -> {
+                        embeddings
+                    }
+
+                    else -> {
+                        val outName = session.outputNames.firstOrNull { it.contains("sentence_embedding") }
+
+                        @Suppress("UNCHECKED_CAST") if (outName != null) {
+                            val ov =
+                                result.get(outName).orElseThrow { IllegalStateException("No output named $outName") }
+                            (ov as OnnxTensor).value as Array<FloatArray>
+                        } else {
                             val ov = result.get(1)
                             (ov as OnnxTensor).value as Array<FloatArray>
                         }
                     }
-
-                    embeddings
                 }
+            }
+        }
+
+        return OnnxTensor.createTensor(env, inputIds).use { idsTensor ->
+            OnnxTensor.createTensor(env, attentionMask).use { maskTensor ->
+                val inputs = mutableMapOf(
+                    "input_ids" to idsTensor, "attention_mask" to maskTensor
+                )
+
+                val expectsTokenTypes = session.inputNames.any { it.contains("token_type_ids") }
+
+                if (expectsTokenTypes) {
+                    val tokenTypes = Array(inputIds.size) { LongArray(inputIds[0].size) { 0L } }
+
+                    OnnxTensor.createTensor(env, tokenTypes).use { typeTensor ->
+                        inputs["token_type_ids"] = typeTensor
+
+                        runSession(inputs)
+                    }
+                } else runSession(inputs)
             }
         }
     }
@@ -278,5 +345,18 @@ internal object EmbeddingProvider {
             logger.error("Failed to create session for model ${model.name}", it)
             null
         }
+    }
+
+    private fun String.stripAccentsAndLowercase(): String {
+        val normalized = Normalizer.normalize(this, Normalizer.Form.NFD)
+        val nonSpacingMark = Character.NON_SPACING_MARK.toInt()
+
+        val withoutAccents = buildString {
+            for (c in normalized) {
+                if (Character.getType(c) != nonSpacingMark) append(c)
+            }
+        }
+
+        return withoutAccents.lowercase()
     }
 }
