@@ -268,9 +268,11 @@ internal object EmbeddingProvider {
 
     private fun createSession(model: Embedding.Model): OrtSession? {
         return runCatching {
+            val options = OrtSession.SessionOptions()
+
             env.createSession(
                 FileService.modelsDir.resolve(model.name).resolve(model.modelData.model).toString(),
-                OrtSession.SessionOptions()
+                options
             )
         }.getOrElse {
             logger.error("Failed to create session for model ${model.name}", it)
