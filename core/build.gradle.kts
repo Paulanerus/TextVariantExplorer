@@ -1,9 +1,13 @@
+import org.gradle.internal.os.OperatingSystem
+
 plugins {
     kotlin("jvm")
 }
 
 group = "dev.paulee"
 version = rootProject.extra["core.version"] as String
+
+val os = OperatingSystem.current()
 
 repositories {
     mavenCentral()
@@ -37,7 +41,9 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:${rootProject.extra["coroutines.version"]}")
 
     implementation("ai.djl.huggingface:tokenizers:${rootProject.extra["tokenizers.version"]}")
-    implementation("com.microsoft.onnxruntime:onnxruntime:${rootProject.extra["onnx.version"]}")
+
+    if(os.isMacOsX) implementation("com.microsoft.onnxruntime:onnxruntime:${rootProject.extra["onnx.version"]}")
+    else implementation("com.microsoft.onnxruntime:onnxruntime_gpu:${rootProject.extra["onnx.version"]}")
 
     testImplementation(kotlin("test"))
 }
