@@ -37,7 +37,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:${rootProject.extra["coroutines.version"]}")
 
     implementation("ai.djl.huggingface:tokenizers:${rootProject.extra["tokenizers.version"]}")
-    implementation("com.microsoft.onnxruntime:onnxruntime_gpu:${rootProject.extra["onnx.version"]}")
+    implementation("com.microsoft.onnxruntime:onnxruntime:${rootProject.extra["onnx.version"]}")
 
     testImplementation(kotlin("test"))
 }
