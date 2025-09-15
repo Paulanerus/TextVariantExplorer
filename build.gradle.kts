@@ -50,7 +50,7 @@ compose.desktop {
 
             licenseFile.set(project.file("LICENSE.md"))
 
-            modules += listOf("java.sql")
+            modules += listOf("java.sql", "jdk.incubator.vector")
 
             linux {
                 iconFile.set(project.file("ui/src/main/resources/icon.png"))
