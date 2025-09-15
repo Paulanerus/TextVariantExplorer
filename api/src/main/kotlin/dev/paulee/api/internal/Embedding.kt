@@ -6,6 +6,7 @@ object Embedding {
         val description: String,
         val author: String,
         val parameter: String,
+        val link: String,
         val modelData: ModelData,
     ) {
         EmbeddingGemma(
@@ -13,12 +14,25 @@ object Embedding {
             "A lightweight open embedding model from Google, built on Gemma 3 and trained on 100+ spoken languages.",
             "Google DeepMind",
             "300M",
+            "https://huggingface.co/google/embeddinggemma-300m",
             ModelData()
+        ),
+        AncientGreekBert(
+            "onnx-community/Ancient-Greek-BERT-ONNX",
+            "A BERT model specialized for Greek and Ancient Greek texts.",
+            "Pranaydeep Singh, Gorik Rutten and Els Lefever",
+            "110M",
+            "https://huggingface.co/pranaydeeps/Ancient-Greek-BERT",
+            ModelData(
+                maxLength = 512,
+                modelData = ""
+            )
         )
     }
 
     data class ModelData(
         val dimension: Int = 768,
+        val maxLength: Int = 2048,
         val model: String = "onnx/model.onnx",
         val modelData: String = "onnx/model.onnx_data",
         val tokenizer: String = "tokenizer.json",
