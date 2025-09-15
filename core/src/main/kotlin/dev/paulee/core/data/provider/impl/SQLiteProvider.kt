@@ -1,17 +1,17 @@
-package dev.paulee.core.data.provider
+package dev.paulee.core.data.provider.impl
 
 import dev.paulee.api.data.DataInfo
 import dev.paulee.api.data.provider.IStorageProvider
 import dev.paulee.api.data.provider.ProviderStatus
 import dev.paulee.api.data.provider.QueryOrder
 import dev.paulee.core.data.sql.Database
-import org.slf4j.LoggerFactory.getLogger
+import org.slf4j.LoggerFactory
 import java.nio.file.Path
 import kotlin.io.path.exists
 
 internal class SQLiteProvider : IStorageProvider {
 
-    private val logger = getLogger(SQLiteProvider::class.java)
+    private val logger = LoggerFactory.getLogger(SQLiteProvider::class.java)
 
     private lateinit var database: Database
 
@@ -52,7 +52,7 @@ internal class SQLiteProvider : IStorageProvider {
 
     override fun get(
         name: String,
-        ids: Set<Long>,
+        ids: List<Long>,
         whereClause: List<String>,
         filter: List<String>,
         order: QueryOrder?,
@@ -65,7 +65,7 @@ internal class SQLiteProvider : IStorageProvider {
 
     override fun count(
         name: String,
-        ids: Set<Long>,
+        ids: List<Long>,
         whereClause: List<String>,
         filter: List<String>,
     ): Long {
@@ -84,7 +84,7 @@ internal class SQLiteProvider : IStorageProvider {
 
     private fun getEntries(
         name: String,
-        ids: Set<Long>,
+        ids: List<Long>,
         whereClause: List<String>,
         filter: List<String>,
     ): MutableMap<String, List<String>>? {

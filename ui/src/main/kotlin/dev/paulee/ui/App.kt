@@ -15,8 +15,6 @@ import java.util.*
 internal object App {
     const val NAME = "TextVariant Explorer"
 
-    const val APP_DIR = ".textexplorer"
-
     private val VERSION: String? by lazy { System.getProperty("app.version") }
 
     private val apiVersion: String? by lazy { System.getProperty("api.version") }
@@ -26,6 +24,8 @@ internal object App {
     private val uiVersion: String? by lazy { System.getProperty("ui.version") }
 
     val VERSION_STRING = "v$VERSION (API - $apiVersion, Core - $coreVersion, UI - $uiVersion)"
+
+    val icon by lazy { readBitmapResource("icon.png") }
 
     enum class SupportedLanguage(val tag: String) {
         Deutsch("de"),

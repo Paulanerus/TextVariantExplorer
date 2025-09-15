@@ -7,9 +7,11 @@ import dev.paulee.api.data.VariantMapping
 import dev.paulee.api.data.provider.IStorageProvider
 import dev.paulee.api.data.provider.ProviderStatus
 import dev.paulee.api.data.provider.QueryOrder
+import dev.paulee.api.internal.Embedding
 import dev.paulee.core.data.analysis.Indexer
 import dev.paulee.core.data.io.BufferedCSVReader
 import dev.paulee.core.data.model.DataPool
+import dev.paulee.core.data.provider.EmbeddingProvider
 import dev.paulee.core.data.provider.StorageProvider
 import dev.paulee.core.splitStr
 import kotlinx.coroutines.Dispatchers
@@ -21,11 +23,11 @@ import kotlin.coroutines.cancellation.CancellationException
 import kotlin.io.path.*
 import kotlin.math.ceil
 
-private val logger = getLogger(DataServiceImpl::class.java)
-
 typealias PageResult = Pair<List<Map<String, String>>, Map<String, List<Map<String, String>>>>
 
 object DataServiceImpl : IDataService {
+
+    private val logger = getLogger(DataServiceImpl::class.java)
 
     private const val PAGE_SIZE = 50
 
@@ -49,10 +51,14 @@ object DataServiceImpl : IDataService {
 
     private val dataPools = mutableMapOf<String, DataPool>()
 
-    override suspend fun createDataPool(dataInfo: DataInfo, path: Path, onProgress: (progress: Int) -> Unit): Boolean =
+    init {
+        loadDataPools(FileService.dataDir)
+    }
+
+    override suspend fun createDataPool(dataInfo: DataInfo, onProgress: (progress: Int) -> Unit): Boolean =
         withContext(Dispatchers.IO) {
             try {
-                val poolPath = path.resolve(dataInfo.name)
+                val poolPath = FileService.dataDir.resolve(dataInfo.name)
 
                 val storageProvider = StorageProvider.of(dataInfo.storageType)
 
@@ -67,7 +73,7 @@ object DataServiceImpl : IDataService {
 
                 val dataPool = runCatching {
                     DataPool(
-                        indexer = Indexer(poolPath.resolve("index"), dataInfo.sources),
+                        indexer = Indexer(poolPath.resolve("index"), dataInfo),
                         dataInfo = dataInfo,
                         storageProvider = storageProvider
                     )
@@ -77,7 +83,8 @@ object DataServiceImpl : IDataService {
                 }
 
                 val totalBatches = dataInfo.sources.sumOf { source ->
-                    val sourcePath = path.resolve(source.name.let { if (it.endsWith(".csv")) it else "$it.csv" })
+                    val sourcePath =
+                        FileService.dataDir.resolve(source.name.let { if (it.endsWith(".csv")) it else "$it.csv" })
 
                     if (sourcePath.exists()) BufferedCSVReader.estimateBatches(sourcePath, CSV_READER_BATCH_SIZE)
                     else 0
@@ -95,7 +102,8 @@ object DataServiceImpl : IDataService {
                         return@forEach
                     }
 
-                    val sourcePath = path.resolve(file.let { if (it.endsWith(".csv")) it else "$it.csv" })
+                    val sourcePath =
+                        FileService.dataDir.resolve(file.let { if (it.endsWith(".csv")) it else "$it.csv" })
 
                     if (!sourcePath.exists()) {
                         logger.warn("Source file '$sourcePath' not found.")
@@ -141,8 +149,11 @@ object DataServiceImpl : IDataService {
         }
 
     @OptIn(ExperimentalPathApi::class)
-    override fun loadDataPools(path: Path): Int {
-        if (!path.exists()) path.createDirectories()
+    fun loadDataPools(path: Path) {
+        if (path.notExists()) {
+            logger.warn("Data pool directory does not exist.")
+            return
+        }
 
         path.forEachDirectoryEntry { child ->
             if (!child.isDirectory()) return@forEachDirectoryEntry
@@ -161,7 +172,7 @@ object DataServiceImpl : IDataService {
 
             if (storageProvider.init(dataInfo, child) == ProviderStatus.EXISTS) {
                 dataPools[dataInfo.name] =
-                    DataPool(Indexer(child.resolve("index"), dataInfo.sources), dataInfo, storageProvider)
+                    DataPool(Indexer(child.resolve("index"), dataInfo), dataInfo, storageProvider)
 
                 logger.info("Loaded ${dataInfo.name} data pool.")
             } else {
@@ -185,8 +196,6 @@ object DataServiceImpl : IDataService {
 
         if (amount > 0) logger.info("Loaded $amount data ${if (amount == 1) "pool" else "pools"}.")
         else logger.info("No data pools in '$path' available.")
-
-        return dataPools.size
     }
 
     override fun selectDataPool(selection: String) {
@@ -227,11 +236,14 @@ object DataServiceImpl : IDataService {
         return dataPool.storageProvider.suggestions(current, field, value, 6)
     }
 
-    override fun getPage(query: String, order: QueryOrder?, pageCount: Int): PageResult {
+    override suspend fun downloadModel(model: Embedding.Model, path: Path, onProgress: (progress: Int) -> Unit) =
+        EmbeddingProvider.downloadModel(model, path, onProgress)
+
+    override fun getPage(query: String, isSemantic: Boolean, order: QueryOrder?, pageCount: Int): PageResult {
 
         if (this.currentPool == null || this.currentField == null) return Pair(emptyList(), emptyMap())
 
-        logger.info("Query (${order ?: "None"}): $query")
+        logger.info("Query (${order ?: "None"} | Semantic: $isSemantic): $query")
 
         val key = Triple(pageCount, query, order)
 
@@ -241,7 +253,7 @@ object DataServiceImpl : IDataService {
 
         val (filterQuery, filter) = this.getPreFilter(query)
 
-        val indexResult = dataPool.search(this.handleReplacements(dataPool.metadata, filterQuery))
+        val indexResult = dataPool.search(this.handleReplacements(dataPool.metadata, filterQuery), isSemantic)
 
         if (filter.isEmpty() && indexResult.isEmpty()) return Pair(emptyList(), emptyMap())
 
@@ -277,15 +289,14 @@ object DataServiceImpl : IDataService {
         return result
     }
 
-    override fun getPageCount(query: String): Triple<Long, Long, Set<String>> {
-
+    override fun getPageCount(query: String, isSemantic: Boolean): Triple<Long, Long, Set<String>> {
         if (this.currentPool == null || this.currentField == null) return Triple(-1, -1, emptySet())
 
         val dataPool = this.dataPools[this.currentPool] ?: return Triple(-1, -1, emptySet())
 
         val (filterQuery, filter) = this.getPreFilter(query)
 
-        val indexResult = dataPool.search(this.handleReplacements(dataPool.metadata, filterQuery))
+        val indexResult = dataPool.search(handleReplacements(dataPool.metadata, filterQuery), isSemantic)
 
         if (filter.isEmpty() && indexResult.isEmpty()) return Triple(0, 0, emptySet())
 
@@ -321,6 +332,12 @@ object DataServiceImpl : IDataService {
 
     override fun dataInfoFromString(dataInfo: String): DataInfo? = FileService.fromJson(dataInfo)
 
+    override fun appDir(): Path = FileService.appDir
+
+    override fun dataDir(): Path = FileService.dataDir
+
+    override fun modelDir(): Path = FileService.modelsDir
+
     override fun close() {
         this.storageProvider.forEach { it.value.close() }
 
@@ -328,6 +345,8 @@ object DataServiceImpl : IDataService {
             it.storageProvider.close()
             it.indexer.close()
         }
+
+        EmbeddingProvider.close()
     }
 
     private fun handleReplacements(replacements: Map<String, Any>, query: String): String {
