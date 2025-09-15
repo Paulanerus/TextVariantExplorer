@@ -5,6 +5,7 @@ import dev.paulee.api.data.IndexField
 import dev.paulee.api.data.Language
 import dev.paulee.api.data.UniqueField
 import dev.paulee.api.internal.Embedding
+import dev.paulee.core.data.FileService
 import dev.paulee.core.data.provider.EmbeddingProvider
 import dev.paulee.core.normalizeDataSource
 import org.apache.lucene.analysis.Analyzer
@@ -69,8 +70,10 @@ internal class Indexer(path: Path, dataInfo: DataInfo) : Closeable {
     private val embeddingFields = mutableMapOf<String, Embedding.Model>()
 
     init {
+        val isWindows = FileService.OperatingSystem.isWindows
+
         //See https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/store/NIOFSDirectory.html
-        this.directory = if (this.isWindows()) FSDirectory.open(path) else NIOFSDirectory.open(path)
+        this.directory = if (isWindows) FSDirectory.open(path) else NIOFSDirectory.open(path)
 
         dataInfo.sources.forEach {
             val normalized = normalizeDataSource(it.name)
@@ -109,7 +112,7 @@ internal class Indexer(path: Path, dataInfo: DataInfo) : Closeable {
 
         this.reader = DirectoryReader.open(this.writer)
 
-        this.logger.info("Initialized Indexer (${if (this.isWindows()) "FS" else "NIOFS"})")
+        this.logger.info("Initialized Indexer (${if (isWindows) "FS" else "NIOFS"})")
 
         val analyzer =
             this.mappedAnalyzer.entries.joinToString(", ") { (key, value) -> "$key (${value::class.simpleName})" }
@@ -217,7 +220,5 @@ internal class Indexer(path: Path, dataInfo: DataInfo) : Closeable {
             }
         }
     }
-
-    private fun isWindows(): Boolean = System.getProperty("os.name").lowercase().contains("win")
 }
 
