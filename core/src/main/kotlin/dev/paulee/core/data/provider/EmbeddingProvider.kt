@@ -128,6 +128,11 @@ internal object EmbeddingProvider {
                 totalBytes += bytes
             }
 
+            if (totalBytes == 0L) {
+                logger.error("No files to download.")
+                return@withContext
+            }
+
             logger.info("Total download size $totalBytes bytes")
 
             onProgress(0)
