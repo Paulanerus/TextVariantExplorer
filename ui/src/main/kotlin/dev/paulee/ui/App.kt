@@ -4,12 +4,14 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
+import androidx.compose.material.darkColors
+import androidx.compose.material.lightColors
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import java.awt.Color
+import androidx.compose.ui.graphics.Color
 import java.util.*
 
 internal object App {
@@ -50,12 +52,15 @@ internal object App {
 
     object Colors {
 
-        val GREEN_HIGHLIGHT: Color
-            get() = Color(0, 200, 83)
+        val GREEN_HIGHLIGHT = java.awt.Color(0, 200, 83)
 
-        val RED_HIGHLIGHT: Color
-            get() = Color(200, 0, 0)
+        val RED_HIGHLIGHT = java.awt.Color(200, 0, 0)
 
+        val WHITE_MAIN = Color(0xFFf9f9f9)
+
+        val BLACK_MAIN = Color(0xFF080808)
+
+        val ACCENT = Color(0xFF5346e2)
     }
 
     enum class ThemeMode { Light, Dark, System }
@@ -69,9 +74,23 @@ internal object App {
             Config.theme = mode.name
         }
 
-        private val LightColors = null
+        private val LightColors = lightColors(
+            background = Colors.WHITE_MAIN,
+            onBackground = Colors.BLACK_MAIN,
+            primary = Colors.ACCENT,
+            surface = Colors.WHITE_MAIN,
+            onPrimary = Colors.WHITE_MAIN,
+            onSurface = Colors.BLACK_MAIN,
+        )
 
-        private val DarkColors = null
+        private val DarkColors = darkColors(
+            background = Colors.BLACK_MAIN,
+            onBackground = Colors.WHITE_MAIN,
+            primary = Colors.ACCENT,
+            surface = Colors.BLACK_MAIN,
+            onPrimary = Colors.BLACK_MAIN,
+            onSurface = Colors.WHITE_MAIN,
+        )
 
         @Composable
         fun Current(content: @Composable () -> Unit) {
@@ -81,7 +100,7 @@ internal object App {
                 ThemeMode.System -> isSystemInDarkTheme()
             }
 
-            MaterialTheme {
+            MaterialTheme(colors = if (useDarkTheme) DarkColors else LightColors) {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colors.background) {
                     WithLangScope(Language.current.locale) {
                         content()
