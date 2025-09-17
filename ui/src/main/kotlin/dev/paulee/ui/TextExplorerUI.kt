@@ -35,7 +35,10 @@ import dev.paulee.ui.windows.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.nio.file.Path
-import kotlin.io.path.*
+import kotlin.io.path.copyTo
+import kotlin.io.path.exists
+import kotlin.io.path.extension
+import kotlin.io.path.name
 
 enum class Window {
     None,
@@ -121,15 +124,16 @@ class TextExplorerUI(
             indexStrings = indexed
 
             if (totalPages > 0) {
-                dataService.getPage(queryText, isSemantic, queryOrderState, currentPage).let { (pageEntries, pageLinks) ->
-                    val first = pageEntries.firstOrNull() ?: return@let
+                dataService.getPage(queryText, isSemantic, queryOrderState, currentPage)
+                    .let { (pageEntries, pageLinks) ->
+                        val first = pageEntries.firstOrNull() ?: return@let
 
-                    header = first.keys.toList()
+                        header = first.keys.toList()
 
-                    data = pageEntries.map { it.values.toList() }
+                        data = pageEntries.map { it.values.toList() }
 
-                    links = pageLinks
-                }
+                        links = pageLinks
+                    }
             }
 
             showTable = true
@@ -172,7 +176,14 @@ class TextExplorerUI(
 
             IconDropDown(
                 modifier = Modifier.align(Alignment.TopEnd),
-                items = listOf("setting.load_plugin", "setting.load_data", "plugin.title", "model_management.title", "---", "settings.title"),
+                items = listOf(
+                    "setting.load_plugin",
+                    "setting.load_data",
+                    "plugin.title",
+                    "model_management.title",
+                    "---",
+                    "settings.title"
+                ),
             ) {
                 when (it) {
                     "setting.load_plugin" -> openWindow = Window.LoadPlugin
@@ -196,7 +207,7 @@ class TextExplorerUI(
                     val sharedCorner = 24.dp
 
                     val outerBorderColor by animateColorAsState(
-                        targetValue = if (!Config.searchExpanded && isSemantic) MaterialTheme.colors.primary else Color.LightGray
+                        targetValue = if (!Config.searchExpanded && isSemantic) MaterialTheme.colors.primary else MaterialTheme.colors.secondaryVariant
                     )
 
                     Box(
@@ -204,7 +215,7 @@ class TextExplorerUI(
                             .width(600.dp)
                             .clip(RoundedCornerShape(sharedCorner))
                             .border(1.dp, outerBorderColor, RoundedCornerShape(sharedCorner))
-                            .background(Color.White, RoundedCornerShape(sharedCorner))
+                            .background(MaterialTheme.colors.secondary, RoundedCornerShape(sharedCorner))
                             .animateContentSize(animationSpec = tween(durationMillis = 50))
                             .padding(horizontal = 12.dp, vertical = 10.dp)
                     ) {
@@ -359,11 +370,11 @@ class TextExplorerUI(
                                     OutlinedButton(
                                         onClick = { isSemantic = !isSemantic },
                                         shape = RoundedCornerShape(sharedCorner),
-                                        border = BorderStroke(1.dp, semanticOutlineColor),
+                                        border = BorderStroke(0.75.dp, semanticOutlineColor),
                                         colors = ButtonDefaults.outlinedButtonColors(
                                             backgroundColor = if (isSemantic)
                                                 MaterialTheme.colors.primary.copy(alpha = 0.08f)
-                                            else Color.White,
+                                            else Color.Gray.copy(alpha = 0.02f),
                                             contentColor = if (isSemantic) MaterialTheme.colors.primary else Color.Gray
                                         ),
                                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
@@ -416,10 +427,11 @@ class TextExplorerUI(
                                 selectedRows = emptyList()
 
                                 currentPage = 0
-                                dataService.getPage(textField.text, isSemantic, queryOrderState, currentPage).let { result ->
-                                    data = result.first.map { it.values.toList() }
-                                    links = result.second
-                                }
+                                dataService.getPage(textField.text, isSemantic, queryOrderState, currentPage)
+                                    .let { result ->
+                                        data = result.first.map { it.values.toList() }
+                                        links = result.second
+                                    }
                             },
                             totalAmountOfSelectedRows = selectedRows.size,
                             selectedIndices = selectedByPage[currentPage] ?: emptySet(),
@@ -491,7 +503,7 @@ class TextExplorerUI(
                                     if (currentPage < totalPages - 1) {
                                         currentPage++
 
-                                        dataService.getPage(textField.text,  isSemantic,queryOrderState, currentPage)
+                                        dataService.getPage(textField.text, isSemantic, queryOrderState, currentPage)
                                             .let { result ->
                                                 data = result.first.map { it.values.toList() }
 
@@ -514,7 +526,7 @@ class TextExplorerUI(
                 App.VERSION_STRING,
                 modifier = Modifier.align(Alignment.BottomCenter),
                 fontSize = 10.sp,
-                color = Color.LightGray
+                color = Color.Gray
             )
 
             when (loadState) {

@@ -58,7 +58,11 @@ internal object App {
 
         val WHITE_MAIN = Color(0xFFf9f9f9)
 
+        val WHITE_SECONDARY = Color(0xFFf3f3f3)
+
         val BLACK_MAIN = Color(0xFF080808)
+
+        val BLACK_SECONDARY = Color(0xFF1f1f1f)
 
         val ACCENT = Color(0xFF5346e2)
     }
@@ -78,6 +82,8 @@ internal object App {
             background = Colors.WHITE_MAIN,
             onBackground = Colors.BLACK_MAIN,
             primary = Colors.ACCENT,
+            secondary = Colors.WHITE_SECONDARY,
+            secondaryVariant = Color.Gray,
             surface = Colors.WHITE_MAIN,
             onPrimary = Colors.WHITE_MAIN,
             onSurface = Colors.BLACK_MAIN,
@@ -87,8 +93,10 @@ internal object App {
             background = Colors.BLACK_MAIN,
             onBackground = Colors.WHITE_MAIN,
             primary = Colors.ACCENT,
+            secondary = Colors.BLACK_SECONDARY,
+            secondaryVariant = Color.Transparent,
             surface = Colors.BLACK_MAIN,
-            onPrimary = Colors.BLACK_MAIN,
+            onPrimary = Colors.WHITE_MAIN,
             onSurface = Colors.WHITE_MAIN,
         )
 

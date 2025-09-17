@@ -212,7 +212,8 @@ fun TableView(
 
                             val isSorted = queryOrder?.first == columnName
                             val sortedBg =
-                                if (isSorted) MaterialTheme.colors.primary.copy(alpha = 0.05f) else Color.Transparent
+                                if (isSorted) MaterialTheme.colors.primary.copy(alpha = 0.1f)
+                                else MaterialTheme.colors.onSurface.copy(alpha = 0.06f)
 
                             Box(
                                 modifier = Modifier
@@ -276,7 +277,7 @@ fun TableView(
                                     var hovered by remember { mutableStateOf(false) }
 
                                     val baseRow = if (rowIndex % 2 == 0)
-                                        MaterialTheme.colors.onSurface.copy(alpha = 0.04f)
+                                        MaterialTheme.colors.onSurface.copy(alpha = 0.03f)
                                     else Color.Transparent
 
                                     val rowBg = when {

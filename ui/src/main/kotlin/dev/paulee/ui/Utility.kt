@@ -285,7 +285,7 @@ fun SimpleTextField(
         modifier = modifier,
         placeholder = { Text(placeholderText) },
         colors = TextFieldDefaults.textFieldColors(
-            backgroundColor = Color(0xFFF0F0F0),
+            backgroundColor = MaterialTheme.colors.secondary,
             unfocusedIndicatorColor = Color.Transparent,
             focusedIndicatorColor = Color.Transparent,
         ),
@@ -298,14 +298,15 @@ fun SimpleTextField(
 fun Hint(text: String, modifier: Modifier = Modifier, transparent: Boolean = false) {
     Card(
         modifier = modifier,
-        backgroundColor = if (transparent) Color.Transparent else Color(0xFFF5F5F5),
+        backgroundColor = if (transparent) Color.Transparent else MaterialTheme.colors.secondary,
         shape = RoundedCornerShape(8.dp),
         elevation = 0.dp
     ) {
         Text(
             text,
             style = MaterialTheme.typography.caption,
-            modifier = Modifier.padding(12.dp)
+            modifier = Modifier.padding(12.dp),
+            color = Color.Gray
         )
     }
 }
