@@ -356,19 +356,12 @@ internal object EmbeddingProvider {
 
                 when (FileService.OperatingSystem.current) {
 
-                    FileService.OperatingSystem.Linux -> {
-                        if (OrtProvider.CPU in availableProvider) {
-                            logger.info("Selecting CPU provider for Linux.")
-                            addCUDA()
-                        }
-                    }
-
                     FileService.OperatingSystem.MacOS -> {}
                     FileService.OperatingSystem.Windows -> {}
 
                     else -> {
                         if (OrtProvider.CUDA in availableProvider) {
-                            logger.info("Selecting CUDA provider for Unknwon.")
+                            logger.info("Selecting CUDA provider.")
                             addCUDA()
                         }
                     }
