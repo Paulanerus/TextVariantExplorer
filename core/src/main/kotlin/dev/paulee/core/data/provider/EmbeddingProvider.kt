@@ -357,10 +357,9 @@ internal object EmbeddingProvider {
                 when (FileService.OperatingSystem.current) {
 
                     FileService.OperatingSystem.MacOS -> {}
-                    FileService.OperatingSystem.Windows -> {}
 
                     else -> {
-                        if (OrtProvider.CUDA in availableProvider) {
+                        if (OrtProvider.CUDA in availableProvider && FileService.isCuda12xInstalled) {
                             logger.info("Selecting CUDA provider.")
                             addCUDA()
                         }
