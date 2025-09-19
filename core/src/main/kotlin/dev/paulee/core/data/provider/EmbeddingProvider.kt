@@ -4,6 +4,7 @@ import ai.djl.huggingface.tokenizers.Encoding
 import ai.djl.huggingface.tokenizers.HuggingFaceTokenizer
 import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
+import ai.onnxruntime.OrtProvider
 import ai.onnxruntime.OrtSession
 import dev.paulee.api.internal.Embedding
 import dev.paulee.core.data.FileService
@@ -21,6 +22,7 @@ import java.time.Duration
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.io.DEFAULT_BUFFER_SIZE
 import kotlin.io.path.*
+import kotlin.math.max
 import kotlin.math.sqrt
 import kotlin.use
 
@@ -37,6 +39,10 @@ internal object EmbeddingProvider {
     private val tokenizer = mutableMapOf<Embedding.Model, HuggingFaceTokenizer>()
 
     private val sessions = mutableMapOf<Embedding.Model, OrtSession?>()
+
+    private val availableProvider by lazy {
+        OrtEnvironment.getAvailableProviders().orEmpty().mapNotNull { it }.toSet()
+    }
 
     fun registerTokenizer(model: Embedding.Model) {
         val modelName = model.name
@@ -66,6 +72,9 @@ internal object EmbeddingProvider {
     }
 
     fun createEmbeddings(model: Embedding.Model, values: List<String>, query: Boolean = false): Array<FloatArray> {
+
+        val start = System.currentTimeMillis()
+
         val embeddings = when (model) {
             Embedding.Model.EmbeddingGemma -> {
                 val texts = values.map { if (query) "task: search result | query: $it" else "title: none | text: $it" }
@@ -79,6 +88,10 @@ internal object EmbeddingProvider {
                 createRawEmbeddings(model, texts)
             }
         }
+
+        val time = System.currentTimeMillis() - start
+
+        logger.debug("Inference time: $time ms")
 
         return embeddings
     }
@@ -335,7 +348,36 @@ internal object EmbeddingProvider {
 
     private fun createSession(model: Embedding.Model): OrtSession? {
         return runCatching {
-            val options = OrtSession.SessionOptions()
+            val options = OrtSession.SessionOptions().apply {
+                setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
+                setMemoryPatternOptimization(true)
+                setInterOpNumThreads(Runtime.getRuntime().availableProcessors())
+                setIntraOpNumThreads(max(1, Runtime.getRuntime().availableProcessors() / 2))
+
+                when (FileService.OperatingSystem.current) {
+
+                    FileService.OperatingSystem.Linux -> {
+                        if (OrtProvider.CPU in availableProvider) {
+                            logger.info("Selecting CPU provider for Linux.")
+                            addCUDA()
+                        }
+                    }
+
+                    FileService.OperatingSystem.MacOS -> {}
+                    FileService.OperatingSystem.Windows -> {}
+
+                    else -> {
+                        if (OrtProvider.CUDA in availableProvider) {
+                            logger.info("Selecting CUDA provider for Unknwon.")
+                            addCUDA()
+                        }
+                    }
+                }
+
+                addCPU(true)
+            }
+
+            logger.debug(options.toString())
 
             env.createSession(
                 FileService.modelsDir.resolve(model.name).resolve(model.modelData.model).toString(),
