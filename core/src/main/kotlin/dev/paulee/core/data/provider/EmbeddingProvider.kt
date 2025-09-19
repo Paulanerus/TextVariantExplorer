@@ -44,6 +44,27 @@ internal object EmbeddingProvider {
         OrtEnvironment.getAvailableProviders().orEmpty().mapNotNull { it }.toSet()
     }
 
+    private val options = OrtSession.SessionOptions().apply {
+        setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
+        setMemoryPatternOptimization(true)
+        setInterOpNumThreads(Runtime.getRuntime().availableProcessors())
+        setIntraOpNumThreads(max(1, Runtime.getRuntime().availableProcessors() / 2))
+
+        when (FileService.OperatingSystem.current) {
+
+            FileService.OperatingSystem.MacOS -> {}
+
+            else -> {
+                if (OrtProvider.CUDA in availableProvider && FileService.isCuda12xInstalled) {
+                    logger.info("Selecting CUDA provider.")
+                    addCUDA()
+                }
+            }
+        }
+
+        addCPU(true)
+    }
+
     fun registerTokenizer(model: Embedding.Model) {
         val modelName = model.name
 
@@ -225,6 +246,8 @@ internal object EmbeddingProvider {
 
         sessions.values.forEach { it?.close() }
 
+        options.close()
+
         env.close()
     }
 
@@ -348,29 +371,6 @@ internal object EmbeddingProvider {
 
     private fun createSession(model: Embedding.Model): OrtSession? {
         return runCatching {
-            val options = OrtSession.SessionOptions().apply {
-                setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
-                setMemoryPatternOptimization(true)
-                setInterOpNumThreads(Runtime.getRuntime().availableProcessors())
-                setIntraOpNumThreads(max(1, Runtime.getRuntime().availableProcessors() / 2))
-
-                when (FileService.OperatingSystem.current) {
-
-                    FileService.OperatingSystem.MacOS -> {}
-
-                    else -> {
-                        if (OrtProvider.CUDA in availableProvider && FileService.isCuda12xInstalled) {
-                            logger.info("Selecting CUDA provider.")
-                            addCUDA()
-                        }
-                    }
-                }
-
-                addCPU(true)
-            }
-
-            logger.debug(options.toString())
-
             env.createSession(
                 FileService.modelsDir.resolve(model.name).resolve(model.modelData.model).toString(),
                 options
