@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.*
 import dev.paulee.api.data.DiffService
 import dev.paulee.api.data.IDataService
+import dev.paulee.api.data.IndexField
 import dev.paulee.api.data.provider.QueryOrder
 import dev.paulee.api.plugin.IPluginService
 import dev.paulee.ui.components.FileDialog
@@ -95,6 +96,23 @@ class TextExplorerUI(
 
             if (pool == "null") locale["main.no_source"]
             else "$pool ($field)"
+        }
+
+        val isSemanticAvailable by remember(selectedText) {
+            derivedStateOf {
+                val (pool, field) = dataService.getSelectedPool().split(".", limit = 2)
+
+                dataService.getAvailableDataInfo()
+                    .firstOrNull { it.name == pool }
+                    ?.sources
+                    ?.firstOrNull { it.name == field }
+                    ?.fields
+                    ?.any { it is IndexField && it.embeddingModel != null } == true
+            }
+        }
+
+        LaunchedEffect(isSemanticAvailable) {
+            if (!isSemanticAvailable) isSemantic = false
         }
 
         var header by remember { mutableStateOf(listOf<String>()) }
@@ -367,19 +385,30 @@ class TextExplorerUI(
                                         targetValue = if (isSemantic) MaterialTheme.colors.primary else Color.LightGray
                                     )
 
-                                    OutlinedButton(
-                                        onClick = { isSemantic = !isSemantic },
-                                        shape = RoundedCornerShape(sharedCorner),
-                                        border = BorderStroke(0.75.dp, semanticOutlineColor),
-                                        colors = ButtonDefaults.outlinedButtonColors(
-                                            backgroundColor = if (isSemantic)
-                                                MaterialTheme.colors.primary.copy(alpha = 0.08f)
-                                            else Color.Gray.copy(alpha = 0.02f),
-                                            contentColor = if (isSemantic) MaterialTheme.colors.primary else Color.Gray
-                                        ),
-                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                    Tooltip(
+                                        state = !isSemanticAvailable,
+                                        tooltip = {
+                                            Text(
+                                                modifier = Modifier.padding(8.dp),
+                                                text = locale["main.tooltip.no_semantic"]
+                                            )
+                                        }
                                     ) {
-                                        Text(locale["main.search.semantic"])
+                                        OutlinedButton(
+                                            onClick = { isSemantic = !isSemantic },
+                                            enabled = isSemanticAvailable,
+                                            shape = RoundedCornerShape(sharedCorner),
+                                            border = BorderStroke(0.75.dp, semanticOutlineColor),
+                                            colors = ButtonDefaults.outlinedButtonColors(
+                                                backgroundColor = if (isSemantic)
+                                                    MaterialTheme.colors.primary.copy(alpha = 0.08f)
+                                                else Color.Gray.copy(alpha = 0.02f),
+                                                contentColor = if (isSemantic) MaterialTheme.colors.primary else Color.Gray
+                                            ),
+                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                        ) {
+                                            Text(locale["main.search.semantic"])
+                                        }
                                     }
 
                                     Spacer(Modifier.weight(1f))
