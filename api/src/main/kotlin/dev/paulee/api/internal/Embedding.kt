@@ -11,7 +11,7 @@ object Embedding {
     ) {
         EmbeddingGemma(
             "onnx-community/embeddinggemma-300m-ONNX",
-            "A lightweight open embedding model from Google, built on Gemma 3 and trained on 100+ spoken languages.",
+            "model_management.embedding_gemma.desc",
             "Google DeepMind",
             "300M",
             "https://huggingface.co/google/embeddinggemma-300m",
@@ -19,8 +19,8 @@ object Embedding {
         ),
         AncientGreekBert(
             "onnx-community/Ancient-Greek-BERT-ONNX",
-            "A BERT model specialized for Greek and Ancient Greek texts.",
-            "Pranaydeep Singh, Gorik Rutten and Els Lefever",
+            "model_management.ancient_greek_bert.desc",
+            "Pranaydeep Singh, Gorik Rutten, Els Lefever",
             "110M",
             "https://huggingface.co/pranaydeeps/Ancient-Greek-BERT",
             ModelData(
