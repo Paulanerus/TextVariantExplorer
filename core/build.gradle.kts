@@ -19,6 +19,7 @@ dependencies {
     implementation(kotlin("reflect"))
 
     implementation("org.xerial:sqlite-jdbc:${rootProject.extra["sqlite-jdbc.version"]}")
+    implementation("org.duckdb:duckdb_jdbc:${rootProject.extra["duckdb.version"]}")
 
     implementation("io.github.java-diff-utils:java-diff-utils:${rootProject.extra["jdu.version"]}")
 
