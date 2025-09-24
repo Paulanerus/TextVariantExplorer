@@ -4,15 +4,20 @@ import dev.paulee.api.data.FieldType
 import dev.paulee.api.data.Source
 import dev.paulee.api.data.UniqueField
 import dev.paulee.api.data.provider.QueryOrder
+import dev.paulee.core.data.FileService
 import dev.paulee.core.normalizeDataSource
 import dev.paulee.core.sha1Hex
+import org.duckdb.DuckDBConnection
+import org.duckdb.DuckDBDriver
 import org.slf4j.LoggerFactory.getLogger
 import java.io.Closeable
 import java.nio.file.Path
-import java.sql.Connection
 import java.sql.DriverManager
+import java.sql.ResultSet
 import java.sql.Types
+import java.util.*
 import kotlin.io.path.createDirectories
+import kotlin.io.path.notExists
 
 private enum class ColumnType {
     TEXT, INTEGER, REAL
@@ -44,43 +49,22 @@ private class Table(val name: String, columns: List<Column>) {
 
     val tempTables = mutableMapOf<String, String>()
 
-    fun createIfNotExists(connection: Connection) {
-        connection.createStatement().use {
-            it.execute("CREATE TABLE IF NOT EXISTS $name (${columns.joinToString(", ")})")
-        }
-    }
-
-    fun insert(connection: Connection, entries: List<Map<String, String>>) {
-
-        if (entries.isEmpty()) return
-
-        val placeholders =
-            List(entries.size) { List(columns.size) { "?" }.joinToString(", ", prefix = "(", postfix = ")") }
-
+    fun import(connection: DuckDBConnection, path: Path, hasId: Boolean) {
         val query = buildString {
-            append("INSERT INTO ")
+            append("CREATE TABLE IF NOT EXISTS ")
             append(name)
-            append(" (")
-            append(columns.joinToString(", ") { it.name })
-            append(") VALUES ")
-            append(placeholders.joinToString(", "))
+
+            if (hasId)
+                append(" AS SELECT * FROM '$path';")
+            else
+                append(" AS SELECT CAST(row_number() OVER () - 1 AS INTEGER) AS ${name}_ag_id, t.* FROM (SELECT * FROM '$path') AS t;")
         }
 
-        connection.prepareStatement(query).use {
-            val size = columns.size
-            entries.forEachIndexed { index, map ->
-                columns.forEachIndexed inner@{ idx, column ->
-                    val value = map[column.name] ?: return@inner
-
-                    it.setString((size * index) + idx + 1, value)
-                }
-            }
-            it.executeUpdate()
-        }
+        connection.createStatement().use { it.execute(query) }
     }
 
     fun selectAll(
-        connection: Connection,
+        connection: DuckDBConnection,
         whereClause: Map<String, List<String>> = emptyMap(),
         order: QueryOrder?,
         offset: Int = 0,
@@ -121,7 +105,7 @@ private class Table(val name: String, columns: List<Column>) {
         }
     }
 
-    fun count(connection: Connection, whereClause: Map<String, List<String>> = emptyMap()): Long {
+    fun count(connection: DuckDBConnection, whereClause: Map<String, List<String>> = emptyMap()): Long {
         val query = buildString {
             append("SELECT COUNT(*) FROM ")
             append(name)
@@ -134,7 +118,7 @@ private class Table(val name: String, columns: List<Column>) {
         }
     }
 
-    fun suggestions(connection: Connection, field: String, value: String, amount: Int): List<String> {
+    fun suggestions(connection: DuckDBConnection, field: String, value: String, amount: Int): List<String> {
         val query = buildString {
             append("SELECT DISTINCT ")
             append(field)
@@ -166,7 +150,7 @@ private class Table(val name: String, columns: List<Column>) {
 
     override fun toString(): String = "$name primary=${primaryKey}, columns={${columns.joinToString(", ")}}"
 
-    private fun buildWhereClause(connection: Connection, whereClause: Map<String, List<String>>): String {
+    private fun buildWhereClause(connection: DuckDBConnection, whereClause: Map<String, List<String>>): String {
         if (whereClause.isEmpty()) return ""
 
         val parts =
@@ -183,7 +167,7 @@ private class Table(val name: String, columns: List<Column>) {
                             append("$column = ${if (columnType == ColumnType.TEXT) "'${value.escapeLiteral()}'" else value}")
                         } else {
 
-                            if(nonWildcards.size > 500){
+                            if (nonWildcards.size > 500) {
                                 val hash = sha1Hex(nonWildcards.joinToString(""))
 
                                 val tempQuery = tempTables.getOrPut(hash) {
@@ -191,7 +175,7 @@ private class Table(val name: String, columns: List<Column>) {
                                 }
 
                                 append("$column IN ($tempQuery)")
-                            }else{
+                            } else {
                                 val inClause = nonWildcards.joinToString(
                                     ", ", prefix = "IN (", postfix = ")"
                                 ) { if (columnType == ColumnType.TEXT) "'${it.escapeLiteral()}'" else it }
@@ -228,7 +212,12 @@ private class Table(val name: String, columns: List<Column>) {
         .replace("?", "_")
         .escapeLiteral()
 
-    private fun createAndUpdateTempTable(connection: Connection, hash: String, values: List<String>, type: ColumnType): String {
+    private fun createAndUpdateTempTable(
+        connection: DuckDBConnection,
+        hash: String,
+        values: List<String>,
+        type: ColumnType,
+    ): String {
         val tempName = "tmp_$hash"
 
         connection.createStatement().use {
@@ -247,6 +236,7 @@ private class Table(val name: String, columns: List<Column>) {
                         for (v in chunk)
                             ps.setString(paramIndex++, v)
                     }
+
                     ColumnType.INTEGER -> {
                         for (v in chunk) {
                             val longVal = v.toLongOrNull()
@@ -254,6 +244,7 @@ private class Table(val name: String, columns: List<Column>) {
                             else ps.setLong(paramIndex++, longVal)
                         }
                     }
+
                     ColumnType.REAL -> {
                         for (v in chunk) {
                             val dblVal = v.toDoubleOrNull()
@@ -273,9 +264,9 @@ private class Table(val name: String, columns: List<Column>) {
 
 internal class Database(path: Path) : Closeable {
 
-    private val dbPath = "jdbc:sqlite:$path"
+    private val dbPath = "jdbc:duckdb:$path"
 
-    private var connection: Connection? = null
+    private var connection: DuckDBConnection? = null
 
     private val tables = mutableSetOf<Table>()
 
@@ -302,19 +293,41 @@ internal class Database(path: Path) : Closeable {
     fun connect() {
         if (hasNoSQLModule || this.connection != null) return
 
-        this.connection = DriverManager.getConnection(dbPath)
+        val props = Properties().apply {
+            setProperty(DuckDBDriver.JDBC_STREAM_RESULTS, "true")
+        }
+
+        this.connection = DriverManager.getConnection(dbPath, props) as DuckDBConnection
     }
 
-    fun createTables(sources: List<Source>) {
-        sources.forEach { createTable(it) }
+    fun streamData(name: String): Sequence<LinkedHashMap<String, String>> {
+        if (connection == null) return emptySequence()
+
+        tables.find { it.name == name } ?: return emptySequence()
+
+        return sequence {
+            connection!!.prepareStatement(
+                "SELECT * FROM $name",
+                ResultSet.TYPE_FORWARD_ONLY,
+                ResultSet.CONCUR_READ_ONLY
+            )
+                .use {
+                    it.executeQuery().use { rs ->
+                        while (rs.next()) yield(mapRow(rs))
+                    }
+                }
+        }
     }
 
-    fun insert(name: String, entries: List<Map<String, String>>) {
-        if (!hasNoSQLModule) tables.find { it.name == name }?.insert(connection ?: return, entries)
-    }
+    fun import(source: Source) {
+        if (hasNoSQLModule || connection == null) return
 
-    fun createTable(source: Source) {
-        if (hasNoSQLModule) return
+        val path = FileService.dataDir.resolve("${source.name}.csv")
+
+        if (path.notExists()) {
+            logger.warn("Source file '$path' not found.")
+            return
+        }
 
         val columns = source.fields.map { field ->
             val isNullable = false //param.hasAnnotation<Nullable>()
@@ -325,17 +338,12 @@ internal class Database(path: Path) : Closeable {
         }
 
         val table = Table(normalizeDataSource(source.name), columns)
+        tables.add(table)
 
-        runCatching {
-            transaction {
-                table.createIfNotExists(this)
+        val hasId = source.fields.any { it is UniqueField && it.identify }
 
-                tables.add(table)
-            }
-        }.getOrElse { e ->
-            logger.error(
-                "Exception: Failed to create table for class '${source.name}' due to an unexpected error.", e
-            )
+        transaction {
+            table.import(this, path, hasId)
         }
     }
 
@@ -392,7 +400,7 @@ internal class Database(path: Path) : Closeable {
         }
     }
 
-    fun <T> transaction(block: Connection.() -> T): T {
+    fun <T> transaction(block: DuckDBConnection.() -> T): T {
         val conn = this.connection ?: throw IllegalStateException("Failed to start transaction: Connection is null.")
 
         conn.autoCommit = false
@@ -410,5 +418,16 @@ internal class Database(path: Path) : Closeable {
 
     override fun close() {
         this.connection?.close()
+    }
+
+    private fun mapRow(rs: ResultSet): LinkedHashMap<String, String> {
+        val metadata = rs.metaData
+
+        val map = LinkedHashMap<String, String>(metadata.columnCount)
+
+        for (i in 1..metadata.columnCount)
+            map[metadata.getColumnLabel(i)] = (rs.getObject(i) ?: "").toString()
+
+        return map
     }
 }

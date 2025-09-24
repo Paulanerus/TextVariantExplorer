@@ -7,22 +7,21 @@ import dev.paulee.api.data.provider.QueryOrder
 import dev.paulee.core.data.sql.Database
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
+import java.util.LinkedHashMap
 import kotlin.io.path.exists
 
-internal class SQLiteProvider : IStorageProvider {
+internal class DefaultProvider : IStorageProvider {
 
-    private val logger = LoggerFactory.getLogger(SQLiteProvider::class.java)
+    private val logger = LoggerFactory.getLogger(DefaultProvider::class.java)
 
     private lateinit var database: Database
 
     private var initialized = false
 
-    private var lock = false
+    override fun init(dataInfo: DataInfo, path: Path): ProviderStatus {
+        val dbPath = path.resolve("${dataInfo.name}.duckdb")
 
-    override fun init(dataInfo: DataInfo, path: Path, lock: Boolean): ProviderStatus {
-        val dbPath = path.resolve("${dataInfo.name}.db")
-
-        if (initialized) return ProviderStatus.FAILED
+        if (initialized) return ProviderStatus.Failed
 
         val exists = dbPath.exists()
 
@@ -31,23 +30,16 @@ internal class SQLiteProvider : IStorageProvider {
         runCatching { this.database.connect() }
             .getOrElse { e ->
                 this.logger.error("Exception: Failed to connect to DB.", e)
-                return ProviderStatus.FAILED
+                return ProviderStatus.Failed
             }
 
-        this.database.createTables(dataInfo.sources)
+        dataInfo.sources.forEach(database::import)
 
         this.initialized = true
 
-        this.lock = lock
+        this.logger.info("Initializing SQLStorageProvider (${dataInfo.name}).")
 
-        this.logger.info("Initializing SQLStorageProvider (${dataInfo.name}, locked=$lock).")
-
-        return if (exists) ProviderStatus.EXISTS else ProviderStatus.SUCCESS
-    }
-
-    override fun insert(name: String, entries: List<Map<String, String>>) {
-        if (!this.lock) this.database.insert(name, entries)
-        else this.logger.warn("Blocked insert on locked provider ($name).")
+        return if (exists) ProviderStatus.Exists else ProviderStatus.Success
     }
 
     override fun get(
@@ -77,9 +69,15 @@ internal class SQLiteProvider : IStorageProvider {
         name: String,
         field: String,
         value: String,
-        amount: Int
+        amount: Int,
     ): List<String> {
         return this.database.suggestions(name, field, value, amount)
+    }
+
+    override fun streamData(name: String): Sequence<LinkedHashMap<String, String>> {
+        if (name.isBlank()) return emptySequence()
+
+        return database.streamData(name)
     }
 
     private fun getEntries(
