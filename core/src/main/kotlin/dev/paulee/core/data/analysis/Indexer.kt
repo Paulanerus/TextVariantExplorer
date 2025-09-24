@@ -5,7 +5,6 @@ import dev.paulee.api.data.IndexField
 import dev.paulee.api.data.Language
 import dev.paulee.api.data.UniqueField
 import dev.paulee.api.internal.Embedding
-import dev.paulee.core.data.FileService
 import dev.paulee.core.data.provider.EmbeddingProvider
 import dev.paulee.core.normalizeDataSource
 import org.apache.lucene.analysis.Analyzer
@@ -19,7 +18,6 @@ import org.apache.lucene.search.IndexSearcher
 import org.apache.lucene.search.Query
 import org.apache.lucene.store.BaseDirectory
 import org.apache.lucene.store.FSDirectory
-import org.apache.lucene.store.NIOFSDirectory
 import org.slf4j.LoggerFactory.getLogger
 import java.io.Closeable
 import java.nio.file.Path
@@ -55,7 +53,7 @@ internal class Indexer(path: Path, dataInfo: DataInfo) : Closeable {
 
     private val logger = getLogger(Indexer::class.java)
 
-    private val directory: BaseDirectory
+    private val directory: BaseDirectory = FSDirectory.open(path)
 
     private val writer: IndexWriter
 
@@ -70,11 +68,6 @@ internal class Indexer(path: Path, dataInfo: DataInfo) : Closeable {
     private val embeddingFields = mutableMapOf<String, Embedding.Model>()
 
     init {
-        val isWindows = FileService.OperatingSystem.isWindows
-
-        //See https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/store/NIOFSDirectory.html
-        this.directory = if (isWindows) FSDirectory.open(path) else NIOFSDirectory.open(path)
-
         dataInfo.sources.forEach {
             val normalized = normalizeDataSource(it.name)
 
@@ -106,13 +99,15 @@ internal class Indexer(path: Path, dataInfo: DataInfo) : Closeable {
 
         val config = IndexWriterConfig(fieldAnalyzer).apply {
             openMode = IndexWriterConfig.OpenMode.CREATE_OR_APPEND
+            ramBufferSizeMB = 1024.0
+            setUseCompoundFile(false)
         }
 
         this.writer = IndexWriter(this.directory, config)
 
         this.reader = DirectoryReader.open(this.writer)
 
-        this.logger.info("Initialized Indexer (${if (isWindows) "FS" else "NIOFS"})")
+        this.logger.info("Initialized Indexer")
 
         val analyzer =
             this.mappedAnalyzer.entries.joinToString(", ") { (key, value) -> "$key (${value::class.simpleName})" }
@@ -132,10 +127,11 @@ internal class Indexer(path: Path, dataInfo: DataInfo) : Closeable {
 
             this.writer.updateDocument(Term(fieldName, fieldValue), this.createDoc(name, entry))
         }
+    }
 
-        runCatching { this.writer.commit() }.onFailure {
-            this.logger.error("Exception: Failed to commit changes.", it)
-        }
+    fun finish() {
+        runCatching { this.writer.commit() }
+            .onFailure { this.logger.error("Exception: Failed to commit changes.", it) }
     }
 
     fun searchFieldIndex(field: String, query: String): List<Document> {
