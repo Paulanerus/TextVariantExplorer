@@ -301,7 +301,7 @@ internal class Database(path: Path) : Closeable {
     }
 
     fun streamData(name: String): Sequence<LinkedHashMap<String, String>> {
-        if (connection == null) return emptySequence()
+        if (hasNoSQLModule || connection == null) return emptySequence()
 
         tables.find { it.name == name } ?: return emptySequence()
 
