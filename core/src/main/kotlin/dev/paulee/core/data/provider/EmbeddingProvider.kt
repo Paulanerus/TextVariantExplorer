@@ -87,11 +87,8 @@ internal object EmbeddingProvider {
         }
     }
 
-    fun createEmbeddings(model: Embedding.Model, values: List<String>, query: Boolean = false): Array<FloatArray> {
-
-        val start = System.currentTimeMillis()
-
-        val embeddings = when (model) {
+    fun createEmbeddings(model: Embedding.Model, values: List<String>, query: Boolean = false): Array<FloatArray> =
+        when (model) {
             Embedding.Model.EmbeddingGemma -> {
                 val texts = values.map { if (query) "task: search result | query: $it" else "title: none | text: $it" }
 
@@ -104,13 +101,6 @@ internal object EmbeddingProvider {
                 createRawEmbeddings(model, texts)
             }
         }
-
-        val time = System.currentTimeMillis() - start
-
-        logger.debug("Inference time: $time ms")
-
-        return embeddings
-    }
 
     @OptIn(ExperimentalPathApi::class)
     suspend fun downloadModel(model: Embedding.Model, path: Path, onProgress: (progress: Int) -> Unit) =
