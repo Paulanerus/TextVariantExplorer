@@ -50,15 +50,10 @@ internal object EmbeddingProvider {
         setInterOpNumThreads(Runtime.getRuntime().availableProcessors())
         setIntraOpNumThreads(max(1, Runtime.getRuntime().availableProcessors() / 2))
 
-        when (FileService.OperatingSystem.current) {
-
-            FileService.OperatingSystem.MacOS -> {}
-
-            else -> {
-                if (OrtProvider.CUDA in availableProvider && FileService.isCuda12xInstalled) {
-                    logger.info("Selecting CUDA provider.")
-                    addCUDA()
-                }
+        if (!FileService.OperatingSystem.isMacOS) {
+            if (OrtProvider.CUDA in availableProvider && FileService.isCuda12xInstalled) {
+                logger.info("Selecting CUDA provider.")
+                addCUDA()
             }
         }
 
