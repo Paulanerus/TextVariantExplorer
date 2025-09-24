@@ -164,8 +164,4 @@ internal class DataPool(val indexer: Indexer, val dataInfo: DataInfo, val storag
 
         return IndexSearchResult(ids.distinct(), token, indexedValues)
     }
-
-    fun hasIdentifier(name: String, entries: Map<String, String>): Boolean {
-        return entries[identifier[name]?.substringAfter(".")] != null
-    }
 }

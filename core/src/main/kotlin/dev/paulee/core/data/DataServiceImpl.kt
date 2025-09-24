@@ -1,15 +1,11 @@
 package dev.paulee.core.data
 
-import dev.paulee.api.data.DataInfo
-import dev.paulee.api.data.IDataService
-import dev.paulee.api.data.PreFilter
-import dev.paulee.api.data.VariantMapping
+import dev.paulee.api.data.*
 import dev.paulee.api.data.provider.IStorageProvider
 import dev.paulee.api.data.provider.ProviderStatus
 import dev.paulee.api.data.provider.QueryOrder
 import dev.paulee.api.internal.Embedding
 import dev.paulee.core.data.analysis.Indexer
-import dev.paulee.core.data.io.BufferedCSVReader
 import dev.paulee.core.data.model.DataPool
 import dev.paulee.core.data.provider.EmbeddingProvider
 import dev.paulee.core.data.provider.StorageProvider
@@ -31,7 +27,7 @@ object DataServiceImpl : IDataService {
 
     private const val PAGE_SIZE = 50
 
-    private const val CSV_READER_BATCH_SIZE = 300
+    private const val BATCH_SIZE = 1000
 
     private val variantPattern = Regex("@([^:]+):(\\S+)")
 
@@ -60,11 +56,13 @@ object DataServiceImpl : IDataService {
             try {
                 val poolPath = FileService.dataDir.resolve(dataInfo.name)
 
-                val storageProvider = StorageProvider.of(dataInfo.storageType)
+                val currentProvider = StorageProvider.of(dataInfo.storageType)
 
-                val initStatus = storageProvider.init(dataInfo, poolPath)
-
-                if (initStatus != ProviderStatus.SUCCESS) return@withContext initStatus == ProviderStatus.EXISTS
+                when (currentProvider.init(dataInfo, poolPath)) {
+                    ProviderStatus.Success -> Unit
+                    ProviderStatus.Exists -> return@withContext true
+                    else -> return@withContext false
+                }
 
                 dataInfoToString(dataInfo)?.let { json ->
                     poolPath.resolve("info.json").writeText(json)
@@ -75,62 +73,44 @@ object DataServiceImpl : IDataService {
                     DataPool(
                         indexer = Indexer(poolPath.resolve("index"), dataInfo),
                         dataInfo = dataInfo,
-                        storageProvider = storageProvider
+                        storageProvider = currentProvider
                     )
                 }.getOrElse { e ->
                     logger.error("Exception: Failed to create data pool.", e)
                     return@withContext false
                 }
 
-                val totalBatches = dataInfo.sources.sumOf { source ->
-                    val sourcePath =
-                        FileService.dataDir.resolve(source.name.let { if (it.endsWith(".csv")) it else "$it.csv" })
+                val sourcesWithIndex = dataInfo.sources.filter { it.fields.any { field -> field is IndexField } }
 
-                    if (sourcePath.exists()) BufferedCSVReader.estimateBatches(sourcePath, CSV_READER_BATCH_SIZE)
-                    else 0
-                }
+                val totalBatches =
+                    ((sourcesWithIndex.sumOf { currentProvider.count(it.name) } + BATCH_SIZE - 1) / BATCH_SIZE).toInt()
 
                 var processedBatches = 0
                 var lastPercentage = 0
                 onProgress(0)
 
-                dataInfo.sources.forEach { source ->
-                    val file = source.name
+                sourcesWithIndex
+                    .forEach { source ->
+                        val name = source.name
 
-                    if (file.isEmpty()) {
-                        logger.warn("No data source provided for ${file}.")
-                        return@forEach
+                        currentProvider.streamData(name)
+                            .chunked(BATCH_SIZE)
+                            .forEach { entries ->
+                                dataPool.indexer.indexEntries(name, entries)
+
+                                processedBatches++
+
+                                val percentage =
+                                    (if (totalBatches > 0) (processedBatches * 100) / totalBatches else 0).toInt()
+
+                                if (percentage > lastPercentage) {
+                                    onProgress(percentage)
+                                    lastPercentage = percentage
+                                }
+                            }
                     }
 
-                    val sourcePath =
-                        FileService.dataDir.resolve(file.let { if (it.endsWith(".csv")) it else "$it.csv" })
-
-                    if (!sourcePath.exists()) {
-                        logger.warn("Source file '$sourcePath' not found.")
-                        return@forEach
-                    }
-
-                    val idGenerator = generateSequence(1L) { it + 1 }.iterator()
-
-                    BufferedCSVReader(sourcePath, batchSize = CSV_READER_BATCH_SIZE).readLines { lines ->
-                        val entries = lines.map { line ->
-                            if (dataPool.hasIdentifier(file, line)) line
-                            else line + ("${file}_ag_id" to idGenerator.next().toString())
-                        }
-
-                        dataPool.indexer.indexEntries(file, entries)
-                        storageProvider.insert(file, entries)
-
-                        processedBatches++
-
-                        val percentage = if (totalBatches > 0) (processedBatches * 100) / totalBatches else 0
-
-                        if (percentage > lastPercentage) {
-                            onProgress(percentage)
-                            lastPercentage = percentage
-                        }
-                    }
-                }
+                dataPool.indexer.finish()
 
                 dataPools[dataInfo.name] = dataPool
 
@@ -170,7 +150,7 @@ object DataServiceImpl : IDataService {
 
             val storageProvider = StorageProvider.of(dataInfo.storageType)
 
-            if (storageProvider.init(dataInfo, child) == ProviderStatus.EXISTS) {
+            if (storageProvider.init(dataInfo, child) == ProviderStatus.Exists) {
                 dataPools[dataInfo.name] =
                     DataPool(Indexer(child.resolve("index"), dataInfo), dataInfo, storageProvider)
 
@@ -323,7 +303,7 @@ object DataServiceImpl : IDataService {
             return null
         }
 
-        provider.init(dataInfo, path, true)
+        provider.init(dataInfo, path)
 
         return provider
     }
