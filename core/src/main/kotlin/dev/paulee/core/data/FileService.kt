@@ -38,6 +38,8 @@ internal object FileService {
     }
 
     val isCuda12xInstalled: Boolean by lazy {
+        if (OperatingSystem.isMacOS) return@lazy false
+
         runCatching {
             val process = ProcessBuilder().apply {
                 command("nvcc", "--version")
@@ -57,7 +59,7 @@ internal object FileService {
             } else {
                 false
             }
-        }.onFailure { logger.error("Failed to check CUDA version.", it) }.getOrDefault(false)
+        }.getOrDefault(false)
     }
 
     val appDir: Path get() = ensureDir(".textexplorer", true)
