@@ -9,6 +9,9 @@ typealias QueryOrder = Pair<String, Boolean>
 
 enum class StorageType {
     Default,
+
+    @Deprecated("SQLITE support has been removed. Kept only to detect legacy data pools; use StorageType.Default.")
+    SQLITE,
 }
 
 enum class ProviderStatus {
