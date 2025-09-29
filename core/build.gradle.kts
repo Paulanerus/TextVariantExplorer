@@ -45,6 +45,8 @@ dependencies {
     if(os.isMacOsX) implementation("com.microsoft.onnxruntime:onnxruntime:${rootProject.extra["onnx.version"]}")
     else implementation("com.microsoft.onnxruntime:onnxruntime_gpu:${rootProject.extra["onnx.version"]}")
 
+    implementation("com.github.ben-manes.caffeine:caffeine:${rootProject.extra["caffeine.version"]}")
+
     testImplementation(kotlin("test"))
 }
 
