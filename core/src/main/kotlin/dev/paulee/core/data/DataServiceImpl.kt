@@ -1,5 +1,7 @@
 package dev.paulee.core.data
 
+import com.github.benmanes.caffeine.cache.Cache
+import com.github.benmanes.caffeine.cache.Caffeine
 import dev.paulee.api.data.*
 import dev.paulee.api.data.provider.IStorageProvider
 import dev.paulee.api.data.provider.ProviderStatus
@@ -15,9 +17,12 @@ import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory.getLogger
 import java.io.IOException
 import java.nio.file.Path
+import java.time.Duration
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.io.path.*
 import kotlin.math.ceil
+
+typealias QueryKey = Triple<Int, String, QueryOrder?>
 
 typealias PageResult = Pair<List<Map<String, String>>, Map<String, List<Map<String, String>>>>
 
@@ -25,7 +30,7 @@ object DataServiceImpl : IDataService {
 
     private val logger = getLogger(DataServiceImpl::class.java)
 
-    private const val PAGE_SIZE = 50
+    private const val PAGE_SIZE = 100
 
     private const val BATCH_SIZE = 1000
 
@@ -37,11 +42,10 @@ object DataServiceImpl : IDataService {
 
     private var currentField: String? = null
 
-    private val pageCache = object : LinkedHashMap<Triple<Int, String, QueryOrder?>, PageResult>(6, 0.75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Triple<Int, String, QueryOrder?>, PageResult>?): Boolean {
-            return size > 6
-        }
-    }
+    private val pageCache: Cache<QueryKey, PageResult> = Caffeine.newBuilder()
+        .maximumSize(32)
+        .expireAfterAccess(Duration.ofDays(3))
+        .build()
 
     private val storageProvider = mutableMapOf<String, IStorageProvider>()
 
@@ -227,7 +231,7 @@ object DataServiceImpl : IDataService {
 
         val key = Triple(pageCount, query, order)
 
-        pageCache[key]?.let { return it }
+        pageCache.getIfPresent(key)?.let { return it }
 
         val dataPool = this.dataPools[this.currentPool] ?: return Pair(emptyList(), emptyMap())
 
@@ -264,7 +268,7 @@ object DataServiceImpl : IDataService {
 
         val result = PageResult(entries, links)
 
-        pageCache[key] = result
+        pageCache.put(key, result)
 
         return result
     }
