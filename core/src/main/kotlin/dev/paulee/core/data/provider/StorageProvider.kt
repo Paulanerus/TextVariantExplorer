@@ -7,7 +7,7 @@ import dev.paulee.core.data.provider.impl.DefaultProvider
 object StorageProvider {
     fun of(type: StorageType): IStorageProvider {
         return when (type) {
-            StorageType.Default -> DefaultProvider()
+            StorageType.Default, StorageType.SQLITE -> DefaultProvider()
         }
     }
 }
