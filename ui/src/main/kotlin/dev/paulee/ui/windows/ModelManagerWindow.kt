@@ -139,7 +139,7 @@ fun ModelManagerWindow(dataService: IDataService, onClose: () -> Unit) {
                                         }
 
                                         Text(
-                                            text = model.description,
+                                            text = locale[model.description],
                                             fontSize = 12.sp,
                                             color = Color.Gray,
                                             modifier = Modifier.padding(top = 6.dp)

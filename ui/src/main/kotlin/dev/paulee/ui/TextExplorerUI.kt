@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.*
 import dev.paulee.api.data.DiffService
 import dev.paulee.api.data.IDataService
+import dev.paulee.api.data.IndexField
 import dev.paulee.api.data.provider.QueryOrder
 import dev.paulee.api.plugin.IPluginService
 import dev.paulee.ui.components.FileDialog
@@ -35,7 +36,10 @@ import dev.paulee.ui.windows.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.nio.file.Path
-import kotlin.io.path.*
+import kotlin.io.path.copyTo
+import kotlin.io.path.exists
+import kotlin.io.path.extension
+import kotlin.io.path.name
 
 enum class Window {
     None,
@@ -94,6 +98,23 @@ class TextExplorerUI(
             else "$pool ($field)"
         }
 
+        val isSemanticAvailable by remember(selectedText) {
+            derivedStateOf {
+                val (pool, field) = dataService.getSelectedPool().split(".", limit = 2)
+
+                dataService.getAvailableDataInfo()
+                    .firstOrNull { it.name == pool }
+                    ?.sources
+                    ?.firstOrNull { it.name == field }
+                    ?.fields
+                    ?.any { it is IndexField && it.embeddingModel != null } == true
+            }
+        }
+
+        LaunchedEffect(isSemanticAvailable) {
+            if (!isSemanticAvailable) isSemantic = false
+        }
+
         var header by remember { mutableStateOf(listOf<String>()) }
         var indexStrings by remember { mutableStateOf(emptySet<String>()) }
         var data by remember { mutableStateOf(listOf<List<String>>()) }
@@ -121,15 +142,16 @@ class TextExplorerUI(
             indexStrings = indexed
 
             if (totalPages > 0) {
-                dataService.getPage(queryText, isSemantic, queryOrderState, currentPage).let { (pageEntries, pageLinks) ->
-                    val first = pageEntries.firstOrNull() ?: return@let
+                dataService.getPage(queryText, isSemantic, queryOrderState, currentPage)
+                    .let { (pageEntries, pageLinks) ->
+                        val first = pageEntries.firstOrNull() ?: return@let
 
-                    header = first.keys.toList()
+                        header = first.keys.toList()
 
-                    data = pageEntries.map { it.values.toList() }
+                        data = pageEntries.map { it.values.toList() }
 
-                    links = pageLinks
-                }
+                        links = pageLinks
+                    }
             }
 
             showTable = true
@@ -172,7 +194,14 @@ class TextExplorerUI(
 
             IconDropDown(
                 modifier = Modifier.align(Alignment.TopEnd),
-                items = listOf("setting.load_plugin", "setting.load_data", "plugin.title", "model_management.title", "---", "settings.title"),
+                items = listOf(
+                    "setting.load_plugin",
+                    "setting.load_data",
+                    "plugin.title",
+                    "model_management.title",
+                    "---",
+                    "settings.title"
+                ),
             ) {
                 when (it) {
                     "setting.load_plugin" -> openWindow = Window.LoadPlugin
@@ -196,7 +225,7 @@ class TextExplorerUI(
                     val sharedCorner = 24.dp
 
                     val outerBorderColor by animateColorAsState(
-                        targetValue = if (!Config.searchExpanded && isSemantic) MaterialTheme.colors.primary else Color.LightGray
+                        targetValue = if (!Config.searchExpanded && isSemantic) MaterialTheme.colors.primary else MaterialTheme.colors.secondaryVariant
                     )
 
                     Box(
@@ -204,7 +233,7 @@ class TextExplorerUI(
                             .width(600.dp)
                             .clip(RoundedCornerShape(sharedCorner))
                             .border(1.dp, outerBorderColor, RoundedCornerShape(sharedCorner))
-                            .background(Color.White, RoundedCornerShape(sharedCorner))
+                            .background(MaterialTheme.colors.secondary, RoundedCornerShape(sharedCorner))
                             .animateContentSize(animationSpec = tween(durationMillis = 50))
                             .padding(horizontal = 12.dp, vertical = 10.dp)
                     ) {
@@ -356,19 +385,30 @@ class TextExplorerUI(
                                         targetValue = if (isSemantic) MaterialTheme.colors.primary else Color.LightGray
                                     )
 
-                                    OutlinedButton(
-                                        onClick = { isSemantic = !isSemantic },
-                                        shape = RoundedCornerShape(sharedCorner),
-                                        border = BorderStroke(1.dp, semanticOutlineColor),
-                                        colors = ButtonDefaults.outlinedButtonColors(
-                                            backgroundColor = if (isSemantic)
-                                                MaterialTheme.colors.primary.copy(alpha = 0.08f)
-                                            else Color.White,
-                                            contentColor = if (isSemantic) MaterialTheme.colors.primary else Color.Gray
-                                        ),
-                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                    Tooltip(
+                                        state = !isSemanticAvailable,
+                                        tooltip = {
+                                            Text(
+                                                modifier = Modifier.padding(8.dp),
+                                                text = locale["main.tooltip.no_semantic"]
+                                            )
+                                        }
                                     ) {
-                                        Text(locale["main.search.semantic"])
+                                        OutlinedButton(
+                                            onClick = { isSemantic = !isSemantic },
+                                            enabled = isSemanticAvailable,
+                                            shape = RoundedCornerShape(sharedCorner),
+                                            border = BorderStroke(0.75.dp, semanticOutlineColor),
+                                            colors = ButtonDefaults.outlinedButtonColors(
+                                                backgroundColor = if (isSemantic)
+                                                    MaterialTheme.colors.primary.copy(alpha = 0.08f)
+                                                else Color.Gray.copy(alpha = 0.02f),
+                                                contentColor = if (isSemantic) MaterialTheme.colors.primary else Color.Gray
+                                            ),
+                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                        ) {
+                                            Text(locale["main.search.semantic"])
+                                        }
                                     }
 
                                     Spacer(Modifier.weight(1f))
@@ -416,10 +456,11 @@ class TextExplorerUI(
                                 selectedRows = emptyList()
 
                                 currentPage = 0
-                                dataService.getPage(textField.text, isSemantic, queryOrderState, currentPage).let { result ->
-                                    data = result.first.map { it.values.toList() }
-                                    links = result.second
-                                }
+                                dataService.getPage(textField.text, isSemantic, queryOrderState, currentPage)
+                                    .let { result ->
+                                        data = result.first.map { it.values.toList() }
+                                        links = result.second
+                                    }
                             },
                             totalAmountOfSelectedRows = selectedRows.size,
                             selectedIndices = selectedByPage[currentPage] ?: emptySet(),
@@ -491,7 +532,7 @@ class TextExplorerUI(
                                     if (currentPage < totalPages - 1) {
                                         currentPage++
 
-                                        dataService.getPage(textField.text,  isSemantic,queryOrderState, currentPage)
+                                        dataService.getPage(textField.text, isSemantic, queryOrderState, currentPage)
                                             .let { result ->
                                                 data = result.first.map { it.values.toList() }
 
@@ -514,7 +555,7 @@ class TextExplorerUI(
                 App.VERSION_STRING,
                 modifier = Modifier.align(Alignment.BottomCenter),
                 fontSize = 10.sp,
-                color = Color.LightGray
+                color = Color.Gray
             )
 
             when (loadState) {

@@ -128,4 +128,4 @@ data class Source(
     val preFilter: PreFilter? = null,
 )
 
-data class DataInfo(val name: String, val sources: List<Source>, val storageType: StorageType = StorageType.SQLITE)
+data class DataInfo(val name: String, val sources: List<Source>, val storageType: StorageType = StorageType.Default)

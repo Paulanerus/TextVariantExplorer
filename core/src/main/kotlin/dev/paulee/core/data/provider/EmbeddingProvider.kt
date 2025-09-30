@@ -4,7 +4,10 @@ import ai.djl.huggingface.tokenizers.Encoding
 import ai.djl.huggingface.tokenizers.HuggingFaceTokenizer
 import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
+import ai.onnxruntime.OrtProvider
 import ai.onnxruntime.OrtSession
+import com.github.benmanes.caffeine.cache.Cache
+import com.github.benmanes.caffeine.cache.Caffeine
 import dev.paulee.api.internal.Embedding
 import dev.paulee.core.data.FileService
 import kotlinx.coroutines.Dispatchers
@@ -19,10 +22,11 @@ import java.nio.file.Path
 import java.text.Normalizer
 import java.time.Duration
 import kotlin.coroutines.cancellation.CancellationException
-import kotlin.io.DEFAULT_BUFFER_SIZE
 import kotlin.io.path.*
+import kotlin.math.max
 import kotlin.math.sqrt
-import kotlin.use
+
+internal data class EmbKey(val model: Embedding.Model, val value: String)
 
 internal object EmbeddingProvider {
 
@@ -37,6 +41,34 @@ internal object EmbeddingProvider {
     private val tokenizer = mutableMapOf<Embedding.Model, HuggingFaceTokenizer>()
 
     private val sessions = mutableMapOf<Embedding.Model, OrtSession?>()
+
+    private val availableProvider by lazy {
+        OrtEnvironment.getAvailableProviders().orEmpty().mapNotNull { it }.toSet()
+    }
+
+    private val options = OrtSession.SessionOptions().apply {
+        setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
+        setMemoryPatternOptimization(true)
+        setInterOpNumThreads(Runtime.getRuntime().availableProcessors())
+        setIntraOpNumThreads(max(1, Runtime.getRuntime().availableProcessors() / 2))
+
+        if (!FileService.OperatingSystem.isMacOS) {
+            if (OrtProvider.CUDA in availableProvider && FileService.isCuda12xInstalled) {
+                logger.info("Selecting CUDA provider.")
+                addCUDA()
+            }
+        }
+
+        addCPU(true)
+    }
+
+    private const val CACHE_SIZE = 60_000
+
+    private val embeddingCache: Cache<EmbKey, FloatArray> =
+        Caffeine.newBuilder()
+            .initialCapacity(CACHE_SIZE)
+            .maximumSize(CACHE_SIZE.toLong())
+            .build()
 
     fun registerTokenizer(model: Embedding.Model) {
         val modelName = model.name
@@ -65,8 +97,8 @@ internal object EmbeddingProvider {
         }
     }
 
-    fun createEmbeddings(model: Embedding.Model, values: List<String>, query: Boolean = false): Array<FloatArray> {
-        val embeddings = when (model) {
+    fun createEmbeddings(model: Embedding.Model, values: List<String>, query: Boolean = false): Array<FloatArray> =
+        when (model) {
             Embedding.Model.EmbeddingGemma -> {
                 val texts = values.map { if (query) "task: search result | query: $it" else "title: none | text: $it" }
 
@@ -79,9 +111,6 @@ internal object EmbeddingProvider {
                 createRawEmbeddings(model, texts)
             }
         }
-
-        return embeddings
-    }
 
     @OptIn(ExperimentalPathApi::class)
     suspend fun downloadModel(model: Embedding.Model, path: Path, onProgress: (progress: Int) -> Unit) =
@@ -212,7 +241,14 @@ internal object EmbeddingProvider {
 
         sessions.values.forEach { it?.close() }
 
+        options.close()
+
         env.close()
+    }
+
+    fun finish() {
+        embeddingCache.invalidateAll()
+        embeddingCache.cleanUp()
     }
 
     private fun tokenize(model: Embedding.Model, values: List<String>): Pair<Array<LongArray>, Array<LongArray>>? {
@@ -235,8 +271,28 @@ internal object EmbeddingProvider {
         return inputIds to attentionMask
     }
 
+    @Suppress("UNCHECKED_CAST")
     private fun createRawEmbeddings(model: Embedding.Model, values: List<String>): Array<FloatArray> {
-        val (inputIds, attentionMask) = tokenize(model, values) ?: return emptyArray()
+        if (values.isEmpty()) return emptyArray()
+
+        val embBatch = Array<FloatArray?>(values.size) { null }
+
+        val missingIndices = ArrayList<Int>(values.size)
+        val missingValues = ArrayList<String>(values.size)
+
+        for (i in values.indices) {
+            val embedding = embeddingCache.getIfPresent(EmbKey(model, values[i]))
+
+            if (embedding != null) embBatch[i] = embedding
+            else {
+                missingValues += values[i]
+                missingIndices += i
+            }
+        }
+
+        if (missingValues.isEmpty()) return embBatch as Array<FloatArray>
+
+        val (inputIds, attentionMask) = tokenize(model, missingValues) ?: return emptyArray()
 
         val session = sessions.getOrPut(model) {
             createSession(model)
@@ -246,12 +302,11 @@ internal object EmbeddingProvider {
 
         fun runSession(sessionInputs: Map<String, OnnxTensor>): Array<FloatArray> {
             session.run(sessionInputs).use { result ->
-                return when (model) {
+                val batch = when (model) {
                     Embedding.Model.AncientGreekBert -> {
                         val ov = result.get("last_hidden_state")
                             .orElseThrow { IllegalStateException("No output named last_hidden_state") }
 
-                        @Suppress("UNCHECKED_CAST")
                         val lastHidden = (ov as OnnxTensor).value as Array<Array<FloatArray>>
 
                         val batchSize = lastHidden.size
@@ -297,18 +352,23 @@ internal object EmbeddingProvider {
                     }
 
                     else -> {
-                        val outName = session.outputNames.firstOrNull { it.contains("sentence_embedding") }
+                        val ov = result.get("sentence_embedding")
+                            .orElseThrow { IllegalStateException("No output named sentence_embedding") }
 
-                        @Suppress("UNCHECKED_CAST") if (outName != null) {
-                            val ov =
-                                result.get(outName).orElseThrow { IllegalStateException("No output named $outName") }
-                            (ov as OnnxTensor).value as Array<FloatArray>
-                        } else {
-                            val ov = result.get(1)
-                            (ov as OnnxTensor).value as Array<FloatArray>
-                        }
+                        (ov as OnnxTensor).value as Array<FloatArray>
                     }
                 }
+
+                for (i in batch.indices) {
+                    val idx = missingIndices[i]
+
+                    val embedding = batch[i]
+
+                    embeddingCache.put(EmbKey(model, values[idx]), embedding)
+                    embBatch[idx] = embedding
+                }
+
+                return embBatch.requireNoNulls()
             }
         }
 
@@ -335,8 +395,6 @@ internal object EmbeddingProvider {
 
     private fun createSession(model: Embedding.Model): OrtSession? {
         return runCatching {
-            val options = OrtSession.SessionOptions()
-
             env.createSession(
                 FileService.modelsDir.resolve(model.name).resolve(model.modelData.model).toString(),
                 options

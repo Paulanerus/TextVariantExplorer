@@ -5,7 +5,6 @@ import dev.paulee.api.data.IndexField
 import dev.paulee.api.data.Language
 import dev.paulee.api.data.UniqueField
 import dev.paulee.api.internal.Embedding
-import dev.paulee.core.data.FileService
 import dev.paulee.core.data.provider.EmbeddingProvider
 import dev.paulee.core.normalizeDataSource
 import org.apache.lucene.analysis.Analyzer
@@ -19,7 +18,6 @@ import org.apache.lucene.search.IndexSearcher
 import org.apache.lucene.search.Query
 import org.apache.lucene.store.BaseDirectory
 import org.apache.lucene.store.FSDirectory
-import org.apache.lucene.store.NIOFSDirectory
 import org.slf4j.LoggerFactory.getLogger
 import java.io.Closeable
 import java.nio.file.Path
@@ -51,11 +49,13 @@ internal class Indexer(path: Path, dataInfo: DataInfo) : Closeable {
         private val LEADING_REGEX = Regex("(?i)^(?:AND|OR|NOT)\\b\\s*")
 
         private val TRAILING_REGEX = Regex("(?i)\\s*\\b(?:AND|OR|NOT)$")
+
+        private const val EMBEDDING_BATCH_SIZE = 128
     }
 
     private val logger = getLogger(Indexer::class.java)
 
-    private val directory: BaseDirectory
+    private val directory: BaseDirectory = FSDirectory.open(path)
 
     private val writer: IndexWriter
 
@@ -70,11 +70,6 @@ internal class Indexer(path: Path, dataInfo: DataInfo) : Closeable {
     private val embeddingFields = mutableMapOf<String, Embedding.Model>()
 
     init {
-        val isWindows = FileService.OperatingSystem.isWindows
-
-        //See https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/store/NIOFSDirectory.html
-        this.directory = if (isWindows) FSDirectory.open(path) else NIOFSDirectory.open(path)
-
         dataInfo.sources.forEach {
             val normalized = normalizeDataSource(it.name)
 
@@ -106,13 +101,15 @@ internal class Indexer(path: Path, dataInfo: DataInfo) : Closeable {
 
         val config = IndexWriterConfig(fieldAnalyzer).apply {
             openMode = IndexWriterConfig.OpenMode.CREATE_OR_APPEND
+            ramBufferSizeMB = 1024.0
+            setUseCompoundFile(false)
         }
 
         this.writer = IndexWriter(this.directory, config)
 
         this.reader = DirectoryReader.open(this.writer)
 
-        this.logger.info("Initialized Indexer (${if (isWindows) "FS" else "NIOFS"})")
+        this.logger.info("Initialized Indexer")
 
         val analyzer =
             this.mappedAnalyzer.entries.joinToString(", ") { (key, value) -> "$key (${value::class.simpleName})" }
@@ -125,17 +122,57 @@ internal class Indexer(path: Path, dataInfo: DataInfo) : Closeable {
     fun indexEntries(name: String, entries: List<Map<String, String>>) {
         if (this.mappedAnalyzer.isEmpty() || entries.isEmpty()) return
 
-        val fieldName = idFields.find { it.startsWith(name) } ?: return
+        val idField = idFields.find { it.startsWith(name) } ?: return
+        val idSuffix = idField.substringAfter("$name.")
 
-        entries.forEach { entry ->
-            val fieldValue = entry[fieldName.substringAfter("$name.")] ?: return@forEach
+        val fieldEmbeddings =
+            Array(entries.size) { HashMap<String, FloatArray>(embeddingFields.size) }
 
-            this.writer.updateDocument(Term(fieldName, fieldValue), this.createDoc(name, entry))
+        if (embeddingFields.isNotEmpty()) {
+            for ((field, model) in embeddingFields) {
+                if (!field.startsWith("$name.")) continue
+
+                val key = field.substringAfter("$name.")
+
+                var start = 0
+                val n = entries.size
+                val chunk = ArrayList<String>(EMBEDDING_BATCH_SIZE)
+                while (start < n) {
+                    val end = minOf(start + EMBEDDING_BATCH_SIZE, n)
+
+                    chunk.clear()
+
+                    for (i in start until end)
+                        chunk.add(entries[i][key] ?: "")
+
+                    val embeddings = EmbeddingProvider.createEmbeddings(model, chunk)
+
+                    for (i in 0 until (end - start)) {
+                        val docIdx = start + i
+
+                        fieldEmbeddings[docIdx][field] = embeddings[i]
+                    }
+
+                    start = end
+                }
+            }
         }
 
-        runCatching { this.writer.commit() }.onFailure {
-            this.logger.error("Exception: Failed to commit changes.", it)
+        for (i in entries.indices) {
+            val entry = entries[i]
+
+            val fieldValue = entry[idSuffix] ?: continue
+
+            writer.updateDocument(
+                Term(idField, fieldValue),
+                createDoc(name, entry, fieldEmbeddings[i])
+            )
         }
+    }
+
+    fun finish() {
+        runCatching { this.writer.commit() }
+            .onFailure { this.logger.error("Exception: Failed to commit changes.", it) }
     }
 
     fun searchFieldIndex(field: String, query: String): List<Document> {
@@ -200,7 +237,11 @@ internal class Indexer(path: Path, dataInfo: DataInfo) : Closeable {
             .replace(TRAILING_REGEX, "")
     }
 
-    private fun createDoc(name: String, map: Map<String, String>): Document = Document().apply {
+    private fun createDoc(
+        name: String,
+        map: Map<String, String>,
+        precomputed: Map<String, FloatArray> = emptyMap(),
+    ): Document = Document().apply {
         map.forEach { (key, value) ->
             val id = "$name.$key"
 
@@ -213,10 +254,8 @@ internal class Indexer(path: Path, dataInfo: DataInfo) : Closeable {
                 add(TextField("$id.ws", value, Field.Store.YES))
             }
 
-            embeddingFields[id]?.let { model ->
-                val embedding = EmbeddingProvider.createEmbeddings(model, listOf(value)).first()
-
-                add(KnnFloatVectorField("$id.vec", embedding, VectorSimilarityFunction.COSINE))
+            precomputed[id]?.let { vec ->
+                add(KnnFloatVectorField("$id.vec", vec, VectorSimilarityFunction.COSINE))
             }
         }
     }

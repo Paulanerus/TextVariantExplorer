@@ -1,5 +1,8 @@
 package dev.paulee.ui
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.TooltipArea
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
@@ -11,14 +14,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.decodeToImageBitmap
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.graphics.painter.Painter
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.*
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -92,7 +92,7 @@ internal object Autocomplete {
 @Composable
 fun MarkedText(
     modifier: Modifier = Modifier,
-    textDecoration: TextDecoration = TextDecoration.None,
+    underline: Boolean = false,
     textAlign: TextAlign = TextAlign.Start,
     text: String,
     highlights: Map<String, Tag>,
@@ -175,7 +175,16 @@ fun MarkedText(
             if (currentIndex < text.length) append(text.substring(currentIndex))
         }
     }
-    Text(text = annotatedString, modifier = modifier, textDecoration = textDecoration, textAlign = textAlign)
+    Text(
+        text = annotatedString,
+        modifier = modifier,
+        style = TextStyle(
+            fontSize = 16.sp,
+            color = MaterialTheme.colors.onBackground.copy(alpha = 0.9f),
+            textDecoration = if (underline) TextDecoration.Underline else TextDecoration.None
+        ),
+        textAlign = textAlign
+    )
 }
 
 @Composable
@@ -285,7 +294,7 @@ fun SimpleTextField(
         modifier = modifier,
         placeholder = { Text(placeholderText) },
         colors = TextFieldDefaults.textFieldColors(
-            backgroundColor = Color(0xFFF0F0F0),
+            backgroundColor = MaterialTheme.colors.secondary,
             unfocusedIndicatorColor = Color.Transparent,
             focusedIndicatorColor = Color.Transparent,
         ),
@@ -294,18 +303,40 @@ fun SimpleTextField(
     )
 }
 
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun Tooltip(state: Boolean, tooltip: @Composable (() -> Unit), content: @Composable (() -> Unit)) {
+    TooltipArea(
+        tooltip = {
+            if (state) {
+                Surface(
+                    color = MaterialTheme.colors.surface,
+                    shape = RoundedCornerShape(6.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colors.onSurface.copy(alpha = 0.08f)),
+                    elevation = 4.dp
+                ) {
+                    tooltip()
+                }
+            }
+        }
+    ) {
+        content()
+    }
+}
+
 @Composable
 fun Hint(text: String, modifier: Modifier = Modifier, transparent: Boolean = false) {
     Card(
         modifier = modifier,
-        backgroundColor = if (transparent) Color.Transparent else Color(0xFFF5F5F5),
+        backgroundColor = if (transparent) Color.Transparent else MaterialTheme.colors.secondary,
         shape = RoundedCornerShape(8.dp),
         elevation = 0.dp
     ) {
         Text(
             text,
             style = MaterialTheme.typography.caption,
-            modifier = Modifier.padding(12.dp)
+            modifier = Modifier.padding(12.dp),
+            color = Color.Gray
         )
     }
 }

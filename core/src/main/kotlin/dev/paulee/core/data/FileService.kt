@@ -37,6 +37,31 @@ internal object FileService {
         }
     }
 
+    val isCuda12xInstalled: Boolean by lazy {
+        if (OperatingSystem.isMacOS) return@lazy false
+
+        runCatching {
+            val process = ProcessBuilder().apply {
+                command("nvcc", "--version")
+                redirectErrorStream(true)
+            }.start()
+
+            val output = process.inputStream.bufferedReader().use { it.readText() }
+            process.waitFor()
+
+            val versionRegex = Regex("""V(\d+)\.(\d+)\.(\d+)""")
+            val matchResult = versionRegex.find(output)
+
+            if (matchResult != null) {
+                val majorVersion = matchResult.groupValues[1].toIntOrNull() ?: 0
+
+                majorVersion == 12
+            } else {
+                false
+            }
+        }.getOrDefault(false)
+    }
+
     val appDir: Path get() = ensureDir(".textexplorer", true)
 
     val pluginsDir: Path get() = ensureDir("plugins")
@@ -50,7 +75,7 @@ internal object FileService {
     private val mapper = jacksonObjectMapper().apply { enable(SerializationFeature.INDENT_OUTPUT) }
 
     init {
-        logger.info("Operating system: ${OperatingSystem.current}")
+        logger.info("Operating system: ${OperatingSystem.current} | CUDA: $isCuda12xInstalled")
     }
 
     fun toJson(dataInfo: DataInfo): String? = runCatching { this.mapper.writeValueAsString(dataInfo) }

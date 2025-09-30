@@ -99,6 +99,20 @@ fun DataLoaderWindow(dataService: IDataService, onClose: (DataInfo?) -> Unit) {
         App.Theme.Current {
             Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
 
+                val radioColors = RadioButtonDefaults.colors(
+                    selectedColor = MaterialTheme.colors.primary,
+                    unselectedColor = MaterialTheme.colors.onSurface.copy(alpha = ContentAlpha.medium),
+                    disabledColor = MaterialTheme.colors.onSurface.copy(alpha = ContentAlpha.disabled)
+                )
+
+                val checkboxColors = CheckboxDefaults.colors(
+                    checkedColor = MaterialTheme.colors.primary,
+                    uncheckedColor = MaterialTheme.colors.onSurface.copy(alpha = ContentAlpha.medium),
+                    checkmarkColor = MaterialTheme.colors.onPrimary,
+                    disabledColor = MaterialTheme.colors.onSurface.copy(alpha = ContentAlpha.disabled),
+                    disabledIndeterminateColor = MaterialTheme.colors.onSurface.copy(alpha = ContentAlpha.disabled)
+                )
+
                 FieldTypeHelp(
                     modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)
                 )
@@ -114,7 +128,8 @@ fun DataLoaderWindow(dataService: IDataService, onClose: (DataInfo?) -> Unit) {
                         ) {
                             items(
                                 items = sources, key = { it.name }) { source ->
-                                val bgColor = if (source == selectedSource) Color.LightGray else Color.Transparent
+                                val bgColor =
+                                    if (source == selectedSource) MaterialTheme.colors.onSurface.copy(alpha = 0.14f) else Color.Transparent
 
                                 val hasSourceFile by derivedStateOf {
                                     sourcePaths.any { it.nameWithoutExtension == source.name }
@@ -267,14 +282,14 @@ fun DataLoaderWindow(dataService: IDataService, onClose: (DataInfo?) -> Unit) {
 
                             Row(
                                 modifier = Modifier.fillMaxWidth()
-                                    .background(Color(0xFFF5F5F5), RoundedCornerShape(8.dp)).padding(4.dp)
+                                    .background(MaterialTheme.colors.secondary, RoundedCornerShape(8.dp)).padding(4.dp)
                             ) {
                                 tabs.forEachIndexed { index, title ->
                                     val isSelected = selectedTab == index
 
                                     Box(
                                         modifier = Modifier.weight(1f).background(
-                                            color = if (isSelected) Color.White else Color.Transparent,
+                                            color = if (isSelected) MaterialTheme.colors.primary else Color.Transparent,
                                             shape = RoundedCornerShape(6.dp)
                                         ).clickable { selectedTab = index }.padding(vertical = 10.dp),
                                         contentAlignment = Alignment.Center
@@ -282,7 +297,7 @@ fun DataLoaderWindow(dataService: IDataService, onClose: (DataInfo?) -> Unit) {
                                         Text(
                                             text = title,
                                             style = MaterialTheme.typography.body1,
-                                            color = if (isSelected) MaterialTheme.colors.primary else Color.Gray
+                                            color = if (isSelected) MaterialTheme.colors.onPrimary else Color.Gray
                                         )
                                     }
                                 }
@@ -389,7 +404,10 @@ fun DataLoaderWindow(dataService: IDataService, onClose: (DataInfo?) -> Unit) {
                                             }
 
                                             Box(
-                                                modifier = Modifier.fillMaxWidth().background(Color(0xFFF0F0F0))
+                                                modifier = Modifier.fillMaxWidth().background(
+                                                    MaterialTheme.colors.secondary,
+                                                    RoundedCornerShape(6.dp)
+                                                )
                                                     .padding(horizontal = 8.dp)
                                             ) {
                                                 Column inner@{
@@ -451,6 +469,7 @@ fun DataLoaderWindow(dataService: IDataService, onClose: (DataInfo?) -> Unit) {
                                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                                 RadioButton(
                                                                     selected = variant == "Basic",
+                                                                    colors = radioColors,
                                                                     onClick = { variant = "Basic" })
                                                                 Text(locale["data_loader.variant.basic"])
                                                             }
@@ -461,6 +480,7 @@ fun DataLoaderWindow(dataService: IDataService, onClose: (DataInfo?) -> Unit) {
                                                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                                                     RadioButton(
                                                                         selected = variant == "Unique",
+                                                                        colors = radioColors,
                                                                         onClick = { variant = "Unique" })
                                                                     Text(locale["data_loader.variant.unique"])
                                                                 }
@@ -472,6 +492,7 @@ fun DataLoaderWindow(dataService: IDataService, onClose: (DataInfo?) -> Unit) {
                                                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                                                     RadioButton(
                                                                         selected = variant == "Index",
+                                                                        colors = radioColors,
                                                                         onClick = { variant = "Index" })
                                                                     Text(locale["data_loader.variant.index"])
                                                                 }
@@ -485,6 +506,7 @@ fun DataLoaderWindow(dataService: IDataService, onClose: (DataInfo?) -> Unit) {
                                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                                             Checkbox(
                                                                 checked = uniqueIdentify,
+                                                                colors = checkboxColors,
                                                                 onCheckedChange = { uniqueIdentify = it })
                                                             Text(locale["data_loader.unique.identifiable"])
                                                         }
@@ -522,6 +544,7 @@ fun DataLoaderWindow(dataService: IDataService, onClose: (DataInfo?) -> Unit) {
 
                                                                 Checkbox(
                                                                     checked = indexDefault,
+                                                                    colors = checkboxColors,
                                                                     onCheckedChange = { indexDefault = it })
 
                                                                 Text(locale["data_loader.default"])

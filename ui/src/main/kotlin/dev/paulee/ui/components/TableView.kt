@@ -31,14 +31,10 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import dev.paulee.api.data.provider.QueryOrder
 import dev.paulee.api.plugin.Tag
-import dev.paulee.ui.App
-import dev.paulee.ui.Config
-import dev.paulee.ui.LocalI18n
-import dev.paulee.ui.MarkedText
+import dev.paulee.ui.*
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class)
 @Composable
@@ -212,7 +208,8 @@ fun TableView(
 
                             val isSorted = queryOrder?.first == columnName
                             val sortedBg =
-                                if (isSorted) MaterialTheme.colors.primary.copy(alpha = 0.05f) else Color.Transparent
+                                if (isSorted) MaterialTheme.colors.primary.copy(alpha = 0.1f)
+                                else MaterialTheme.colors.onSurface.copy(alpha = 0.06f)
 
                             Box(
                                 modifier = Modifier
@@ -276,7 +273,7 @@ fun TableView(
                                     var hovered by remember { mutableStateOf(false) }
 
                                     val baseRow = if (rowIndex % 2 == 0)
-                                        MaterialTheme.colors.onSurface.copy(alpha = 0.04f)
+                                        MaterialTheme.colors.onSurface.copy(alpha = 0.03f)
                                     else Color.Transparent
 
                                     val rowBg = when {
@@ -313,27 +310,20 @@ fun TableView(
                                             val col = columns[colIndex]
                                             val link = links[col]?.find { it[col] == cell }
 
-                                            TooltipArea(
+                                            Tooltip(
+                                                state = link != null,
                                                 tooltip = {
-                                                    if (link == null) return@TooltipArea
-                                                    Surface(
-                                                        color = MaterialTheme.colors.surface,
-                                                        shape = RoundedCornerShape(6.dp),
-                                                        border = BorderStroke(1.dp, hairline),
-                                                        elevation = 4.dp
-                                                    ) {
-                                                        Column(modifier = Modifier.padding(8.dp)) {
-                                                            link.filter { !it.key.endsWith("_ag_id") }
-                                                                .forEach { entry ->
-                                                                    Row {
-                                                                        Text(
-                                                                            text = entry.key,
-                                                                            fontWeight = FontWeight.SemiBold
-                                                                        )
-                                                                        Text(text = ": ${entry.value}")
-                                                                    }
+                                                    Column(modifier = Modifier.padding(8.dp)) {
+                                                        link?.filter { !it.key.endsWith("_ag_id") }
+                                                            ?.forEach { entry ->
+                                                                Row {
+                                                                    Text(
+                                                                        text = entry.key,
+                                                                        fontWeight = FontWeight.SemiBold
+                                                                    )
+                                                                    Text(text = ": ${entry.value}")
                                                                 }
-                                                        }
+                                                            }
                                                     }
                                                 }
                                             ) {
@@ -342,7 +332,7 @@ fun TableView(
                                                         modifier = Modifier
                                                             .width(columnWidths[colIndex])
                                                             .padding(horizontal = 8.dp),
-                                                        textDecoration = if (link == null) TextDecoration.None else TextDecoration.Underline,
+                                                        underline = link != null,
                                                         text = cell,
                                                         highlights = if (indexStrings.isEmpty()) emptyMap() else indexStrings.associateWith {
                                                             Tag(

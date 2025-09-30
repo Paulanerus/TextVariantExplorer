@@ -18,7 +18,7 @@ dependencies {
 
     implementation(kotlin("reflect"))
 
-    implementation("org.xerial:sqlite-jdbc:${rootProject.extra["sqlite-jdbc.version"]}")
+    implementation("org.duckdb:duckdb_jdbc:${rootProject.extra["duckdb.version"]}")
 
     implementation("io.github.java-diff-utils:java-diff-utils:${rootProject.extra["jdu.version"]}")
 
@@ -44,6 +44,8 @@ dependencies {
 
     if(os.isMacOsX) implementation("com.microsoft.onnxruntime:onnxruntime:${rootProject.extra["onnx.version"]}")
     else implementation("com.microsoft.onnxruntime:onnxruntime_gpu:${rootProject.extra["onnx.version"]}")
+
+    implementation("com.github.ben-manes.caffeine:caffeine:${rootProject.extra["caffeine.version"]}")
 
     testImplementation(kotlin("test"))
 }

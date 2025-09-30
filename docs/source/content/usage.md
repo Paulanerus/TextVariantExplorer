@@ -4,7 +4,7 @@ All features of the tool in this section are described and demonstrated using th
 
 ## Load a Data Set
 
-Data sets can only be loaded though the user interface, via the 'Load Data' menu button in the burger menu in the top right corner of the main screen.
+Data sets can only be loaded through the user interface, via the 'Load Data' menu button in the burger menu in the top right corner of the main screen.
 
 ### Data Import
 
@@ -30,6 +30,8 @@ Certain field types can have additional variants, which define how the data in t
 
 - **Text**: Can be set as either _Basic_ or _Index_.
 - **Int**: Can be set as either _Basic_ or _Unique_.
+
+**Variants**
 
 - **Basic**: Indicates that the field values are treated as standard data without any special handling.
 - **Index** (for Text fields): Adds properties such as:
@@ -132,7 +134,7 @@ Boolean search allows you to refine your search by logically connecting terms us
 
 #### Field Search
 
-With field search, you can target specific fields in the dataset by specifying a field and its corresponding value. This allows precise filtering based on pre-defined field values. For instance:
+With field search, you can target specific fields in the data set by specifying a field and its corresponding value. This allows precise filtering based on pre-defined field values. For instance:
 
 - Use `ga:01` to return all matching entries where the field `ga` has the value `01`.
 - Multiple field-specific filters can be combined to narrow down the results further.

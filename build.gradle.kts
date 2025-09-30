@@ -64,7 +64,7 @@ compose.desktop {
             }
 
             macOS {
-                // iconFile.set(project.file("ui/src/main/resources/icon.icns"))
+                iconFile.set(project.file("ui/src/main/resources/icon.icns"))
 
                 appCategory = "public.app-category.utilities"
             }
