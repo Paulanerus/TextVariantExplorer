@@ -105,7 +105,7 @@ object DataServiceImpl : IDataService {
                                 processedBatches++
 
                                 val percentage =
-                                    (if (totalBatches > 0) (processedBatches * 100) / totalBatches else 0).toInt()
+                                    (if (totalBatches > 0) (processedBatches * 100) / totalBatches else 0)
 
                                 if (percentage > lastPercentage) {
                                     onProgress(percentage)
@@ -115,6 +115,7 @@ object DataServiceImpl : IDataService {
                     }
 
                 dataPool.indexer.finish()
+                EmbeddingProvider.finish()
 
                 dataPools[dataInfo.name] = dataPool
 
