@@ -92,7 +92,7 @@ internal class DataPool(val indexer: Indexer, val dataInfo: DataInfo, val storag
     fun search(query: String, semantic: Boolean): IndexSearchResult {
         val ids = mutableListOf<Long>()
 
-        val similarityThreshold = 0.6f
+        val similarityThreshold = 0.7f
 
         val indexedValues = mutableSetOf<String>()
 
