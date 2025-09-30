@@ -49,6 +49,8 @@ internal class Indexer(path: Path, dataInfo: DataInfo) : Closeable {
         private val LEADING_REGEX = Regex("(?i)^(?:AND|OR|NOT)\\b\\s*")
 
         private val TRAILING_REGEX = Regex("(?i)\\s*\\b(?:AND|OR|NOT)$")
+
+        private const val EMBEDDING_BATCH_SIZE = 128
     }
 
     private val logger = getLogger(Indexer::class.java)
@@ -120,12 +122,51 @@ internal class Indexer(path: Path, dataInfo: DataInfo) : Closeable {
     fun indexEntries(name: String, entries: List<Map<String, String>>) {
         if (this.mappedAnalyzer.isEmpty() || entries.isEmpty()) return
 
-        val fieldName = idFields.find { it.startsWith(name) } ?: return
+        val idField = idFields.find { it.startsWith(name) } ?: return
+        val idSuffix = idField.substringAfter("$name.")
 
-        entries.forEach { entry ->
-            val fieldValue = entry[fieldName.substringAfter("$name.")] ?: return@forEach
+        val fieldEmbeddings =
+            Array(entries.size) { HashMap<String, FloatArray>(embeddingFields.size) }
 
-            this.writer.updateDocument(Term(fieldName, fieldValue), this.createDoc(name, entry))
+        if (embeddingFields.isNotEmpty()) {
+            for ((field, model) in embeddingFields) {
+                if (!field.startsWith("$name.")) continue
+
+                val key = field.substringAfter("$name.")
+
+                var start = 0
+                val n = entries.size
+                val chunk = ArrayList<String>(EMBEDDING_BATCH_SIZE)
+                while (start < n) {
+                    val end = minOf(start + EMBEDDING_BATCH_SIZE, n)
+
+                    chunk.clear()
+
+                    for (i in start until end)
+                        chunk.add(entries[i][key] ?: "")
+
+                    val embeddings = EmbeddingProvider.createEmbeddings(model, chunk)
+
+                    for (i in 0 until (end - start)) {
+                        val docIdx = start + i
+
+                        fieldEmbeddings[docIdx][field] = embeddings[i]
+                    }
+
+                    start = end
+                }
+            }
+        }
+
+        for (i in entries.indices) {
+            val entry = entries[i]
+
+            val fieldValue = entry[idSuffix] ?: continue
+
+            writer.updateDocument(
+                Term(idField, fieldValue),
+                createDoc(name, entry, fieldEmbeddings[i])
+            )
         }
     }
 
@@ -196,7 +237,11 @@ internal class Indexer(path: Path, dataInfo: DataInfo) : Closeable {
             .replace(TRAILING_REGEX, "")
     }
 
-    private fun createDoc(name: String, map: Map<String, String>): Document = Document().apply {
+    private fun createDoc(
+        name: String,
+        map: Map<String, String>,
+        precomputed: Map<String, FloatArray> = emptyMap(),
+    ): Document = Document().apply {
         map.forEach { (key, value) ->
             val id = "$name.$key"
 
@@ -209,10 +254,8 @@ internal class Indexer(path: Path, dataInfo: DataInfo) : Closeable {
                 add(TextField("$id.ws", value, Field.Store.YES))
             }
 
-            embeddingFields[id]?.let { model ->
-                val embedding = EmbeddingProvider.createEmbeddings(model, listOf(value)).first()
-
-                add(KnnFloatVectorField("$id.vec", embedding, VectorSimilarityFunction.COSINE))
+            precomputed[id]?.let { vec ->
+                add(KnnFloatVectorField("$id.vec", vec, VectorSimilarityFunction.COSINE))
             }
         }
     }
