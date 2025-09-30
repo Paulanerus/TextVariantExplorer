@@ -15,3 +15,17 @@ Download the example data set from [Zenodo](https://zenodo.org/records/15789063)
 
 Additionally, a plugin for this data set can be downloaded from the [official release page](https://github.com/Paulanerus/TextExplorer/releases/latest) (demo.jar).
 Both plugins and data sets can be loaded directly within the application, as documented [here](usage.md).
+
+## Using Embeddings Models on the GPU
+
+By default, the application runs embedding models for semantic queries on the CPU, which may result in longer loading times depending on the model, data size, and hardware. GPU acceleration generally reduces these loading times. Below is a list of supported platforms for GPU acceleration:
+
+### NVIDIA GPUs  
+GPU acceleration supported using CUDA. Requires CUDA 12.x installed. Available on Linux and Windows.
+For installation, see [CUDA Toolkit](https://developer.nvidia.com/cuda-downloads).
+
+### AMD GPUs 
+Currently not supported, but planned.
+
+### Apple GPUs 
+Not supported, no plans soon.
