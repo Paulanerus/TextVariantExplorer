@@ -42,24 +42,31 @@ internal object EmbeddingProvider {
 
     private val sessions = mutableMapOf<Embedding.Model, OrtSession?>()
 
-    private val availableProvider by lazy {
-        OrtEnvironment.getAvailableProviders().orEmpty().mapNotNull { it }.toSet()
+    private val availableProvider = OrtEnvironment.getAvailableProviders().orEmpty().mapNotNull { it }.toSet()
+
+    private val canCuda = with(FileService.Platform) {
+        OrtProvider.CUDA in availableProvider && isCuda12xInstalled && isCuDNNInstalled
     }
 
-    private val options = OrtSession.SessionOptions().apply {
-        setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
-        setMemoryPatternOptimization(true)
-        setInterOpNumThreads(Runtime.getRuntime().availableProcessors())
-        setIntraOpNumThreads(max(1, Runtime.getRuntime().availableProcessors() / 2))
+    private val lazyOptions = lazy {
+        runCatching {
+            OrtSession.SessionOptions().apply {
+                setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
+                setMemoryPatternOptimization(true)
+                setInterOpNumThreads(Runtime.getRuntime().availableProcessors())
+                setIntraOpNumThreads(max(1, Runtime.getRuntime().availableProcessors() / 2))
 
-        if (!FileService.OperatingSystem.isMacOS) {
-            if (OrtProvider.CUDA in availableProvider && FileService.isCuda12xInstalled) {
-                logger.info("Selecting CUDA provider.")
-                addCUDA()
+                if (!FileService.Platform.isMacOS && canCuda) {
+                    logger.info("Selecting CUDA provider.")
+                    addCUDA()
+                }
+
+                addCPU(true)
             }
+        }.getOrElse {
+            logger.error("Failed to create session options.", it)
+            null
         }
-
-        addCPU(true)
     }
 
     private const val CACHE_SIZE = 60_000
@@ -241,7 +248,10 @@ internal object EmbeddingProvider {
 
         sessions.values.forEach { it?.close() }
 
-        options.close()
+        with(lazyOptions) {
+            if (isInitialized())
+                value?.close()
+        }
 
         env.close()
     }
@@ -394,10 +404,12 @@ internal object EmbeddingProvider {
     }
 
     private fun createSession(model: Embedding.Model): OrtSession? {
+        if (lazyOptions.value == null) return null
+
         return runCatching {
             env.createSession(
                 FileService.modelsDir.resolve(model.name).resolve(model.modelData.model).toString(),
-                options
+                lazyOptions.value
             )
         }.getOrElse {
             logger.error("Failed to create session for model ${model.name}", it)

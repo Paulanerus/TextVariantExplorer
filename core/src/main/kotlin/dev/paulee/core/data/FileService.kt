@@ -8,15 +8,16 @@ import org.slf4j.LoggerFactory.getLogger
 import java.nio.file.Path
 import kotlin.io.path.Path
 import kotlin.io.path.createDirectories
+import kotlin.io.path.listDirectoryEntries
 import kotlin.io.path.notExists
 
 internal object FileService {
 
-    enum class OperatingSystem {
+    enum class Platform {
         Windows, MacOS, Linux, Other;
 
         companion object {
-            val current: OperatingSystem by lazy {
+            val current: Platform by lazy {
                 val os = System.getProperty("os.name")?.lowercase() ?: return@lazy Other
 
                 when {
@@ -34,32 +35,47 @@ internal object FileService {
             val isLinux: Boolean get() = current == Linux
 
             val isOther: Boolean get() = current == Other
-        }
-    }
 
-    val isCuda12xInstalled: Boolean by lazy {
-        if (OperatingSystem.isMacOS) return@lazy false
+            val isCuda12xInstalled: Boolean by lazy {
+                if (isMacOS) return@lazy false
 
-        runCatching {
-            val process = ProcessBuilder().apply {
-                command("nvcc", "--version")
-                redirectErrorStream(true)
-            }.start()
+                runCatching {
+                    val process = ProcessBuilder().apply {
+                        command("nvcc", "--version")
+                        redirectErrorStream(true)
+                    }.start()
 
-            val output = process.inputStream.bufferedReader().use { it.readText() }
-            process.waitFor()
+                    val output = process.inputStream.bufferedReader().use { it.readText() }
+                    process.waitFor()
 
-            val versionRegex = Regex("""V(\d+)\.(\d+)\.(\d+)""")
-            val matchResult = versionRegex.find(output)
+                    val versionRegex = Regex("""V(\d+)\.(\d+)\.(\d+)""")
+                    val matchResult = versionRegex.find(output)
 
-            if (matchResult != null) {
-                val majorVersion = matchResult.groupValues[1].toIntOrNull() ?: 0
+                    if (matchResult != null) {
+                        val majorVersion = matchResult.groupValues[1].toIntOrNull() ?: 0
 
-                majorVersion == 12
-            } else {
-                false
+                        majorVersion == 12
+                    } else {
+                        false
+                    }
+                }.getOrDefault(false)
             }
-        }.getOrDefault(false)
+
+            val isCuDNNInstalled by lazy {
+                if (isMacOS) return@lazy false
+
+                // This is a temporary solution until JDK 25 with FFM API can be used.
+                return@lazy runCatching {
+                    if (isWindows) {
+                        System.getenv("PATH").contains("NVIDIA\\CUDNN\\v9")
+                    } else {
+                        val lib = Path("/usr/lib")
+
+                        lib.listDirectoryEntries("libcudnn.so.9*").isNotEmpty()
+                    }
+                }.getOrDefault(false)
+            }
+        }
     }
 
     val appDir: Path get() = ensureDir(".textexplorer", true)
@@ -75,7 +91,7 @@ internal object FileService {
     private val mapper = jacksonObjectMapper().apply { enable(SerializationFeature.INDENT_OUTPUT) }
 
     init {
-        logger.info("Operating system: ${OperatingSystem.current} | CUDA: $isCuda12xInstalled")
+        logger.info("Operating system: ${Platform.current} | CUDA: ${Platform.isCuda12xInstalled}, cuDNN: ${Platform.isCuDNNInstalled}")
     }
 
     fun toJson(dataInfo: DataInfo): String? = runCatching { this.mapper.writeValueAsString(dataInfo) }

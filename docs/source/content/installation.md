@@ -20,12 +20,12 @@ Both plugins and data sets can be loaded directly within the application, as doc
 
 By default, the application runs embedding models for semantic queries on the CPU, which may result in longer loading times depending on the model, data size, and hardware. GPU acceleration generally reduces these loading times. Below is a list of supported platforms for GPU acceleration:
 
-### NVIDIA GPUs  
-GPU acceleration supported using CUDA. Requires CUDA 12.x installed. Available on Linux and Windows.
-For installation, see [CUDA Toolkit](https://developer.nvidia.com/cuda-downloads).
+### NVIDIA  
+GPU acceleration supported using CUDA. Requires[ CUDA 12.x](https://developer.nvidia.com/cuda-toolkit-archive) and [cuDNN 9.x](https://developer.nvidia.com/cudnn) installed. Available on Linux and Windows.
+For installation, see [CUDA Installation Guide](https://docs.nvidia.com/cuda/cuda-installation-guide-microsoft-windows/index.html) and [Installing cuDNN Backend](https://docs.nvidia.com/deeplearning/cudnn/installation/latest/windows.html).
 
-### AMD GPUs 
+### AMD 
 Currently not supported, but planned.
 
-### Apple GPUs 
+### Apple 
 Not supported, no plans soon.

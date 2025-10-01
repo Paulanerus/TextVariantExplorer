@@ -49,6 +49,7 @@ enum class Window {
     PluginInfo,
     Settings,
     ModelManagement,
+    PoolManagement
 }
 
 class TextExplorerUI(
@@ -208,6 +209,7 @@ class TextExplorerUI(
                     "setting.load_data" -> openWindow = Window.LoadData
                     "plugin.title" -> openWindow = Window.PluginInfo
                     "model_management.title" -> openWindow = Window.ModelManagement
+                    "pools_management.title" -> openWindow = Window.PoolManagement
                     "settings.title" -> openWindow = Window.Settings
                 }
             }
@@ -679,6 +681,8 @@ class TextExplorerUI(
                 Window.Settings -> SettingsWindow { openWindow = Window.None }
 
                 Window.ModelManagement -> ModelManagerWindow(dataService) { openWindow = Window.None }
+
+                Window.PoolManagement -> PoolManagerWindow(dataService) { openWindow = Window.None }
 
                 else -> {}
             }
