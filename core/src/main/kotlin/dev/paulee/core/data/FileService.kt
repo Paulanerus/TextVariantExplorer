@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory.getLogger
 import java.nio.file.Path
 import kotlin.io.path.Path
 import kotlin.io.path.createDirectories
+import kotlin.io.path.listDirectoryEntries
 import kotlin.io.path.notExists
 
 internal object FileService {
@@ -64,13 +65,15 @@ internal object FileService {
                 if (isMacOS) return@lazy false
 
                 // This is a temporary solution until JDK 25 with FFM API can be used.
-                return@lazy if (isWindows) {
-                    runCatching {
+                return@lazy runCatching {
+                    if (isWindows) {
                         System.getenv("PATH").contains("NVIDIA\\CUDNN\\v9")
-                    }.getOrDefault(false)
-                } else {
-                    false
-                }
+                    } else {
+                        val lib = Path("/usr/lib")
+
+                        lib.listDirectoryEntries("libcudnn.so.9*").isNotEmpty()
+                    }
+                }.getOrDefault(false)
             }
         }
     }
