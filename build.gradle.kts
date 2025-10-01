@@ -1,4 +1,6 @@
+import org.gradle.kotlin.dsl.configure
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
+import org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension
 
 plugins {
     kotlin("jvm")
@@ -23,8 +25,12 @@ dependencies {
     implementation(project(":ui"))
 }
 
-kotlin {
-    jvmToolchain(21)
+allprojects {
+    plugins.withId("org.jetbrains.kotlin.jvm") {
+        extensions.configure<KotlinJvmProjectExtension> {
+            jvmToolchain(21)
+        }
+    }
 }
 
 compose.desktop {

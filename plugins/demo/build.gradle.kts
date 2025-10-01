@@ -27,7 +27,3 @@ tasks.jar {
         attributes["Main-Class"] = "dev.paulee.demo.DemoPlugin"
     }
 }
-
-kotlin {
-    jvmToolchain(21)
-}

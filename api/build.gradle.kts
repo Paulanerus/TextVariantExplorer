@@ -14,7 +14,3 @@ dependencies {
 
     implementation("com.fasterxml.jackson.core:jackson-annotations:${rootProject.extra["jackson.version"]}")
 }
-
-kotlin {
-    jvmToolchain(21)
-}
