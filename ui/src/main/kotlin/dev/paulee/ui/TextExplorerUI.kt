@@ -200,7 +200,6 @@ class TextExplorerUI(
                     "setting.load_data",
                     "plugin.title",
                     "model_management.title",
-                    "pools_management.title",
                     "---",
                     "settings.title"
                 ),
