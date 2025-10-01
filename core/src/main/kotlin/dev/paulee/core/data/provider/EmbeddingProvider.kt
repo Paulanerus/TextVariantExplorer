@@ -42,8 +42,10 @@ internal object EmbeddingProvider {
 
     private val sessions = mutableMapOf<Embedding.Model, OrtSession?>()
 
-    private val availableProvider by lazy {
-        OrtEnvironment.getAvailableProviders().orEmpty().mapNotNull { it }.toSet()
+    private val availableProvider = OrtEnvironment.getAvailableProviders().orEmpty().mapNotNull { it }.toSet()
+
+    private val canCuda = with(FileService.Platform) {
+        OrtProvider.CUDA in availableProvider && isCuda12xInstalled && isCuDNNInstalled
     }
 
     private val lazyOptions = lazy {
@@ -54,11 +56,9 @@ internal object EmbeddingProvider {
                 setInterOpNumThreads(Runtime.getRuntime().availableProcessors())
                 setIntraOpNumThreads(max(1, Runtime.getRuntime().availableProcessors() / 2))
 
-                if (!FileService.OperatingSystem.isMacOS) {
-                    if (OrtProvider.CUDA in availableProvider && FileService.isCuda12xInstalled) {
-                        logger.info("Selecting CUDA provider.")
-                        addCUDA()
-                    }
+                if (!FileService.Platform.isMacOS && canCuda) {
+                    logger.info("Selecting CUDA provider.")
+                    addCUDA()
                 }
 
                 addCPU(true)
