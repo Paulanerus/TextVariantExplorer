@@ -6,6 +6,7 @@ import dev.paulee.api.data.*
 import dev.paulee.api.data.provider.IStorageProvider
 import dev.paulee.api.data.provider.ProviderStatus
 import dev.paulee.api.data.provider.QueryOrder
+import dev.paulee.api.data.provider.StorageType
 import dev.paulee.api.internal.Embedding
 import dev.paulee.core.data.analysis.Indexer
 import dev.paulee.core.data.model.DataPool
@@ -13,11 +14,14 @@ import dev.paulee.core.data.provider.EmbeddingProvider
 import dev.paulee.core.data.provider.StorageProvider
 import dev.paulee.core.splitStr
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory.getLogger
 import java.io.IOException
 import java.nio.file.Path
 import java.time.Duration
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.io.path.*
 import kotlin.math.ceil
@@ -49,7 +53,9 @@ object DataServiceImpl : IDataService {
 
     private val storageProvider = mutableMapOf<String, IStorageProvider>()
 
-    private val dataPools = mutableMapOf<String, DataPool>()
+    private val dataPools = ConcurrentHashMap<String, DataPool>()
+
+    private val mutex = Mutex()
 
     init {
         loadDataPools(FileService.dataDir)
@@ -132,6 +138,84 @@ object DataServiceImpl : IDataService {
                 false
             }
         }
+
+    @OptIn(ExperimentalPathApi::class)
+    override suspend fun deleteDataPool(name: String): Boolean = withContext(Dispatchers.IO) {
+        val (pool, wasCurrent, externalProvider) = mutex.withLock {
+            val pool = dataPools.remove(name) ?: return@withLock null
+
+            val isCurrent = currentPool == name
+
+            if (isCurrent) {
+                currentPool = null
+                currentField = null
+            }
+
+            val externalProvider = storageProvider.remove(name)
+
+            Triple(pool, isCurrent, externalProvider)
+        } ?: return@withContext false
+
+        runCatching { pool.storageProvider.close() }
+            .onFailure { e -> logger.error("Failed to close storage provider for $name.", e) }
+
+        runCatching { pool.indexer.close() }
+            .onFailure { e -> logger.error("Failed to close indexer for $name.", e) }
+
+        externalProvider?.let {
+            runCatching { it.close() }
+                .onFailure { e -> logger.error("Failed to close external storage provider for $name.", e) }
+        }
+
+        val poolPath = FileService.dataDir.resolve(name)
+
+        if (poolPath.notExists()) return@withContext true
+
+        runCatching { poolPath.deleteRecursively() }
+            .onFailure { e ->
+                logger.error("Failed to delete directory for $name.", e)
+                return@withContext false
+            }
+
+        logger.info("Deleted data pool $name.")
+
+        if (wasCurrent && dataPools.isNotEmpty()) {
+            mutex.withLock {
+                val newPool = dataPools.entries.firstOrNull() ?: return@withLock
+
+                currentPool = newPool.key
+                currentField = newPool.value.defaultClass
+            }
+        }
+
+        true
+    }
+
+    override suspend fun rebuildDataPool(dataInfo: DataInfo, onProgress: (progress: Int) -> Unit): Boolean {
+        logger.info("Rebuilding data pool ${dataInfo.name}.")
+
+        val (oldPool, oldField) = mutex.withLock { currentPool to currentField }
+
+        var info = dataInfo
+
+        if (info.storageType == StorageType.SQLITE) {
+            logger.warn("${info.name} uses deprecated SQLite storage type. Replacing with default storage type.")
+            info = info.copy(storageType = StorageType.Default)
+        }
+
+        if (!deleteDataPool(info.name)) return false
+
+        val created = createDataPool(info, onProgress)
+
+        if (created && oldPool == info.name) {
+            mutex.withLock {
+                currentPool = oldPool
+                currentField = oldField
+            }
+        }
+
+        return created
+    }
 
     @OptIn(ExperimentalPathApi::class)
     fun loadDataPools(path: Path) {
@@ -298,8 +382,8 @@ object DataServiceImpl : IDataService {
     override fun createStorageProvider(infoName: String, path: Path): IStorageProvider? {
         val dataInfo = this.dataPools[infoName]?.dataInfo ?: return null
 
-        if (this.storageProvider[infoName] == null) this.storageProvider[infoName] =
-            StorageProvider.of(dataInfo.storageType)
+        if (this.storageProvider[infoName] == null)
+            this.storageProvider[infoName] = StorageProvider.of(dataInfo.storageType)
 
         val provider = this.storageProvider[infoName]
 
