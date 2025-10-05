@@ -91,7 +91,12 @@ internal object FileService {
     private val mapper = jacksonObjectMapper().apply { enable(SerializationFeature.INDENT_OUTPUT) }
 
     init {
-        logger.info("Operating system: ${Platform.current} | CUDA: ${Platform.isCuda12xInstalled}, cuDNN: ${Platform.isCuDNNInstalled}")
+        val osSpecific = when (Platform.current) {
+            Platform.MacOS -> ""
+            else -> "| CUDA: ${Platform.isCuda12xInstalled}, cuDNN: ${Platform.isCuDNNInstalled}"
+        }
+
+        logger.info("Operating system: ${Platform.current} $osSpecific")
     }
 
     fun toJson(dataInfo: DataInfo): String? = runCatching { this.mapper.writeValueAsString(dataInfo) }
