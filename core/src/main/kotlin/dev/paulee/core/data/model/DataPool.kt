@@ -7,10 +7,11 @@ import dev.paulee.api.data.provider.IStorageProvider
 import dev.paulee.core.data.analysis.Indexer
 import dev.paulee.core.normalizeDataSource
 import dev.paulee.core.splitStr
+import org.apache.lucene.document.Document
 import org.slf4j.LoggerFactory.getLogger
 
 internal data class IndexSearchResult(
-    val ids: List<Long> = emptyList(),
+    val ids: LinkedHashSet<Long> = LinkedHashSet(),
     val tokens: List<String> = emptyList(),
     val indexedValues: Set<String> = emptySet(),
 ) {
@@ -90,7 +91,14 @@ internal class DataPool(val indexer: Indexer, val dataInfo: DataInfo, val storag
     }
 
     fun search(query: String, semantic: Boolean): IndexSearchResult {
-        val ids = mutableListOf<Long>()
+        val ids = LinkedHashSet<Long>()
+
+        fun addIdsFrom(docs: List<Document>, fieldClass: String?) {
+            val classKey = fieldClass ?: return
+            val idFieldName = identifier[classKey] ?: return
+
+            docs.forEach { it.getField(idFieldName)?.numericValue()?.toLong()?.let(ids::add) }
+        }
 
         val similarityThreshold = 0.7f
 
@@ -128,13 +136,11 @@ internal class DataPool(val indexer: Indexer, val dataInfo: DataInfo, val storag
 
                     indexedValues.add(value)
 
-                    val fields =
-                        if (semantic) indexer.searchMatchingVec(fieldClass, value, similarityThreshold)
+                    val docs =
+                        if (semantic) indexer.searchMatchingVec(field, value, similarityThreshold)
                         else indexer.searchFieldIndex(field, value)
 
-                    fields.mapTo(ids) { doc ->
-                        doc.getField(identifier[fieldClass]).numericValue().toLong()
-                    }
+                    addIdsFrom(docs, fieldClass)
                 } else token.add(str)
             }
 
@@ -144,24 +150,25 @@ internal class DataPool(val indexer: Indexer, val dataInfo: DataInfo, val storag
                 indexedValues.add(joined)
 
                 defaultIndexField?.let { defaultField ->
-                    val fields =
+                    val docs =
                         if (semantic) indexer.searchMatchingVec(defaultField, joined, similarityThreshold)
                         else indexer.searchFieldIndex(defaultField, joined)
 
-                    fields.mapTo(ids) { doc ->
-                        doc.getField(identifier[defaultClass]).numericValue().toLong()
-                    }
+                    addIdsFrom(docs, defaultClass)
                 }
             }
         } else {
             defaultIndexField?.let {
-                if (semantic) indexer.searchMatchingVec(it, query, similarityThreshold)
-                else indexer.searchFieldIndex(it, query)
-            }?.mapTo(ids) { doc -> doc.getField(identifier[defaultClass]).numericValue().toLong() }
+                val docs =
+                    if (semantic) indexer.searchMatchingVec(it, query, similarityThreshold)
+                    else indexer.searchFieldIndex(it, query)
+
+                addIdsFrom(docs, defaultClass)
+            }
 
             indexedValues.add(query)
         }
 
-        return IndexSearchResult(ids.distinct(), token, indexedValues)
+        return IndexSearchResult(ids, token, indexedValues)
     }
 }

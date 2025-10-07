@@ -8,6 +8,7 @@ import dev.paulee.core.data.sql.Database
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
 import java.util.LinkedHashMap
+import java.util.LinkedHashSet
 import kotlin.io.path.exists
 
 internal class DefaultProvider : IStorageProvider {
@@ -44,7 +45,7 @@ internal class DefaultProvider : IStorageProvider {
 
     override fun get(
         name: String,
-        ids: List<Long>,
+        ids: LinkedHashSet<Long>,
         whereClause: List<String>,
         filter: List<String>,
         order: QueryOrder?,
@@ -57,7 +58,7 @@ internal class DefaultProvider : IStorageProvider {
 
     override fun count(
         name: String,
-        ids: List<Long>,
+        ids: LinkedHashSet<Long>,
         whereClause: List<String>,
         filter: List<String>,
     ): Long {
@@ -82,7 +83,7 @@ internal class DefaultProvider : IStorageProvider {
 
     private fun getEntries(
         name: String,
-        ids: List<Long>,
+        ids: LinkedHashSet<Long>,
         whereClause: List<String>,
         filter: List<String>,
     ): MutableMap<String, List<String>>? {
