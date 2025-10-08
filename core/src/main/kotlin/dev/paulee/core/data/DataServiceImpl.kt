@@ -106,7 +106,7 @@ object DataServiceImpl : IDataService {
                         currentProvider.streamData(name)
                             .chunked(BATCH_SIZE)
                             .forEach { entries ->
-                                dataPool.indexer.indexEntries(name, entries)
+                                dataPool.indexer?.indexEntries(name, entries)
 
                                 processedBatches++
 
@@ -120,7 +120,7 @@ object DataServiceImpl : IDataService {
                             }
                     }
 
-                dataPool.indexer.finish()
+                dataPool.indexer?.finish()
                 EmbeddingProvider.finish()
 
                 dataPools[dataInfo.name] = dataPool
@@ -156,10 +156,10 @@ object DataServiceImpl : IDataService {
             Triple(pool, isCurrent, externalProvider)
         } ?: return@withContext false
 
-        runCatching { pool.storageProvider.close() }
+        runCatching { pool.storageProvider?.close() }
             .onFailure { e -> logger.error("Failed to close storage provider for $name.", e) }
 
-        runCatching { pool.indexer.close() }
+        runCatching { pool.indexer?.close() }
             .onFailure { e -> logger.error("Failed to close indexer for $name.", e) }
 
         externalProvider?.let {
@@ -237,15 +237,25 @@ object DataServiceImpl : IDataService {
             val dataInfo = FileService.fromJson(runCatching { jsonFile.readText() }.getOrDefault(""))
                 ?: return@forEachDirectoryEntry
 
+            val infoName = dataInfo.name
+
+            if (dataInfo.storageType == StorageType.SQLITE) {
+                logger.warn("Data pool '$infoName' uses deprecated SQLite storage type. Skipping.")
+
+                dataPools[infoName] = DataPool(null, dataInfo, null)
+
+                return@forEachDirectoryEntry
+            }
+
             val storageProvider = StorageProvider.of(dataInfo.storageType)
 
             if (storageProvider.init(dataInfo, child) == ProviderStatus.Exists) {
-                dataPools[dataInfo.name] =
+                dataPools[infoName] =
                     DataPool(Indexer(child.resolve("index"), dataInfo), dataInfo, storageProvider)
 
-                logger.info("Loaded ${dataInfo.name} data pool.")
+                logger.info("Loaded $infoName data pool.")
             } else {
-                logger.info("Deleting invalid or empty data pool directory '${dataInfo.name}'.")
+                logger.info("Deleting invalid or empty data pool directory '$infoName'.")
 
                 runCatching { child.deleteRecursively() }
                     .onFailure { e -> logger.error("Failed to delete directory ${child.fileName}.", e) }
@@ -294,13 +304,14 @@ object DataServiceImpl : IDataService {
 
         val dataPool = this.dataPools[this.currentPool] ?: return emptyList()
 
+        if (dataPool.storageProvider == null) return emptyList()
+
         val fieldExists = dataPool.dataInfo.sources
             .firstOrNull { it.name == current }
             ?.fields
             ?.any { it.name == field } == true
 
         if (!fieldExists) return emptyList()
-
 
         return dataPool.storageProvider.suggestions(current, field, value, 6)
     }
@@ -319,6 +330,8 @@ object DataServiceImpl : IDataService {
         pageCache.getIfPresent(key)?.let { return it }
 
         val dataPool = this.dataPools[this.currentPool] ?: return Pair(emptyList(), emptyMap())
+
+        if (dataPool.storageProvider == null) return Pair(emptyList(), emptyMap())
 
         val (filterQuery, filter) = this.getPreFilter(query)
 
@@ -362,6 +375,8 @@ object DataServiceImpl : IDataService {
         if (this.currentPool == null || this.currentField == null) return Triple(-1, -1, emptySet())
 
         val dataPool = this.dataPools[this.currentPool] ?: return Triple(-1, -1, emptySet())
+
+        if (dataPool.storageProvider == null) return Triple(-1, -1, emptySet())
 
         val (filterQuery, filter) = this.getPreFilter(query)
 
@@ -411,8 +426,8 @@ object DataServiceImpl : IDataService {
         this.storageProvider.forEach { it.value.close() }
 
         this.dataPools.values.forEach {
-            it.storageProvider.close()
-            it.indexer.close()
+            it.storageProvider?.close()
+            it.indexer?.close()
         }
 
         EmbeddingProvider.close()
@@ -420,6 +435,8 @@ object DataServiceImpl : IDataService {
 
     private fun handleReplacements(replacements: Map<String, Any>, query: String): String {
         val dataPool = this.dataPools[this.currentPool] ?: return query
+
+        if (dataPool.storageProvider == null) return query
 
         return variantPattern.replace(query) {
             val key = it.groupValues[1]
@@ -439,6 +456,8 @@ object DataServiceImpl : IDataService {
 
     private fun getPreFilter(query: String): Pair<String, List<String>> {
         val dataPool = this.dataPools[this.currentPool] ?: return Pair(query, emptyList())
+
+        if (dataPool.storageProvider == null) return Pair(query, emptyList())
 
         val filters = preFilterPattern.findAll(query).map { it.value }.toSet()
 

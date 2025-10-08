@@ -18,7 +18,7 @@ internal data class IndexSearchResult(
     fun isEmpty(): Boolean = ids.isEmpty() && tokens.isEmpty()
 }
 
-internal class DataPool(val indexer: Indexer, val dataInfo: DataInfo, val storageProvider: IStorageProvider) {
+internal class DataPool(val indexer: Indexer?, val dataInfo: DataInfo, val storageProvider: IStorageProvider?) {
 
     private val logger = getLogger("DataPool (${dataInfo.name})")
 
@@ -91,6 +91,8 @@ internal class DataPool(val indexer: Indexer, val dataInfo: DataInfo, val storag
     }
 
     fun search(query: String, semantic: Boolean): IndexSearchResult {
+        if (indexer == null) return IndexSearchResult()
+
         val ids = LinkedHashSet<Long>()
 
         fun addIdsFrom(docs: List<Document>, fieldClass: String?) {
