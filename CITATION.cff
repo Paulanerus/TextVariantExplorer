@@ -10,11 +10,11 @@ authors:
 repository-code: 'https://github.com/Paulanerus/TextExplorer'
 url: 'https://paulee.dev/textvariantexplorer/'
 repository-artifact: >-
-  https://github.com/Paulanerus/TextExplorer/releases/tag/v1.6.0
+  https://github.com/Paulanerus/TextExplorer/releases/tag/v1.6.1
 abstract: >-
   A tool designed for the exploration, analysis, and
   comparison of textual data variants.
 license: GPL-3.0
-commit: 7c5a4d2
-version: 1.6.0
+commit: dda5053
+version: 1.6.1
 date-released: '2025-10-08'
