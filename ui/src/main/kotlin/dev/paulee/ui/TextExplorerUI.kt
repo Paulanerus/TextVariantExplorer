@@ -152,10 +152,10 @@ class TextExplorerUI(
                         data = pageEntries.map { it.values.toList() }
 
                         links = pageLinks
+
+                        showTable = true
                     }
             }
-
-            showTable = true
         }
 
         Box(modifier = Modifier.fillMaxSize()) {

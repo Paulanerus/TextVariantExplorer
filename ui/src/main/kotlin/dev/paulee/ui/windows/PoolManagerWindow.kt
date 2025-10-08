@@ -200,10 +200,19 @@ private fun PoolCard(
                     )
                 }
 
+                if(dataInfo.storageType == StorageType.SQLITE){
+                    Text(
+                        text = locale["pools_management.sqlite.warning"],
+                        style = MaterialTheme.typography.caption,
+                        color = MaterialTheme.colors.error,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+
                 Text(
                     text = locale["pools_management.sources", sourcesText],
                     style = MaterialTheme.typography.body2,
-                    modifier = Modifier.padding(top = 8.dp)
+                    modifier = Modifier.padding(top = 12.dp)
                 )
             }
 
