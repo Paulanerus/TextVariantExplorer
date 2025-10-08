@@ -34,15 +34,25 @@ internal object EmbeddingProvider {
 
     private const val HF_URL = "https://huggingface.co/%s/resolve/main"
 
-    private val env = OrtEnvironment.getEnvironment().apply {
-        setTelemetry(false)
+    private val lazyEnv = lazy {
+        runCatching {
+            OrtEnvironment.getEnvironment().apply {
+                setTelemetry(false)
+            }
+        }.getOrElse {
+            logger.error("Failed to create environment.", it)
+            null
+        }
     }
 
     private val tokenizer = mutableMapOf<Embedding.Model, HuggingFaceTokenizer>()
 
     private val sessions = mutableMapOf<Embedding.Model, OrtSession?>()
 
-    private val availableProvider = OrtEnvironment.getAvailableProviders().orEmpty().mapNotNull { it }.toSet()
+    private val availableProvider by lazy {
+        runCatching { OrtEnvironment.getAvailableProviders() }
+            .getOrDefault(emptyList<OrtProvider>()).orEmpty().mapNotNull { it }.toSet()
+    }
 
     private val canCuda = with(FileService.Platform) {
         OrtProvider.CUDA in availableProvider && isCuda12xInstalled && isCuDNNInstalled
@@ -248,12 +258,8 @@ internal object EmbeddingProvider {
 
         sessions.values.forEach { it?.close() }
 
-        with(lazyOptions) {
-            if (isInitialized())
-                value?.close()
-        }
-
-        env.close()
+        lazyOptions.closeIfInitialized()
+        lazyEnv.closeIfInitialized()
     }
 
     fun finish() {
@@ -283,7 +289,7 @@ internal object EmbeddingProvider {
 
     @Suppress("UNCHECKED_CAST")
     private fun createRawEmbeddings(model: Embedding.Model, values: List<String>): Array<FloatArray> {
-        if (values.isEmpty()) return emptyArray()
+        if (lazyEnv.value == null || values.isEmpty()) return emptyArray()
 
         val embBatch = Array<FloatArray?>(values.size) { null }
 
@@ -382,8 +388,8 @@ internal object EmbeddingProvider {
             }
         }
 
-        return OnnxTensor.createTensor(env, inputIds).use { idsTensor ->
-            OnnxTensor.createTensor(env, attentionMask).use { maskTensor ->
+        return OnnxTensor.createTensor(lazyEnv.value, inputIds).use { idsTensor ->
+            OnnxTensor.createTensor(lazyEnv.value, attentionMask).use { maskTensor ->
                 val inputs = mutableMapOf(
                     "input_ids" to idsTensor, "attention_mask" to maskTensor
                 )
@@ -393,7 +399,7 @@ internal object EmbeddingProvider {
                 if (expectsTokenTypes) {
                     val tokenTypes = Array(inputIds.size) { LongArray(inputIds[0].size) { 0L } }
 
-                    OnnxTensor.createTensor(env, tokenTypes).use { typeTensor ->
+                    OnnxTensor.createTensor(lazyEnv.value, tokenTypes).use { typeTensor ->
                         inputs["token_type_ids"] = typeTensor
 
                         runSession(inputs)
@@ -404,10 +410,10 @@ internal object EmbeddingProvider {
     }
 
     private fun createSession(model: Embedding.Model): OrtSession? {
-        if (lazyOptions.value == null) return null
+        if (lazyEnv.value == null || lazyOptions.value == null) return null
 
         return runCatching {
-            env.createSession(
+            lazyEnv.value!!.createSession(
                 FileService.modelsDir.resolve(model.name).resolve(model.modelData.model).toString(),
                 lazyOptions.value
             )
@@ -428,5 +434,9 @@ internal object EmbeddingProvider {
         }
 
         return withoutAccents.lowercase()
+    }
+
+    private fun <T : AutoCloseable> Lazy<T?>.closeIfInitialized() {
+        if (isInitialized()) value?.close()
     }
 }
