@@ -18,6 +18,7 @@ import org.apache.lucene.search.IndexSearcher
 import org.apache.lucene.search.Query
 import org.apache.lucene.store.BaseDirectory
 import org.apache.lucene.store.FSDirectory
+import org.apache.lucene.util.Version
 import org.slf4j.LoggerFactory.getLogger
 import java.io.Closeable
 import java.nio.file.Path
@@ -70,6 +71,8 @@ internal class Indexer(path: Path, dataInfo: DataInfo) : Closeable {
     private val embeddingFields = mutableMapOf<String, Embedding.Model>()
 
     init {
+        checkForVersionCompatibility()
+
         dataInfo.sources.forEach {
             val normalized = normalizeDataSource(it.name)
 
@@ -180,11 +183,7 @@ internal class Indexer(path: Path, dataInfo: DataInfo) : Closeable {
 
         if (normalized.isBlank()) return emptyList()
 
-        DirectoryReader.openIfChanged(this.reader)?.let {
-            this.reader.close()
-
-            this.reader = it
-        }
+        refreshReader()
 
         val searcher = IndexSearcher(this.reader)
 
@@ -208,11 +207,7 @@ internal class Indexer(path: Path, dataInfo: DataInfo) : Closeable {
     fun searchMatchingVec(field: String, query: String, similarity: Float): List<Document> {
         val model = embeddingFields[field] ?: return emptyList()
 
-        DirectoryReader.openIfChanged(this.reader)?.let {
-            this.reader.close()
-
-            this.reader = it
-        }
+        if (query.isBlank()) return emptyList()
 
         val searcher = IndexSearcher(this.reader)
 
@@ -237,6 +232,12 @@ internal class Indexer(path: Path, dataInfo: DataInfo) : Closeable {
             .replace(TRAILING_REGEX, "")
     }
 
+    private fun refreshReader() =
+        DirectoryReader.openIfChanged(reader)?.let {
+            reader.close()
+            reader = it
+        }
+
     private fun createDoc(
         name: String,
         map: Map<String, String>,
@@ -259,5 +260,35 @@ internal class Indexer(path: Path, dataInfo: DataInfo) : Closeable {
             }
         }
     }
-}
 
+    private fun checkForVersionCompatibility() {
+        if (!DirectoryReader.indexExists(directory)) return
+
+        val currentMajor = Version.LATEST.major
+
+        val segInfo = runCatching { SegmentInfos.readLatestCommit(directory) }.getOrElse {
+            logger.error("Exception: Failed to read SegmentInfos.", it)
+            return
+        }
+
+        val indexMajorVersion = segInfo.indexCreatedVersionMajor
+
+        if (currentMajor == indexMajorVersion) return
+
+        if (currentMajor < indexMajorVersion) {
+            logger.warn("Indexer version ($indexMajorVersion) is newer than current version ($currentMajor).")
+            return
+        }
+
+        if (currentMajor - 1 > indexMajorVersion) {
+            logger.error("Index is at least two major versions behind current version.")
+            return
+        }
+
+        logger.warn("Index version ($indexMajorVersion) is older than current version ($currentMajor) and will be upgraded.")
+
+        runCatching { IndexUpgrader(directory).upgrade() }
+            .onSuccess { logger.info("Indexer upgraded successfully.") }
+            .onFailure { logger.error("Failed to upgrade Indexer from $indexMajorVersion to $currentMajor.", it) }
+    }
+}

@@ -26,7 +26,7 @@ interface IStorageProvider : Closeable {
 
     fun get(
         name: String,
-        ids: List<Long> = emptyList(),
+        ids: LinkedHashSet<Long> = LinkedHashSet(),
         whereClause: List<String> = emptyList(),
         filter: List<String> = emptyList(),
         order: QueryOrder? = null,
@@ -36,7 +36,7 @@ interface IStorageProvider : Closeable {
 
     fun count(
         name: String,
-        ids: List<Long> = emptyList(),
+        ids: LinkedHashSet<Long> = LinkedHashSet(),
         whereClause: List<String> = emptyList(),
         filter: List<String> = emptyList(),
     ): Long

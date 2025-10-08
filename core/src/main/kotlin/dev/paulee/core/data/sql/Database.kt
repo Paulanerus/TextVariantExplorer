@@ -6,7 +6,9 @@ import dev.paulee.api.data.UniqueField
 import dev.paulee.api.data.provider.QueryOrder
 import dev.paulee.core.data.FileService
 import dev.paulee.core.normalizeDataSource
+import dev.paulee.core.normalizeSourceName
 import dev.paulee.core.sha1Hex
+import dev.paulee.core.splitStr
 import org.duckdb.DuckDBConnection
 import org.duckdb.DuckDBDriver
 import org.slf4j.LoggerFactory.getLogger
@@ -16,7 +18,9 @@ import java.sql.DriverManager
 import java.sql.ResultSet
 import java.sql.Types
 import java.util.*
+import kotlin.io.path.bufferedReader
 import kotlin.io.path.createDirectories
+import kotlin.io.path.exists
 import kotlin.io.path.notExists
 
 private enum class ColumnType {
@@ -31,7 +35,7 @@ private fun typeToColumnType(type: FieldType): ColumnType = when (type) {
 }
 
 private data class Column(
-    val name: String,
+    var name: String,
     val type: ColumnType,
     val primary: Boolean,
     val nullable: Boolean,
@@ -60,7 +64,21 @@ private class Table(val name: String, columns: List<Column>) {
                 append(" AS SELECT CAST(row_number() OVER () - 1 AS INTEGER) AS ${name}_ag_id, t.* FROM (SELECT * FROM '$path') AS t;")
         }
 
-        connection.createStatement().use { it.execute(query) }
+        connection.createStatement().use {
+            it.execute(query)
+
+            columns.mapNotNull { column ->
+                val name = column.name
+                val normalized = normalizeSourceName(name)
+
+                if (name != normalized) {
+                    column.name = normalized
+                    name to normalized
+                } else null
+            }.forEach { (old, new) ->
+                it.execute("ALTER TABLE $name RENAME COLUMN \"$old\" TO $new;")
+            }
+        }
     }
 
     fun selectAll(
@@ -270,6 +288,8 @@ internal class Database(path: Path) : Closeable {
 
     private val tables = mutableSetOf<Table>()
 
+    val dbFileExists = path.exists()
+
     companion object {
 
         private val logger = getLogger(Database::class.java)
@@ -329,12 +349,25 @@ internal class Database(path: Path) : Closeable {
             return
         }
 
+        val headerMap = HashMap<String, String>(source.fields.size)
+
+        if (!dbFileExists) {
+            runCatching { path.bufferedReader().use { it.readLine() } }
+                .getOrNull()
+                ?.let { header ->
+                    splitStr(header, delimiter = ',')
+                        .forEach {
+                            headerMap[normalizeSourceName(it)] = it
+                        }
+                }
+        }
+
         val columns = source.fields.map { field ->
             val isNullable = false //param.hasAnnotation<Nullable>()
 
             val isPrimary = (field is UniqueField) // && !isNullable
 
-            Column(field.name, typeToColumnType(field.fieldType), isPrimary, isNullable)
+            Column(headerMap[field.name] ?: field.name, typeToColumnType(field.fieldType), isPrimary, isNullable)
         }
 
         val table = Table(normalizeDataSource(source.name), columns)

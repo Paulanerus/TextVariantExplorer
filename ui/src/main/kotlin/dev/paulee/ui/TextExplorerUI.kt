@@ -52,13 +52,13 @@ enum class Window {
     PoolManagement
 }
 
+var poolSelected by mutableStateOf(false)
+
 class TextExplorerUI(
     private val pluginService: IPluginService,
     private val dataService: IDataService,
     private val diffService: DiffService,
 ) {
-    private var poolSelected by mutableStateOf(false)
-
     init {
         Config.load(dataService.appDir())
 
@@ -92,7 +92,7 @@ class TextExplorerUI(
         var highlightedIndex by remember { mutableStateOf(0) }
         var suppressNextEnterSearch by remember { mutableStateOf(false) }
 
-        var selectedText = remember(this.poolSelected) {
+        var selectedText = remember(poolSelected) {
             val (pool, field) = dataService.getSelectedPool().split(".", limit = 2)
 
             if (pool == "null") locale["main.no_source"]
@@ -152,10 +152,10 @@ class TextExplorerUI(
                         data = pageEntries.map { it.values.toList() }
 
                         links = pageLinks
+
+                        showTable = true
                     }
             }
-
-            showTable = true
         }
 
         Box(modifier = Modifier.fillMaxSize()) {
@@ -200,6 +200,7 @@ class TextExplorerUI(
                     "setting.load_data",
                     "plugin.title",
                     "model_management.title",
+                    "pools_management.title",
                     "---",
                     "settings.title"
                 ),
