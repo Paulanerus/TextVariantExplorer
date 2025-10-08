@@ -183,11 +183,7 @@ internal class Indexer(path: Path, dataInfo: DataInfo) : Closeable {
 
         if (normalized.isBlank()) return emptyList()
 
-        DirectoryReader.openIfChanged(this.reader)?.let {
-            this.reader.close()
-
-            this.reader = it
-        }
+        refreshReader()
 
         val searcher = IndexSearcher(this.reader)
 
@@ -211,11 +207,7 @@ internal class Indexer(path: Path, dataInfo: DataInfo) : Closeable {
     fun searchMatchingVec(field: String, query: String, similarity: Float): List<Document> {
         val model = embeddingFields[field] ?: return emptyList()
 
-        DirectoryReader.openIfChanged(this.reader)?.let {
-            this.reader.close()
-
-            this.reader = it
-        }
+        if (query.isBlank()) return emptyList()
 
         val searcher = IndexSearcher(this.reader)
 
@@ -239,6 +231,12 @@ internal class Indexer(path: Path, dataInfo: DataInfo) : Closeable {
             .replace(LEADING_REGEX, "")
             .replace(TRAILING_REGEX, "")
     }
+
+    private fun refreshReader() =
+        DirectoryReader.openIfChanged(reader)?.let {
+            reader.close()
+            reader = it
+        }
 
     private fun createDoc(
         name: String,
@@ -294,4 +292,3 @@ internal class Indexer(path: Path, dataInfo: DataInfo) : Closeable {
             .onFailure { logger.error("Failed to upgrade Indexer from $indexMajorVersion to $currentMajor.", it) }
     }
 }
-
