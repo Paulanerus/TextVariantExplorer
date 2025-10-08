@@ -95,7 +95,7 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            distribution: microsoft
+            distribution: temurin
           - os: macos-latest
             distribution: corretto
           - os: ubuntu-latest
