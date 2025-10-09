@@ -33,11 +33,12 @@ import dev.paulee.ui.components.CustomInputDialog
 import dev.paulee.ui.components.DialogType
 import dev.paulee.ui.components.FileDialog
 import dev.paulee.ui.components.YesNoDialog
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import kotlin.io.path.*
-
 
 enum class DialogState {
     None, Add, Name, Import, Export, Missing
@@ -51,6 +52,14 @@ fun DataLoaderWindow(dataService: IDataService, onClose: (DataInfo?) -> Unit) {
     val windowState = rememberWindowState(
         position = WindowPosition.Aligned(Alignment.Center), size = DpSize(1100.dp, 700.dp)
     )
+
+    val availableModels by produceState(emptyList(), dataService) {
+        value = withContext(Dispatchers.IO) {
+            Embedding.Model.entries.filter {
+                dataService.modelDir().resolve(it.name).exists()
+            }
+        }
+    }
 
     var dialogState by remember { mutableStateOf(DialogState.None) }
     val sources = remember { mutableStateListOf<Source>() }
@@ -578,7 +587,7 @@ fun DataLoaderWindow(dataService: IDataService, onClose: (DataInfo?) -> Unit) {
                                                                             Text(locale["data_loader.index.embedding.no"])
                                                                         }
 
-                                                                        Embedding.Model.entries.forEach { model ->
+                                                                        availableModels.forEach { model ->
                                                                             DropdownMenuItem(onClick = {
                                                                                 embeddingModel = model
                                                                                 embeddingExpanded = false
