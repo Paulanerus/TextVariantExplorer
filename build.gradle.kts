@@ -42,7 +42,6 @@ compose.desktop {
         }
 
         jvmArgs += listOf(
-            "--add-modules", "java.sql",
             "--add-modules", "jdk.incubator.vector",
             "-Dapi.version=${property("api.version")}",
             "-Dcore.version=${property("core.version")}",
@@ -56,7 +55,7 @@ compose.desktop {
 
             licenseFile.set(project.file("LICENSE.md"))
 
-            modules += listOf("java.sql", "jdk.incubator.vector")
+            modules += listOf("java.sql", "jdk.incubator.vector", "java.net.http")
 
             linux {
                 iconFile.set(project.file("ui/src/main/resources/icon.png"))

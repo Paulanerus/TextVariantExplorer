@@ -125,6 +125,19 @@ fun SettingsWindow(onClose: () -> Unit) {
                             )
                         )
                     }
+
+                    SettingRow(
+                        label = locale["settings.legacy_filer_dialog.label"],
+                        description = locale["settings.legacy_filer_dialog.desc"]
+                    ) {
+                        Switch(
+                            checked = Config.useLegacyFileDialog,
+                            onCheckedChange = { Config.useLegacyFileDialog = it },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = MaterialTheme.colors.primary
+                            )
+                        )
+                    }
                 }
             }
         }

@@ -235,7 +235,7 @@ internal object EmbeddingProvider {
                         }
                     }
                 } catch (_: CancellationException) {
-                    runCatching { modelPath.deleteIfExists() }
+                    runCatching { if (modelPath.exists()) modelPath.deleteRecursively() }
                         .onFailure { logger.error("Failed to delete model dir $modelPath", it) }
 
                     logger.info("Download cancelled.")

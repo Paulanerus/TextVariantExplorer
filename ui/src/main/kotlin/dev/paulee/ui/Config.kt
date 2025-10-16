@@ -22,6 +22,8 @@ object Config {
 
     var exactHighlighting by mutableStateOf(true)
 
+    var useLegacyFileDialog by mutableStateOf(false)
+
     var selectedPool by mutableStateOf("")
 
     var windowState by mutableStateOf("Floating")
