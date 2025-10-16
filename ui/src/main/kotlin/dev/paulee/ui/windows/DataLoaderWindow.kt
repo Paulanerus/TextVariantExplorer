@@ -1,5 +1,7 @@
 package dev.paulee.ui.windows
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -9,8 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -33,8 +34,7 @@ import dev.paulee.ui.components.CustomInputDialog
 import dev.paulee.ui.components.DialogType
 import dev.paulee.ui.components.FileDialog
 import dev.paulee.ui.components.YesNoDialog
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.*
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
@@ -43,6 +43,15 @@ import kotlin.io.path.*
 enum class DialogState {
     None, Add, Name, Import, Export, Missing
 }
+
+private enum class ModelDownloadStatus {
+    Downloading, Completed, Cancelled, Failed
+}
+
+private data class ModelDownloadState(
+    val progress: Int = 0,
+    val status: ModelDownloadStatus = ModelDownloadStatus.Downloading,
+)
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -53,7 +62,21 @@ fun DataLoaderWindow(dataService: IDataService, onClose: (DataInfo?) -> Unit) {
         position = WindowPosition.Aligned(Alignment.Center), size = DpSize(1100.dp, 700.dp)
     )
 
-    val availableModels by produceState(emptyList(), dataService) {
+    val scope = rememberCoroutineScope()
+
+    var modelRefreshKey by remember { mutableStateOf(0) }
+    val downloadStates = remember { mutableStateMapOf<Embedding.Model, ModelDownloadState>() }
+    val downloadJobs = remember { mutableMapOf<Embedding.Model, Job>() }
+    var downloadsExpanded by remember { mutableStateOf(true) }
+    var pendingDownloadModels by remember { mutableStateOf<List<Embedding.Model>>(emptyList()) }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            downloadJobs.values.toList().forEach { it.cancel() }
+        }
+    }
+
+    val availableModels by produceState(emptyList(), dataService, modelRefreshKey) {
         value = withContext(Dispatchers.IO) {
             Embedding.Model.entries.filter {
                 dataService.modelDir().resolve(it.name).exists()
@@ -97,6 +120,96 @@ fun DataLoaderWindow(dataService: IDataService, onClose: (DataInfo?) -> Unit) {
                 }
             }
         }
+    }
+
+    fun clearEmbeddingModelSelection(model: Embedding.Model) {
+        var selectedUpdated = false
+
+        sources.forEachIndexed { index, source ->
+            val updatedFields = source.fields.map { field ->
+                if (field is IndexField && field.embeddingModel == model) {
+                    field.copy(embeddingModel = null)
+                } else field
+            }
+
+            if (updatedFields != source.fields) {
+                val updatedSource = source.copy(fields = updatedFields)
+                sources[index] = updatedSource
+
+                if (selectedSource?.name == updatedSource.name) {
+                    selectedSource = updatedSource
+                    selectedUpdated = true
+                }
+            }
+        }
+
+        if (!selectedUpdated && selectedSource != null) {
+            val selected = sources.firstOrNull { it.name == selectedSource?.name }
+
+            if (selected != null && selected != selectedSource)
+                selectedSource = selected
+        }
+    }
+
+    fun scheduleCleanup(model: Embedding.Model, expectedStatus: ModelDownloadStatus) {
+        scope.launch {
+            delay(2000)
+
+            val current = downloadStates[model]
+
+            if (current != null && current.status == expectedStatus)
+                downloadStates.remove(model)
+        }
+    }
+
+    fun startModelDownload(model: Embedding.Model) {
+        val currentState = downloadStates[model]
+
+        if (downloadJobs.containsKey(model) || currentState?.status == ModelDownloadStatus.Downloading) return
+
+        downloadStates[model] = ModelDownloadState(progress = 0, status = ModelDownloadStatus.Downloading)
+        downloadsExpanded = true
+
+        val job = scope.launch {
+            try {
+                dataService.downloadModel(model, dataService.modelDir()) { progress ->
+                    scope.launch {
+                        val existing = downloadStates[model] ?: return@launch
+
+                        if (existing.progress != progress)
+                            downloadStates[model] = existing.copy(progress = progress)
+                    }
+                }
+
+                downloadStates[model]?.let {
+                    downloadStates[model] = it.copy(progress = 100, status = ModelDownloadStatus.Completed)
+                }
+
+                modelRefreshKey++
+
+                scheduleCleanup(model, ModelDownloadStatus.Completed)
+            } catch (_: CancellationException) {
+                downloadStates[model]?.let {
+                    downloadStates[model] = it.copy(status = ModelDownloadStatus.Cancelled)
+                }
+
+                clearEmbeddingModelSelection(model)
+
+                scheduleCleanup(model, ModelDownloadStatus.Cancelled)
+            } catch (_: Exception) {
+                downloadStates[model]?.let {
+                    downloadStates[model] = it.copy(status = ModelDownloadStatus.Failed)
+                }
+
+                clearEmbeddingModelSelection(model)
+
+                scheduleCleanup(model, ModelDownloadStatus.Failed)
+            } finally {
+                downloadJobs.remove(model)
+            }
+        }
+
+        downloadJobs[model] = job
     }
 
     Window(
@@ -209,6 +322,114 @@ fun DataLoaderWindow(dataService: IDataService, onClose: (DataInfo?) -> Unit) {
                         }
 
                         Spacer(modifier = Modifier.height(4.dp))
+
+                        val hasDownloads by remember {
+                            derivedStateOf { downloadStates.isNotEmpty() }
+                        }
+
+                        AnimatedVisibility(
+                            visible = hasDownloads,
+                            enter = fadeIn() + expandVertically(),
+                            exit = fadeOut(animationSpec = tween(250)) + shrinkVertically()
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth()
+                                    .background(MaterialTheme.colors.secondary, RoundedCornerShape(8.dp))
+                                    .padding(8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        locale["data_loader.download_models.section"],
+                                        style = MaterialTheme.typography.subtitle1
+                                    )
+
+                                    IconButton(onClick = { downloadsExpanded = !downloadsExpanded }) {
+                                        Icon(
+                                            imageVector = if (downloadsExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                            contentDescription = null
+                                        )
+                                    }
+                                }
+
+                                AnimatedVisibility(
+                                    visible = downloadsExpanded,
+                                    enter = fadeIn() + expandVertically(),
+                                    exit = fadeOut(animationSpec = tween(200)) + shrinkVertically()
+                                ) {
+                                    Column {
+                                        downloadStates.entries
+                                            .sortedBy { it.key.name }
+                                            .forEach { (model, state) ->
+                                                Column(
+                                                    modifier = Modifier.fillMaxWidth()
+                                                        .padding(vertical = 4.dp)
+                                                ) {
+                                                    Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        Text(model.name, style = MaterialTheme.typography.body2)
+
+                                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                                            when (state.status) {
+                                                                ModelDownloadStatus.Downloading -> {
+                                                                    Text(
+                                                                        "${state.progress}%",
+                                                                        style = MaterialTheme.typography.caption
+                                                                    )
+
+                                                                    IconButton(
+                                                                        onClick = { downloadJobs[model]?.cancel() }
+                                                                    ) {
+                                                                        Icon(
+                                                                            imageVector = Icons.Default.Close,
+                                                                            contentDescription = locale["input.cancel"]
+                                                                        )
+                                                                    }
+                                                                }
+
+                                                                ModelDownloadStatus.Completed -> {
+                                                                    Icon(
+                                                                        imageVector = Icons.Default.Check,
+                                                                        contentDescription = null,
+                                                                        tint = MaterialTheme.colors.primary
+                                                                    )
+                                                                }
+
+                                                                ModelDownloadStatus.Cancelled, ModelDownloadStatus.Failed -> {
+                                                                    Icon(
+                                                                        imageVector = Icons.Default.Warning,
+                                                                        contentDescription = null,
+                                                                        tint = MaterialTheme.colors.error
+                                                                    )
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+
+                                                    val indicatorProgress = when (state.status) {
+                                                        ModelDownloadStatus.Completed -> 1f
+                                                        else -> (state.progress / 100f).coerceIn(0f, 1f)
+                                                    }
+
+                                                    LinearProgressIndicator(
+                                                        progress = indicatorProgress,
+                                                        modifier = Modifier.fillMaxWidth().height(4.dp)
+                                                    )
+                                                }
+                                            }
+                                    }
+                                }
+                            }
+                        }
+
+                        if (hasDownloads)
+                            Spacer(modifier = Modifier.height(8.dp))
 
                         Button(
                             onClick = { dialogState = DialogState.Add }, modifier = Modifier.fillMaxWidth()
@@ -569,10 +790,20 @@ fun DataLoaderWindow(dataService: IDataService, onClose: (DataInfo?) -> Unit) {
 
                                                                 Box {
                                                                     Button(onClick = { embeddingExpanded = true }) {
-                                                                        Text(
-                                                                            embeddingModel?.name
-                                                                                ?: locale["data_loader.index.embedding.no"]
-                                                                        )
+                                                                        val selectedModelStatus =
+                                                                            embeddingModel?.let { downloadStates[it]?.status }
+
+                                                                        val text = buildString {
+                                                                            append(
+                                                                                embeddingModel?.name
+                                                                                    ?: locale["data_loader.index.embedding.no"]
+                                                                            )
+
+                                                                            if (selectedModelStatus == ModelDownloadStatus.Downloading)
+                                                                                append(" (${locale["data_loader.index.embedding.downloading"]})")
+                                                                        }
+
+                                                                        Text(text)
                                                                     }
 
                                                                     DropdownMenu(
@@ -592,7 +823,14 @@ fun DataLoaderWindow(dataService: IDataService, onClose: (DataInfo?) -> Unit) {
                                                                                 embeddingModel = model
                                                                                 embeddingExpanded = false
                                                                             }) {
-                                                                                Text(model.name)
+                                                                                val text = buildString {
+                                                                                    append(model.name)
+
+                                                                                    if (downloadStates[model]?.status == ModelDownloadStatus.Downloading)
+                                                                                        append(" (${locale["data_loader.index.embedding.downloading"]})")
+                                                                                }
+
+                                                                                Text(text)
                                                                             }
                                                                         }
                                                                     }
@@ -916,6 +1154,29 @@ fun DataLoaderWindow(dataService: IDataService, onClose: (DataInfo?) -> Unit) {
                                     if (dataInfo != null) {
                                         sources.addAll(dataInfo.sources)
                                         dataInfoName = dataInfo.name
+
+                                        val referencedModels = dataInfo.sources
+                                            .flatMap { source -> source.fields }
+                                            .mapNotNull { field -> (field as? IndexField)?.embeddingModel }
+                                            .distinct()
+
+                                        if (referencedModels.isNotEmpty()) {
+                                            val installedModels = availableModels.toMutableSet().apply {
+                                                downloadStates.filter { entry -> entry.value.status == ModelDownloadStatus.Completed }
+                                                    .forEach { entry -> add(entry.key) }
+                                            }
+
+                                            val activeDownloads = downloadStates
+                                                .filter { entry -> entry.value.status == ModelDownloadStatus.Downloading }
+                                                .keys
+
+                                            val missingModels = referencedModels.filter { model ->
+                                                model !in installedModels && model !in activeDownloads
+                                            }
+
+                                            if (missingModels.isNotEmpty())
+                                                pendingDownloadModels = missingModels
+                                        }
                                     }
                                 }
                             }
@@ -939,6 +1200,22 @@ fun DataLoaderWindow(dataService: IDataService, onClose: (DataInfo?) -> Unit) {
                     }
 
                     else -> {}
+                }
+
+                if (pendingDownloadModels.isNotEmpty()) {
+                    val modelsToDownload = pendingDownloadModels
+                    val modelNames = modelsToDownload.joinToString("\n", postfix = "\n") { "- ${it.name}" }
+
+                    YesNoDialog(
+                        title = locale["data_loader.download_models.title"],
+                        text = locale["data_loader.download_models.text", modelNames],
+                        onDismissRequest = { pendingDownloadModels = emptyList() }
+                    ) { confirm ->
+                        if (confirm)
+                            modelsToDownload.forEach { startModelDownload(it) }
+
+                        pendingDownloadModels = emptyList()
+                    }
                 }
             }
         }
