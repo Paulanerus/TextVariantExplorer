@@ -86,6 +86,8 @@ internal object FileService {
 
     val modelsDir: Path get() = ensureDir("models")
 
+    val tempDir: Path get() = ensureDir("temp")
+
     private val logger = getLogger(FileService::class.java)
 
     private val mapper = jacksonObjectMapper().apply { enable(SerializationFeature.INDENT_OUTPUT) }
