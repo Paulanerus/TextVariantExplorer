@@ -29,6 +29,7 @@ import dev.paulee.api.data.provider.StorageType
 import dev.paulee.ui.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import kotlin.io.path.Path
 
 @Composable
 fun PoolManagerWindow(dataService: IDataService, onClose: () -> Unit) {
@@ -130,6 +131,14 @@ fun PoolManagerWindow(dataService: IDataService, onClose: () -> Unit) {
 
                                         rebuildProgress.remove(info.name)
                                     }
+                                },
+                                onExport = {
+                                    //TODO Temporary export to desktop
+                                    val desktop = Path(System.getProperty("user.home"), "Desktop")
+
+                                    scope.launch {
+                                        dataService.exportPool(dataInfo = info, path = desktop)
+                                    }
                                 }
                             )
                         }
@@ -154,6 +163,7 @@ private fun PoolCard(
     progress: Int?,
     onDelete: () -> Unit,
     onRebuild: () -> Unit,
+    onExport: () -> Unit,
 ) {
     Column(
         modifier = Modifier.fillMaxWidth().background(
@@ -200,7 +210,7 @@ private fun PoolCard(
                     )
                 }
 
-                if(dataInfo.storageType == StorageType.SQLITE){
+                if (dataInfo.storageType == StorageType.SQLITE) {
                     Text(
                         text = locale["pools_management.sqlite.warning"],
                         style = MaterialTheme.typography.caption,
@@ -230,6 +240,20 @@ private fun PoolCard(
                         contentDescription = locale["pools_management.recreate"]
                     )
                 }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End
+        ) {
+            Button(
+                enabled = progress == null,
+                onClick = onExport,
+            ) {
+                Text(locale["pools_management.export"])
             }
         }
 
