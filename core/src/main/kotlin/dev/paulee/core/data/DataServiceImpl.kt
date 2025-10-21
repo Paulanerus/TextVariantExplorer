@@ -359,6 +359,187 @@ object DataServiceImpl : IDataService {
     override suspend fun downloadModel(model: Embedding.Model, path: Path, onProgress: (progress: Int) -> Unit) =
         EmbeddingProvider.downloadModel(model, path, onProgress)
 
+    @OptIn(ExperimentalPathApi::class)
+    override suspend fun importPool(path: Path): Boolean {
+        if (path.extension != "zip") {
+            logger.warn("File is not a zip file.")
+            return false
+        }
+
+        logger.info("Importing pool from file '$path'.")
+
+        val pathOut = FileService.tempDir.resolve(path.nameWithoutExtension)
+
+        val resultUnzip = withContext(Dispatchers.IO) { ZipService.unzip(path, pathOut) }
+
+        if (!resultUnzip) {
+            logger.warn("Failed to unzip pool.")
+            return false
+        }
+
+        fun deleteIfExists() {
+            if (pathOut.exists()) pathOut.deleteRecursively()
+        }
+
+        val infoFile = pathOut.resolve("info.json")
+
+        if (infoFile.notExists() || !infoFile.isRegularFile()) {
+            logger.warn("Pool info file does not exist.")
+
+            deleteIfExists()
+
+            return false
+        }
+
+        val dataInfo = dataInfoFromString(infoFile.readText())
+
+        if (dataInfo == null) {
+            logger.warn("Pool info file is invalid.")
+
+            deleteIfExists()
+
+            return false
+        }
+
+        val destinationDir = FileService.dataDir.resolve(dataInfo.name)
+
+        if (destinationDir.exists()) {
+            logger.warn("Pool directory already exists.")
+
+            deleteIfExists()
+
+            return false
+        }
+
+        runCatching { destinationDir.createDirectories() }
+            .onFailure {
+                logger.error("Failed to create pool directory.", it)
+                deleteIfExists()
+
+                return false
+            }
+
+        val indexPath = pathOut.resolve("index")
+
+        if (indexPath.notExists() || !indexPath.isDirectory()) {
+            logger.warn("Pool index directory does not exist.")
+
+            deleteIfExists()
+
+            return false
+        }
+
+        val (resultChecker, report) = Indexer.checkIndex(indexPath)
+
+        if (!resultChecker) {
+            logger.error("Pool index is invalid: $report")
+
+            deleteIfExists()
+
+            return false
+        } else logger.info("Pool index is valid.")
+
+        val storageDir = pathOut.resolve("data")
+
+        if (storageDir.notExists() || !storageDir.isDirectory()) {
+            logger.warn("Pool storage directory does not exist.")
+
+            deleteIfExists()
+
+            return false
+        }
+
+        runCatching { storageDir.moveTo(destinationDir.resolve("data")) }
+            .onFailure {
+                logger.error("Failed to move pool data directory.", it)
+
+                deleteIfExists()
+
+                return false
+            }
+
+        runCatching { infoFile.moveTo(destinationDir.resolve("info.json")) }
+            .onFailure {
+                logger.error("Failed to move pool info file.", it)
+
+                deleteIfExists()
+
+                return false
+            }
+
+        runCatching { indexPath.moveTo(destinationDir.resolve("index")) }
+            .onFailure {
+                logger.error("Failed to move pool index directory.", it)
+
+                deleteIfExists()
+
+                return false
+            }
+
+        logger.info("Initializing storage provider for pool '${dataInfo.name}'...")
+
+        val storageProvider = StorageProvider.of(dataInfo.storageType)
+
+        val status = storageProvider.init(dataInfo, destinationDir)
+
+        if (status != ProviderStatus.Success) {
+            logger.warn("Failed to initialize storage provider for pool '${dataInfo.name}'.")
+            return false
+        }
+
+        logger.info("Initializing pool...")
+
+        dataPools[dataInfo.name] =
+            runCatching { DataPool(Indexer(destinationDir.resolve("index"), dataInfo), dataInfo, storageProvider) }
+                .getOrElse {
+                    logger.error("Failed to initialize pool.", it)
+                    return false
+                }
+
+        logger.info("Successfully imported pool '${dataInfo.name}'.")
+
+        deleteIfExists()
+
+        return true
+    }
+
+    @OptIn(ExperimentalPathApi::class)
+    override suspend fun exportPool(dataInfo: DataInfo, path: Path): Boolean {
+        logger.info("Exporting pool '${dataInfo.name}' to '$path'.")
+
+        val infoName = dataInfo.name
+
+        val poolPath = FileService.dataDir.resolve(infoName)
+
+        if (poolPath.notExists()) {
+            logger.warn("Pool path does not exist.")
+            return false
+        }
+
+        logger.info("Packaging pool files for '$infoName'.")
+
+        val pathOut = path.resolve("$infoName.zip")
+
+        val result = withContext(Dispatchers.IO) {
+            val resultZip = ZipService.zip(
+                setOf(
+                    poolPath.resolve("index"),
+                    poolPath.resolve("data"),
+                    poolPath.resolve("info.json")
+                ),
+                pathOut,
+                filesToExclude = setOf("write.lock")
+            )
+
+            resultZip
+        }
+
+        if (result) logger.info("Exported pool '$infoName' to '$pathOut'.")
+        else logger.error("Failed to export pool.")
+
+        return result
+    }
+
     override fun getPage(query: String, isSemantic: Boolean, order: QueryOrder?, pageCount: Int): PageResult {
 
         if (this.currentPool == null || this.currentField == null) return Pair(emptyList(), emptyMap())
