@@ -280,7 +280,7 @@ private class Table(val name: String, columns: List<Column>) {
     }
 }
 
-internal class Database(path: Path) : Closeable {
+internal class Database(private val path: Path) : Closeable {
 
     private val dbPath = "jdbc:duckdb:$path"
 
@@ -342,17 +342,17 @@ internal class Database(path: Path) : Closeable {
     fun import(source: Source) {
         if (hasNoSQLModule || connection == null) return
 
-        val path = FileService.dataDir.resolve("${source.name}.csv")
+        val sourcePath = path.parent?.resolve("data")?.resolve("${source.name}.csv")
 
-        if (path.notExists()) {
-            logger.warn("Source file '$path' not found.")
+        if (sourcePath == null || sourcePath.notExists()) {
+            logger.error("Source path '$sourcePath' not found")
             return
         }
 
         val headerMap = HashMap<String, String>(source.fields.size)
 
         if (!dbFileExists) {
-            runCatching { path.bufferedReader().use { it.readLine() } }
+            runCatching { sourcePath.bufferedReader().use { it.readLine() } }
                 .getOrNull()
                 ?.let { header ->
                     splitStr(header, delimiter = ',')
@@ -376,7 +376,7 @@ internal class Database(path: Path) : Closeable {
         val hasId = source.fields.any { it is UniqueField && it.identify }
 
         transaction {
-            table.import(this, path, hasId)
+            table.import(this, sourcePath, hasId)
         }
     }
 

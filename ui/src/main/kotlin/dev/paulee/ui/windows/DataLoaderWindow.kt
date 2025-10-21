@@ -1095,10 +1095,16 @@ fun DataLoaderWindow(dataService: IDataService, onClose: (DataInfo?) -> Unit) {
                                 if (dataInfoName.isNotEmpty()) {
                                     dialogState = DialogState.None
 
+                                    val dataPath = dataService.dataDir()
+                                        .resolve(dataInfoName).resolve("data")
+
+                                    if (dataPath.notExists())
+                                        dataPath.createDirectories()
+
                                     sourcePaths.forEach { path ->
                                         Files.copy(
                                             path,
-                                            dataService.dataDir().resolve(path.name),
+                                            dataPath.resolve(path.name),
                                             StandardCopyOption.REPLACE_EXISTING
                                         )
                                     }

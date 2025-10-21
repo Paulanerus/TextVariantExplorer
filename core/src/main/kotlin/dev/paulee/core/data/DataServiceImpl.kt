@@ -237,6 +237,46 @@ object DataServiceImpl : IDataService {
             val dataInfo = FileService.fromJson(runCatching { jsonFile.readText() }.getOrDefault(""))
                 ?: return@forEachDirectoryEntry
 
+            val dataPath = child.resolve("data")
+
+            if (dataPath.notExists()) {
+                logger.warn("Data pool '${child.name}' has no data directory. Migrating files...")
+
+                runCatching { dataPath.createDirectories() }
+                    .onFailure {
+                        logger.error("Failed to create data directory for ${child.name}.", it)
+                        return@forEachDirectoryEntry
+                    }
+
+                var failed = false
+                dataInfo.sources.forEach { source ->
+                    val name = source.name
+
+                    val sourcePath = FileService.dataDir.resolve("$name.csv")
+
+                    if (sourcePath.notExists()) {
+                        logger.warn("Data pool '${child.name}' has no source file '$name'. Skipping.")
+                        failed = true
+                        return@forEach
+                    }
+
+                    val targetPath = dataPath.resolve("$name.csv")
+
+                    runCatching { sourcePath.moveTo(targetPath, overwrite = true) }
+                        .onFailure {
+                            logger.error("Failed to migrate file '$name'", it)
+                            failed = true
+                        }
+                }
+
+                if (failed) {
+                    logger.error("Data pool '${child.name}' has failed to migrate files. Skipping.")
+                    return@forEachDirectoryEntry
+                }
+
+                logger.info("Migrated data pool '${child.name}' files.")
+            }
+
             val infoName = dataInfo.name
 
             if (dataInfo.storageType == StorageType.SQLITE) {
