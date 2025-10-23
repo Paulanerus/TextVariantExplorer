@@ -27,6 +27,17 @@ object Embedding {
                 maxLength = 512,
                 modelData = ""
             )
+        ),
+        GreekTransfer(
+            "",
+            "model_management.greek_transfer.desc",
+            "lighteternal",
+            "270M",
+            "https://huggingface.co/lighteternal/stsb-xlm-r-greek-transfer",
+            ModelData(
+                maxLength = 400,
+                modelData = ""
+            )
         )
     }
 

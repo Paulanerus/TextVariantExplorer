@@ -127,6 +127,10 @@ internal object EmbeddingProvider {
 
                 createRawEmbeddings(model, texts)
             }
+
+            Embedding.Model.GreekTransfer -> {
+                createRawEmbeddings(model, values)
+            }
         }
 
     @OptIn(ExperimentalPathApi::class)
@@ -319,7 +323,7 @@ internal object EmbeddingProvider {
         fun runSession(sessionInputs: Map<String, OnnxTensor>): Array<FloatArray> {
             session.run(sessionInputs).use { result ->
                 val batch = when (model) {
-                    Embedding.Model.AncientGreekBert -> {
+                    Embedding.Model.AncientGreekBert, Embedding.Model.GreekTransfer -> {
                         val ov = result.get("last_hidden_state")
                             .orElseThrow { IllegalStateException("No output named last_hidden_state") }
 
