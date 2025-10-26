@@ -145,7 +145,7 @@ internal object EmbeddingProvider {
                 model.modelData.modelData,
                 model.modelData.tokenizer,
                 model.modelData.tokenizerConfig
-            ).filter { it.isNotBlank() }.map { it to URI.create("$baseUrl/$it") }
+            ).filterNot { it.isNullOrBlank() }.map { it!! to URI.create("$baseUrl/$it") }
 
             val client = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(30))
