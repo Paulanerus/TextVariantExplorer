@@ -59,6 +59,8 @@ fun PoolManagerWindow(dataService: IDataService, onClose: () -> Unit) {
 
             val rebuildProgress = remember { mutableStateMapOf<String, MutableStateFlow<Int>>() }
 
+            val exportInProgress = remember { mutableStateMapOf<String, Boolean>() }
+
             fun refreshPools() {
                 pools = dataService.getAvailableDataInfo().sortedBy { it.name }
             }
@@ -132,12 +134,15 @@ fun PoolManagerWindow(dataService: IDataService, onClose: () -> Unit) {
                                         rebuildProgress.remove(info.name)
                                     }
                                 },
+                                isExporting = exportInProgress[info.name] ?: false,
                                 onExport = {
                                     //TODO Temporary export to desktop
                                     val desktop = Path(System.getProperty("user.home"), "Desktop")
 
                                     scope.launch {
+                                        exportInProgress[info.name] = true
                                         dataService.exportPool(dataInfo = info, path = desktop)
+                                        exportInProgress[info.name] = false
                                     }
                                 }
                             )
@@ -161,6 +166,7 @@ private fun PoolCard(
     sourcesText: String,
     locale: I18n,
     progress: Int?,
+    isExporting: Boolean,
     onDelete: () -> Unit,
     onRebuild: () -> Unit,
     onExport: () -> Unit,
@@ -250,10 +256,21 @@ private fun PoolCard(
             horizontalArrangement = Arrangement.End
         ) {
             Button(
-                enabled = progress == null,
+                enabled = !isExporting && progress == null && dataInfo.storageType != StorageType.SQLITE,
                 onClick = onExport,
             ) {
-                Text(locale["pools_management.export"])
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(locale["pools_management.export"])
+
+                    if (isExporting) {
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp
+                        )
+                    }
+                }
             }
         }
 
