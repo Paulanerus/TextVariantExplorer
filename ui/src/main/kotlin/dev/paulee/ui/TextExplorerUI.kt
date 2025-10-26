@@ -36,10 +36,7 @@ import dev.paulee.ui.windows.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.nio.file.Path
-import kotlin.io.path.copyTo
-import kotlin.io.path.exists
-import kotlin.io.path.extension
-import kotlin.io.path.name
+import kotlin.io.path.*
 
 enum class Window {
     None,
@@ -652,8 +649,31 @@ class TextExplorerUI(
                     paths.filter { it.extension == "jar" }.forEach { loadPlugin(it) }
                 }
 
-                Window.LoadData -> DataLoaderWindow(dataService) { dataInfo ->
+                Window.LoadData -> DataLoaderWindow(dataService) { dataInfo, path ->
                     openWindow = Window.None
+
+                    if (path != null) {
+                        scope.launch {
+                            loadState = LoadState.Loading(locale["main.loading"])
+
+                            val poolsEmpty = dataService.getAvailablePools().isEmpty()
+
+                            val importResult = dataService.importPool(path)
+
+                            loadState = if (importResult) {
+                                dataService.getAvailablePools().firstOrNull()?.let inner@{
+                                    if (!poolsEmpty) return@inner
+
+                                    dataService.selectDataPool(it)
+                                    poolSelected = !poolSelected
+                                }
+
+                                LoadState.Success(locale["main.success_load", "'${path.nameWithoutExtension}'"])
+                            } else LoadState.Error(locale["main.error_load"])
+                        }
+
+                        return@DataLoaderWindow
+                    }
 
                     if (dataInfo == null) return@DataLoaderWindow
 
