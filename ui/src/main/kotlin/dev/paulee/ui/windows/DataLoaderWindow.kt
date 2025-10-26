@@ -55,7 +55,7 @@ private data class ModelDownloadState(
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun DataLoaderWindow(dataService: IDataService, onClose: (DataInfo?) -> Unit) {
+fun DataLoaderWindow(dataService: IDataService, onClose: (DataInfo?, Path?) -> Unit) {
     val locale = LocalI18n.current
 
     val windowState = rememberWindowState(
@@ -215,7 +215,7 @@ fun DataLoaderWindow(dataService: IDataService, onClose: (DataInfo?) -> Unit) {
     Window(
         state = windowState,
         icon = App.icon,
-        onCloseRequest = { onClose(null) },
+        onCloseRequest = { onClose(null, null) },
         title = locale["data_loader.title"]
     ) {
         App.Theme.Current {
@@ -1095,14 +1095,20 @@ fun DataLoaderWindow(dataService: IDataService, onClose: (DataInfo?) -> Unit) {
                                 if (dataInfoName.isNotEmpty()) {
                                     dialogState = DialogState.None
 
+                                    val dataPath = dataService.dataDir()
+                                        .resolve(dataInfoName).resolve("data")
+
+                                    if (dataPath.notExists())
+                                        dataPath.createDirectories()
+
                                     sourcePaths.forEach { path ->
                                         Files.copy(
                                             path,
-                                            dataService.dataDir().resolve(path.name),
+                                            dataPath.resolve(path.name),
                                             StandardCopyOption.REPLACE_EXISTING
                                         )
                                     }
-                                    onClose(DataInfo(dataInfoName, sources.toList()))
+                                    onClose(DataInfo(dataInfoName, sources.toList()), null)
                                 }
                             },
                             textFieldValue = dataInfoName,
@@ -1110,7 +1116,7 @@ fun DataLoaderWindow(dataService: IDataService, onClose: (DataInfo?) -> Unit) {
                     }
 
                     DialogState.Add, DialogState.Import -> {
-                        FileDialog(extension = if (dialogState == DialogState.Add) "csv" else "json") {
+                        FileDialog(extensions = if (dialogState == DialogState.Add) listOf("csv") else listOf("json", "zip")) {
 
                             if (dialogState == DialogState.Add) {
                                 val newSources = it.filterNot { path ->
@@ -1148,7 +1154,15 @@ fun DataLoaderWindow(dataService: IDataService, onClose: (DataInfo?) -> Unit) {
 
                                 sources.addAll(newSources)
                             } else {
-                                it.firstOrNull()?.readText()?.let { text ->
+                                val file = it.firstOrNull() ?: return@FileDialog
+
+                                if(file.extension == "zip"){
+                                    onClose(null, file)
+
+                                    return@FileDialog
+                                }
+
+                                file.readText().let { text ->
                                     val dataInfo = dataService.dataInfoFromString(text)
 
                                     if (dataInfo != null) {
@@ -1186,7 +1200,7 @@ fun DataLoaderWindow(dataService: IDataService, onClose: (DataInfo?) -> Unit) {
                     }
 
                     DialogState.Export -> {
-                        FileDialog(dialogType = DialogType.SAVE, extension = "json") {
+                        FileDialog(dialogType = DialogType.SAVE, extensions = listOf("json")) {
                             if (it.isNotEmpty()) {
                                 val savePath = it.first()
 

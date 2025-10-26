@@ -28,21 +28,27 @@ enum class DialogType {
 fun FileDialog(
     parent: Frame? = null,
     dialogType: DialogType = DialogType.LOAD,
-    extension: String? = null,
+    extensions: List<String> = emptyList(),
     onCloseRequest: (result: List<Path>) -> Unit,
 ) {
-    if (Config.useLegacyFileDialog) LegacyFileDialog(dialogType, extension, onCloseRequest)
-    else SystemFileDialog(parent, dialogType, extension, onCloseRequest)
+    if (Config.useLegacyFileDialog) LegacyFileDialog(dialogType, extensions, onCloseRequest)
+    else SystemFileDialog(parent, dialogType, extensions, onCloseRequest)
 }
 
 @Composable
 fun SystemFileDialog(
     parent: Frame? = null,
     dialogType: DialogType = DialogType.LOAD,
-    extension: String? = null,
+    extensions: List<String> = emptyList(),
     onCloseRequest: (result: List<Path>) -> Unit,
 ) {
     val locale = LocalI18n.current
+    val normalizedExtensions = remember(extensions) {
+        extensions.mapNotNull { ext ->
+            ext.trim().trimStart('.').takeIf { it.isNotBlank() }?.lowercase()
+        }.distinct()
+    }
+    val defaultExtension = normalizedExtensions.firstOrNull()
 
     AwtWindow(
         create = {
@@ -56,12 +62,15 @@ fun SystemFileDialog(
                 init {
                     isMultipleMode = dialogType == DialogType.LOAD
 
-                    if (!extension.isNullOrBlank()) {
+                    if (normalizedExtensions.isNotEmpty()) {
                         filenameFilter = FilenameFilter { _, name ->
-                            name.endsWith(".$extension", ignoreCase = true)
+                            val lower = name.lowercase()
+                            normalizedExtensions.any { ext -> lower.endsWith(".${ext}") }
                         }
 
-                        if (dialogType == DialogType.SAVE) file = "untitled"
+                        if (dialogType == DialogType.SAVE && defaultExtension != null) {
+                            file = "untitled.$defaultExtension"
+                        }
                     }
                 }
 
@@ -71,11 +80,12 @@ fun SystemFileDialog(
                     if (value) {
                         val paths = files.map {
                             val path = it.toPath()
+                            val lowerPath = path.toString().lowercase()
 
-                            if (dialogType == DialogType.SAVE && extension != null && !path.toString().lowercase()
-                                    .endsWith(".$extension")
+                            if (dialogType == DialogType.SAVE && defaultExtension != null &&
+                                !normalizedExtensions.any { ext -> lowerPath.endsWith(".${ext}") }
                             ) {
-                                Path.of("${path}.$extension")
+                                Path.of("${path}.$defaultExtension")
                             } else {
                                 path
                             }
@@ -92,20 +102,26 @@ fun SystemFileDialog(
 @Composable
 fun LegacyFileDialog(
     type: DialogType = DialogType.LOAD,
-    extension: String? = null,
+    extensions: List<String> = emptyList(),
     onCloseRequest: (result: List<Path>) -> Unit,
 ) {
     val locale = LocalI18n.current
 
     val title = if (type == DialogType.SAVE) locale["dialog.save"] else locale["dialog.open"]
     var closeResult by remember { mutableStateOf<List<Path>?>(null) }
+    val normalizedExtensions = remember(extensions) {
+        extensions.mapNotNull { ext ->
+            ext.trim().trimStart('.').takeIf { it.isNotBlank() }?.lowercase()
+        }.distinct()
+    }
+
+    val normalizedExtensionsSet = remember(normalizedExtensions) { normalizedExtensions.toSet() }
+    val defaultExtension = normalizedExtensions.firstOrNull()
 
     closeResult?.let {
         LaunchedEffect(closeResult) { onCloseRequest(it) }
         return
     }
-
-    val normalizedExtension = extension?.trim()?.lowercase()?.takeIf { it.isNotBlank() }
 
     fun JFileChooser.configure(initial: Boolean = true) {
         dialogTitle = title
@@ -113,17 +129,21 @@ fun LegacyFileDialog(
         isMultiSelectionEnabled = type == DialogType.LOAD
         fileSelectionMode = JFileChooser.FILES_ONLY
 
-        normalizedExtension?.let { ext ->
-            val extensionFilter = FileNameExtensionFilter("*.$ext", ext)
+        if (normalizedExtensions.isNotEmpty()) {
+            val description = normalizedExtensions.joinToString(", ") { "*.$it" }
+            val extensionFilter =
+                FileNameExtensionFilter(description, *normalizedExtensions.toTypedArray())
 
             if (initial) {
+                resetChoosableFileFilters()
                 fileFilter = extensionFilter
                 isAcceptAllFileFilterUsed = true
-
             } else {
                 val filter = fileFilter
+                val needsUpdate = filter !is FileNameExtensionFilter ||
+                        filter.extensions.map { it.lowercase() }.toSet() != normalizedExtensionsSet
 
-                if (filter !is FileNameExtensionFilter || filter.extensions.any { it.equals(ext, true) }) {
+                if (needsUpdate) {
                     resetChoosableFileFilters()
 
                     fileFilter = extensionFilter
@@ -155,7 +175,7 @@ fun LegacyFileDialog(
                         if (type == DialogType.SAVE && selectedFile == null) {
                             val baseName = buildString {
                                 append("untitled")
-                                normalizedExtension?.let { append('.').append(it) }
+                                defaultExtension?.let { append('.').append(it) }
                             }
 
                             selectedFile = File(currentDirectory, baseName)
@@ -176,10 +196,17 @@ fun LegacyFileDialog(
                             closeResult = files.mapNotNull { file ->
                                 if (file == null) return@mapNotNull null
 
-                                if (type == DialogType.SAVE && normalizedExtension != null) {
+                                if (type == DialogType.SAVE && defaultExtension != null) {
+                                    val hasAllowedExtension = normalizedExtensions.any { ext ->
+                                        file.extension.equals(ext, ignoreCase = true)
+                                    }
 
-                                    val withExt = if (file.extension == normalizedExtension) file
-                                    else File(file.parentFile ?: currentDirectory, "${file.name}.$normalizedExtension")
+                                    val withExt =
+                                        if (hasAllowedExtension) file
+                                        else File(
+                                            file.parentFile ?: currentDirectory,
+                                            "${file.name}.$defaultExtension"
+                                        )
 
                                     withExt.toPath()
                                 } else file.toPath()

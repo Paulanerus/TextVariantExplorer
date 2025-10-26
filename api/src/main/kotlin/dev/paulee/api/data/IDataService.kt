@@ -28,6 +28,10 @@ interface IDataService : Closeable {
 
     suspend fun downloadModel(model: Embedding.Model, path: Path, onProgress: (progress: Int) -> Unit)
 
+    suspend fun importPool(path: Path): Boolean
+
+    suspend fun exportPool(dataInfo: DataInfo, path: Path): Boolean
+
     fun getPage(
         query: String,
         isSemantic: Boolean,

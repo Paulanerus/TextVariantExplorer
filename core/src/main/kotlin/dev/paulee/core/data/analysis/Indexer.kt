@@ -20,7 +20,10 @@ import org.apache.lucene.store.BaseDirectory
 import org.apache.lucene.store.FSDirectory
 import org.apache.lucene.util.Version
 import org.slf4j.LoggerFactory.getLogger
+import java.io.ByteArrayOutputStream
 import java.io.Closeable
+import java.io.PrintStream
+import java.nio.charset.StandardCharsets
 import java.nio.file.Path
 
 internal class CustomParser(private val defaultField: String, defaultAnalyzer: Analyzer) :
@@ -44,6 +47,8 @@ internal class CustomParser(private val defaultField: String, defaultAnalyzer: A
 internal class Indexer(path: Path, dataInfo: DataInfo) : Closeable {
 
     companion object {
+        private val logger = getLogger(Indexer::class.java)
+
         private val OPERATOR_CASCADE_REGEX =
             Regex("(?i)\\b(AND(?:\\s+NOT)?|OR(?:\\s+NOT)?|NOT)\\b(?:\\s+(?:AND|OR|NOT)\\b)*")
 
@@ -52,9 +57,29 @@ internal class Indexer(path: Path, dataInfo: DataInfo) : Closeable {
         private val TRAILING_REGEX = Regex("(?i)\\s*\\b(?:AND|OR|NOT)$")
 
         private const val EMBEDDING_BATCH_SIZE = 128
-    }
 
-    private val logger = getLogger(Indexer::class.java)
+        fun checkIndex(path: Path): Pair<Boolean, String> {
+            return runCatching {
+                FSDirectory.open(path).use { dir ->
+                    val charset = StandardCharsets.UTF_8
+
+                    val outStream = ByteArrayOutputStream()
+                    PrintStream(outStream, true, charset).use { stream ->
+                        CheckIndex(dir).use {
+                            it.setInfoStream(stream)
+                            val status = it.checkIndex()
+
+                            status.clean to outStream.toString(charset)
+                        }
+                    }
+                }
+            }.getOrElse {
+                logger.error("Exception: Failed to check index.", it)
+
+                false to (it.message ?: "")
+            }
+        }
+    }
 
     private val directory: BaseDirectory = FSDirectory.open(path)
 
@@ -112,14 +137,14 @@ internal class Indexer(path: Path, dataInfo: DataInfo) : Closeable {
 
         this.reader = DirectoryReader.open(this.writer)
 
-        this.logger.info("Initialized Indexer")
+        logger.info("Initialized Indexer")
 
         val analyzer =
             this.mappedAnalyzer.entries.joinToString(", ") { (key, value) -> "$key (${value::class.simpleName})" }
-        this.logger.info("Indexer fields: $analyzer")
+        logger.info("Indexer fields: $analyzer")
 
         val embeddings = embeddingFields.entries.joinToString(", ") { (key, value) -> "$key (${value.name})" }
-        if (embeddingFields.isNotEmpty()) this.logger.info("Indexer embedding fields: $embeddings")
+        if (embeddingFields.isNotEmpty()) logger.info("Indexer embedding fields: $embeddings")
     }
 
     fun indexEntries(name: String, entries: List<Map<String, String>>) {
@@ -175,7 +200,7 @@ internal class Indexer(path: Path, dataInfo: DataInfo) : Closeable {
 
     fun finish() {
         runCatching { this.writer.commit() }
-            .onFailure { this.logger.error("Exception: Failed to commit changes.", it) }
+            .onFailure { logger.error("Exception: Failed to commit changes.", it) }
     }
 
     fun searchFieldIndex(field: String, query: String): List<Document> {

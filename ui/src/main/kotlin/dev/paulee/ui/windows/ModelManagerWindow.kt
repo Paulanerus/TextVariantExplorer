@@ -107,7 +107,7 @@ fun ModelManagerWindow(dataService: IDataService, onClose: () -> Unit) {
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.fillMaxSize().padding(end = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        verticalArrangement = Arrangement.spacedBy(36.dp)
                     ) {
                         items(models) { model ->
                             val installed = installedDirs.contains(model.name) || installedDirs.contains(model.name)

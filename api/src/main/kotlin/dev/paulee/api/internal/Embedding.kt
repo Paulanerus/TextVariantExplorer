@@ -15,7 +15,9 @@ object Embedding {
             "Google DeepMind",
             "300M",
             "https://huggingface.co/google/embeddinggemma-300m",
-            ModelData()
+            ModelData(
+                modelData = "onnx/model.onnx_data"
+            )
         ),
         AncientGreekBert(
             "onnx-community/Ancient-Greek-BERT-ONNX",
@@ -25,7 +27,16 @@ object Embedding {
             "https://huggingface.co/pranaydeeps/Ancient-Greek-BERT",
             ModelData(
                 maxLength = 512,
-                modelData = ""
+            )
+        ),
+        GreekTransfer(
+            "onnx-community/stsb-xlm-r-greek-transfer-ONNX",
+            "model_management.greek_transfer.desc",
+            "lighteternal",
+            "270M",
+            "https://huggingface.co/lighteternal/stsb-xlm-r-greek-transfer",
+            ModelData(
+                maxLength = 400,
             )
         )
     }
@@ -34,7 +45,7 @@ object Embedding {
         val dimension: Int = 768,
         val maxLength: Int = 2048,
         val model: String = "onnx/model.onnx",
-        val modelData: String = "onnx/model.onnx_data",
+        val modelData: String? = null,
         val tokenizer: String = "tokenizer.json",
         val tokenizerConfig: String = "tokenizer_config.json",
     )
