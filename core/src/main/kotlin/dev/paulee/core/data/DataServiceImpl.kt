@@ -295,10 +295,7 @@ object DataServiceImpl : IDataService {
 
                 logger.info("Loaded $infoName data pool.")
             } else {
-                logger.info("Deleting invalid or empty data pool directory '$infoName'.")
-
-                runCatching { child.deleteRecursively() }
-                    .onFailure { e -> logger.error("Failed to delete directory ${child.fileName}.", e) }
+                logger.warn("Data pool '$infoName' has invalid storage provider.")
             }
         }
 
