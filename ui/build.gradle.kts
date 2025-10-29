@@ -20,4 +20,5 @@ dependencies {
 
     implementation(compose.desktop.currentOs)
     implementation("org.jetbrains.compose.material:material-icons-core:${rootProject.extra["icons.version"]}")
+    implementation("org.jetbrains.compose.material:material-icons-extended:${rootProject.extra["icons.version"]}")
 }
