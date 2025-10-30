@@ -537,7 +537,7 @@ object DataServiceImpl : IDataService {
         return result
     }
 
-    override fun getPage(query: String, isSemantic: Boolean, order: QueryOrder?, pageCount: Int): PageResult {
+    override suspend fun getPage(query: String, isSemantic: Boolean, order: QueryOrder?, pageCount: Int): PageResult {
 
         if (this.currentPool == null || this.currentField == null) return Pair(emptyList(), emptyMap())
 
@@ -589,7 +589,7 @@ object DataServiceImpl : IDataService {
         return result
     }
 
-    override fun getPageCount(query: String, isSemantic: Boolean): Triple<Long, Long, Set<String>> {
+    override suspend fun getPageCount(query: String, isSemantic: Boolean): Triple<Long, Long, Set<String>> {
         if (this.currentPool == null || this.currentField == null) return Triple(-1, -1, emptySet())
 
         val dataPool = this.dataPools[this.currentPool] ?: return Triple(-1, -1, emptySet())
@@ -718,4 +718,3 @@ object DataServiceImpl : IDataService {
         else token.trim()
     }
 }
-    
