@@ -68,6 +68,7 @@ fun TableView(
 
     var hiddenColumns by remember { mutableStateOf(Config.getHidden(pool)) }
     var panelExpanded by remember { mutableStateOf(false) }
+    var settingsExpanded by remember { mutableStateOf(false) }
 
     val textMeasurer = rememberTextMeasurer()
     val density = LocalDensity.current
@@ -114,6 +115,27 @@ fun TableView(
                     Icon(Icons.Default.Delete, contentDescription = locale["table.delete"])
                 }
 
+                OutlinedButton(
+                    onClick = {
+                        settingsExpanded = !settingsExpanded
+                        if (settingsExpanded) panelExpanded = false
+                    },
+                    enabled = false,
+                    shape = RoundedCornerShape(50.dp),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                    modifier = Modifier.width(120.dp).padding(bottom = 12.dp)
+                ) {
+                    Icon(
+                        imageVector = if (settingsExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                        contentDescription = locale["settings.title"],
+                        modifier = Modifier.size(18.dp)
+                    )
+
+                    Spacer(Modifier.width(8.dp))
+
+                    Text(locale["settings.title"])
+                }
+
                 Column(
                     modifier = Modifier.weight(1f).padding(horizontal = 12.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
@@ -123,7 +145,10 @@ fun TableView(
                         horizontalArrangement = Arrangement.End
                     ) {
                         OutlinedButton(
-                            onClick = { panelExpanded = !panelExpanded },
+                            onClick = {
+                                panelExpanded = !panelExpanded
+                                if (panelExpanded) settingsExpanded = false
+                            },
                             shape = RoundedCornerShape(50.dp),
                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
                             modifier = Modifier.width(170.dp)
@@ -141,7 +166,7 @@ fun TableView(
                     }
 
                     AnimatedVisibility(
-                        visible = panelExpanded,
+                        visible = panelExpanded || settingsExpanded,
                         enter = fadeIn() + expandVertically(),
                         exit = fadeOut() + shrinkVertically()
                     ) {
