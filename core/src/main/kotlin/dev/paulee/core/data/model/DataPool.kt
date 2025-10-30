@@ -90,7 +90,7 @@ internal class DataPool(val indexer: Indexer?, val dataInfo: DataInfo, val stora
         }
     }
 
-    fun search(query: String, semantic: Boolean): IndexSearchResult {
+    fun search(query: String, similarityThreshold: Float): IndexSearchResult {
         if (indexer == null) return IndexSearchResult()
 
         val ids = LinkedHashSet<Long>()
@@ -102,7 +102,7 @@ internal class DataPool(val indexer: Indexer?, val dataInfo: DataInfo, val stora
             docs.forEach { it.getField(idFieldName)?.numericValue()?.toLong()?.let(ids::add) }
         }
 
-        val similarityThreshold = 0.85f
+        val isSemantic = similarityThreshold > 0
 
         val indexedValues = mutableSetOf<String>()
 
@@ -139,7 +139,7 @@ internal class DataPool(val indexer: Indexer?, val dataInfo: DataInfo, val stora
                     indexedValues.add(value)
 
                     val docs =
-                        if (semantic) indexer.searchMatchingVec(field, value, similarityThreshold)
+                        if (isSemantic) indexer.searchMatchingVec(field, value, similarityThreshold)
                         else indexer.searchFieldIndex(field, value)
 
                     addIdsFrom(docs, fieldClass)
@@ -153,7 +153,7 @@ internal class DataPool(val indexer: Indexer?, val dataInfo: DataInfo, val stora
 
                 defaultIndexField?.let { defaultField ->
                     val docs =
-                        if (semantic) indexer.searchMatchingVec(defaultField, joined, similarityThreshold)
+                        if (isSemantic) indexer.searchMatchingVec(defaultField, joined, similarityThreshold)
                         else indexer.searchFieldIndex(defaultField, joined)
 
                     addIdsFrom(docs, defaultClass)
@@ -162,7 +162,7 @@ internal class DataPool(val indexer: Indexer?, val dataInfo: DataInfo, val stora
         } else {
             defaultIndexField?.let {
                 val docs =
-                    if (semantic) indexer.searchMatchingVec(it, query, similarityThreshold)
+                    if (isSemantic) indexer.searchMatchingVec(it, query, similarityThreshold)
                     else indexer.searchFieldIndex(it, query)
 
                 addIdsFrom(docs, defaultClass)

@@ -553,7 +553,8 @@ object DataServiceImpl : IDataService {
 
         val (filterQuery, filter) = this.getPreFilter(query)
 
-        val indexResult = dataPool.search(this.handleReplacements(dataPool.metadata, filterQuery), isSemantic)
+        val indexResult =
+            dataPool.search(this.handleReplacements(dataPool.metadata, filterQuery), if (isSemantic) 0.8f else 0f)
 
         if (filter.isEmpty() && indexResult.isEmpty()) return Pair(emptyList(), emptyMap())
 
@@ -598,7 +599,8 @@ object DataServiceImpl : IDataService {
 
         val (filterQuery, filter) = this.getPreFilter(query)
 
-        val indexResult = dataPool.search(handleReplacements(dataPool.metadata, filterQuery), isSemantic)
+        val indexResult =
+            dataPool.search(handleReplacements(dataPool.metadata, filterQuery), if (isSemantic) 0.8f else 0f)
 
         if (filter.isEmpty() && indexResult.isEmpty()) return Triple(0, 0, emptySet())
 
