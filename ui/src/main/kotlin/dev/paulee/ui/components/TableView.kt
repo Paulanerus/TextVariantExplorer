@@ -1,7 +1,10 @@
 package dev.paulee.ui.components
 
 import androidx.compose.animation.*
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
@@ -11,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -35,8 +39,12 @@ import androidx.compose.ui.unit.dp
 import dev.paulee.api.data.provider.QueryOrder
 import dev.paulee.api.plugin.Tag
 import dev.paulee.ui.*
+import java.awt.Toolkit
+import java.awt.datatransfer.StringSelection
 
-@OptIn(ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class)
+private val systemClipboard = Toolkit.getDefaultToolkit().systemClipboard
+
+@OptIn(ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class, ExperimentalLayoutApi::class)
 @Composable
 fun TableView(
     modifier: Modifier = Modifier,
@@ -86,8 +94,8 @@ fun TableView(
 
             val maxDataWidth = with(density) { maxDataWidthPx.toDp() }
 
-            if (Config.noWidthRestriction) maxOf(headerWidth, maxDataWidth) + 16.dp
-            else minOf(maxOf(headerWidth, maxDataWidth) + 16.dp, 700.dp)
+            if (Config.noWidthRestriction) maxOf(headerWidth, maxDataWidth) + 40.dp
+            else minOf(maxOf(headerWidth, maxDataWidth) + 40.dp, 700.dp)
         }
     }
 
@@ -327,21 +335,72 @@ fun TableView(
                                                     }
                                                 }
                                             ) {
-                                                SelectionContainer {
-                                                    MarkedText(
-                                                        modifier = Modifier
-                                                            .width(columnWidths[colIndex])
-                                                            .padding(horizontal = 8.dp),
-                                                        underline = link != null,
-                                                        text = cell,
-                                                        highlights = if (indexStrings.isEmpty()) emptyMap() else indexStrings.associateWith {
-                                                            Tag(
-                                                                "",
-                                                                App.Colors.GREEN_HIGHLIGHT
+                                                var cellHovered by remember { mutableStateOf(false) }
+
+                                                Row(
+                                                    modifier = Modifier
+                                                        .width(columnWidths[colIndex])
+                                                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                                                        .onPointerEvent(PointerEventType.Enter) { cellHovered = true }
+                                                        .onPointerEvent(PointerEventType.Exit) { cellHovered = false }
+                                                        .animateContentSize(),
+                                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                ) {
+                                                    SelectionContainer {
+                                                        MarkedText(
+                                                            modifier = Modifier.widthIn(max = columnWidths[colIndex]),
+                                                            underline = link != null,
+                                                            text = cell,
+                                                            highlights = if (indexStrings.isEmpty()) emptyMap() else indexStrings.associateWith {
+                                                                Tag(
+                                                                    "",
+                                                                    App.Colors.GREEN_HIGHLIGHT
+                                                                )
+                                                            },
+                                                            exact = Config.exactHighlighting
+                                                        )
+                                                    }
+
+                                                    if (cell.isBlank()) return@Row
+
+                                                    AnimatedVisibility(
+                                                        visible = cellHovered,
+                                                        enter = fadeIn(animationSpec = tween(durationMillis = 100)) + scaleIn(
+                                                            animationSpec = spring(
+                                                                dampingRatio = Spring.DampingRatioMediumBouncy,
+                                                                stiffness = Spring.StiffnessMedium
                                                             )
-                                                        },
-                                                        exact = Config.exactHighlighting
-                                                    )
+                                                        ),
+                                                        exit = fadeOut(animationSpec = tween(durationMillis = 5)) + scaleOut(
+                                                            animationSpec = tween(durationMillis = 5)
+                                                        )
+                                                    ) {
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .size(22.dp)
+                                                                .clip(RoundedCornerShape(6.dp))
+                                                                .background(MaterialTheme.colors.primary.copy(alpha = 0.08f))
+                                                                .border(
+                                                                    width = 1.dp,
+                                                                    color = MaterialTheme.colors.primary.copy(alpha = 0.18f),
+                                                                    shape = RoundedCornerShape(6.dp)
+                                                                )
+                                                                .clickable(role = Role.Button) {
+                                                                    systemClipboard.setContents(
+                                                                        StringSelection(cell),
+                                                                        null
+                                                                    )
+                                                                },
+                                                            contentAlignment = Alignment.Center
+                                                        ) {
+                                                            Icon(
+                                                                imageVector = Icons.Default.ContentCopy,
+                                                                contentDescription = locale["table.copy"],
+                                                                modifier = Modifier.size(18.dp),
+                                                                tint = MaterialTheme.colors.primary
+                                                            )
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
