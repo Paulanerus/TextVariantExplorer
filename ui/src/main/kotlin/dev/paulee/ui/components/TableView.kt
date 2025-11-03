@@ -103,37 +103,54 @@ fun TableView(
     Box(modifier = modifier) {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment = Alignment.Top,
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                IconButton(
-                    onClick = {
-                        onSelectionChange(emptySet())
-                    }, enabled = selectedIndices.isNotEmpty(), modifier = Modifier.width(48.dp).padding(bottom = 12.dp)
-                ) {
-                    Icon(Icons.Default.Delete, contentDescription = locale["table.delete"])
-                }
+                Column(horizontalAlignment = Alignment.Start) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(
+                            onClick = {
+                                onSelectionChange(emptySet())
+                            },
+                            enabled = selectedIndices.isNotEmpty(),
+                            modifier = Modifier.width(48.dp).padding(bottom = 12.dp)
+                        ) {
+                            Icon(Icons.Default.Delete, contentDescription = locale["table.delete"])
+                        }
 
-                OutlinedButton(
-                    onClick = {
-                        settingsExpanded = !settingsExpanded
-                        if (settingsExpanded) panelExpanded = false
-                    },
-                    enabled = false,
-                    shape = RoundedCornerShape(50.dp),
-                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-                    modifier = Modifier.width(120.dp).padding(bottom = 12.dp)
-                ) {
-                    Icon(
-                        imageVector = if (settingsExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                        contentDescription = locale["settings.title"],
-                        modifier = Modifier.size(18.dp)
-                    )
+                        Spacer(modifier = Modifier.width(8.dp))
 
-                    Spacer(Modifier.width(8.dp))
+                        OutlinedButton(
+                            onClick = {
+                                settingsExpanded = !settingsExpanded
+                                if (settingsExpanded) panelExpanded = false
+                            },
+                            shape = RoundedCornerShape(50.dp),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                            modifier = Modifier.width(120.dp).padding(bottom = 12.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (settingsExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                contentDescription = locale["settings.title"],
+                                modifier = Modifier.size(18.dp)
+                            )
 
-                    Text(locale["settings.title"])
+                            Spacer(Modifier.width(8.dp))
+
+                            Text(locale["settings.title"])
+                        }
+                    }
+
+                    AnimatedVisibility(
+                        visible = settingsExpanded,
+                        enter = fadeIn() + expandVertically(),
+                        exit = fadeOut() + shrinkVertically()
+                    ) {
+                        QuerySettingsPanel(
+                            modifier = Modifier.padding(bottom = 12.dp)
+                        )
+                    }
                 }
 
                 Column(
@@ -166,7 +183,7 @@ fun TableView(
                     }
 
                     AnimatedVisibility(
-                        visible = panelExpanded || settingsExpanded,
+                        visible = panelExpanded,
                         enter = fadeIn() + expandVertically(),
                         exit = fadeOut() + shrinkVertically()
                     ) {
@@ -402,7 +419,7 @@ fun TableView(
                                                     ) {
                                                         Box(
                                                             modifier = Modifier
-                                                                .size(22.dp)
+                                                                .size(19.dp)
                                                                 .clip(RoundedCornerShape(6.dp))
                                                                 .background(MaterialTheme.colors.primary.copy(alpha = 0.08f))
                                                                 .border(
@@ -449,6 +466,29 @@ fun TableView(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun QuerySettingsPanel(
+    modifier: Modifier = Modifier,
+) {
+    val locale = LocalI18n.current
+
+    Surface(
+        modifier = modifier.widthIn(min = 200.dp, max = 280.dp),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colors.onSurface.copy(alpha = 0.08f))
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+            Text(
+                text = locale["main.query_settings.title"],
+                style = MaterialTheme.typography.subtitle1
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
         }
     }
 }
