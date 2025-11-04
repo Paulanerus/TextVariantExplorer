@@ -26,7 +26,7 @@ import kotlin.coroutines.cancellation.CancellationException
 import kotlin.io.path.*
 import kotlin.math.ceil
 
-typealias QueryKey = Triple<Int, String, QueryOrder?>
+private data class QueryKey(val pageCount: Int, val query: String, val order: QueryOrder?, val similarity: Float)
 
 typealias PageResult = Pair<List<Map<String, String>>, Map<String, List<Map<String, String>>>>
 
@@ -548,7 +548,7 @@ object DataServiceImpl : IDataService {
 
         logger.info("Query (${order ?: "None"} | Similarity: $similarityScore): $query")
 
-        val key = Triple(pageCount, query, order)
+        val key = QueryKey(pageCount, query, order, similarityScore)
 
         pageCache.getIfPresent(key)?.let { return it }
 
