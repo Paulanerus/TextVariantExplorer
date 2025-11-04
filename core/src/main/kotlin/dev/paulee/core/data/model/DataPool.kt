@@ -102,7 +102,7 @@ internal class DataPool(val indexer: Indexer?, val dataInfo: DataInfo, val stora
             docs.forEach { it.getField(idFieldName)?.numericValue()?.toLong()?.let(ids::add) }
         }
 
-        val isSemantic = similarityThreshold > 0
+        val isSemantic = similarityThreshold > 0 && similarityThreshold <= 1.0
 
         val indexedValues = mutableSetOf<String>()
 
