@@ -489,6 +489,16 @@ private fun QuerySettingsPanel(
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            SliderControl(
+                text = locale["main.query_settings.similarity"],
+                value = Config.queryEmbSimilarity,
+                onValueChange = {
+                    Config.queryEmbSimilarity = it
+                },
+                minValue = 0.5f,
+                maxValue = 1.0f,
+                defaultValue = 0.8f
+            )
         }
     }
 }
