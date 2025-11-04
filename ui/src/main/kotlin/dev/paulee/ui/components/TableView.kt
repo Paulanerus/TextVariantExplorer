@@ -41,6 +41,7 @@ import dev.paulee.api.plugin.Tag
 import dev.paulee.ui.*
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
+import kotlin.math.round
 
 private val systemClipboard = Toolkit.getDefaultToolkit().systemClipboard
 
@@ -493,11 +494,14 @@ private fun QuerySettingsPanel(
                 text = locale["main.query_settings.similarity"],
                 value = Config.queryEmbSimilarity,
                 onValueChange = {
-                    Config.queryEmbSimilarity = it
+                    Config.queryEmbSimilarity = round(it * 100) / 100f
                 },
                 minValue = 0.5f,
                 maxValue = 1.0f,
-                defaultValue = 0.8f
+                defaultValue = 0.8f,
+                scaleFactor = 100f,
+                decimalCount = 0,
+                postfix = " %"
             )
         }
     }

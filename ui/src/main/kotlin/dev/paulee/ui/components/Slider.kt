@@ -11,8 +11,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import dev.paulee.ui.App
+import dev.paulee.ui.Config
 import dev.paulee.ui.LocalI18n
+import java.util.Locale
 import kotlin.math.abs
+import kotlin.math.round
 
 @Composable
 fun SliderControl(
@@ -22,6 +26,9 @@ fun SliderControl(
     minValue: Float,
     maxValue: Float,
     defaultValue: Float,
+    scaleFactor: Float = 1f,
+    decimalCount: Int = 1,
+    postfix: String = "",
     modifier: Modifier = Modifier,
 ) {
     val locale = LocalI18n.current
@@ -61,7 +68,7 @@ fun SliderControl(
                     border = BorderStroke(1.dp, MaterialTheme.colors.primary.copy(alpha = 0.14f))
                 ) {
                     Text(
-                        text = formatSliderValue(clampedValue),
+                        text = formatSliderValue(clampedValue, scaleFactor, decimalCount, postfix),
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                         style = MaterialTheme.typography.caption.copy(fontWeight = FontWeight.SemiBold),
                         color = MaterialTheme.colors.primary
@@ -92,13 +99,13 @@ fun SliderControl(
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(
-                text = formatSliderValue(minValue),
+                text = formatSliderValue(minValue, scaleFactor, decimalCount, postfix),
                 style = MaterialTheme.typography.caption,
                 color = supportingColor
             )
 
             Text(
-                text = formatSliderValue(maxValue),
+                text = formatSliderValue(maxValue, scaleFactor, decimalCount, postfix),
                 style = MaterialTheme.typography.caption,
                 color = supportingColor
             )
@@ -106,4 +113,13 @@ fun SliderControl(
     }
 }
 
-private fun formatSliderValue(value: Float): String = String.format("%.2f", value)
+private fun formatSliderValue(value: Float, scaleFactor: Float, decimalCount: Int, postfix: String): String {
+    val pattern = buildString {
+        append("%.")
+        append(decimalCount.coerceAtLeast(0))
+        append("f")
+    }
+
+    val numberAsStr = String.format(Locale.forLanguageTag(App.Language.current.tag), pattern, value * scaleFactor)
+    return if (postfix.isNotBlank()) "$numberAsStr$postfix" else numberAsStr
+}
