@@ -128,7 +128,7 @@ fun TableView(
                             },
                             shape = RoundedCornerShape(50.dp),
                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-                            modifier = Modifier.width(120.dp).padding(bottom = 12.dp)
+                            modifier = Modifier.width(130.dp).padding(bottom = 12.dp)
                         ) {
                             Icon(
                                 imageVector = if (settingsExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
