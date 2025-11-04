@@ -537,11 +537,16 @@ object DataServiceImpl : IDataService {
         return result
     }
 
-    override suspend fun getPage(query: String, isSemantic: Boolean, order: QueryOrder?, pageCount: Int): PageResult {
+    override suspend fun getPage(
+        query: String,
+        similarityScore: Float,
+        order: QueryOrder?,
+        pageCount: Int,
+    ): PageResult {
 
         if (this.currentPool == null || this.currentField == null) return Pair(emptyList(), emptyMap())
 
-        logger.info("Query (${order ?: "None"} | Semantic: $isSemantic): $query")
+        logger.info("Query (${order ?: "None"} | Similarity: $similarityScore): $query")
 
         val key = Triple(pageCount, query, order)
 
@@ -554,7 +559,7 @@ object DataServiceImpl : IDataService {
         val (filterQuery, filter) = this.getPreFilter(query)
 
         val indexResult =
-            dataPool.search(this.handleReplacements(dataPool.metadata, filterQuery), if (isSemantic) 0.8f else 0f)
+            dataPool.search(this.handleReplacements(dataPool.metadata, filterQuery), similarityScore)
 
         if (filter.isEmpty() && indexResult.isEmpty()) return Pair(emptyList(), emptyMap())
 
@@ -590,7 +595,7 @@ object DataServiceImpl : IDataService {
         return result
     }
 
-    override suspend fun getPageCount(query: String, isSemantic: Boolean): Triple<Long, Long, Set<String>> {
+    override suspend fun getPageCount(query: String, similarityScore: Float): Triple<Long, Long, Set<String>> {
         if (this.currentPool == null || this.currentField == null) return Triple(-1, -1, emptySet())
 
         val dataPool = this.dataPools[this.currentPool] ?: return Triple(-1, -1, emptySet())
@@ -600,7 +605,7 @@ object DataServiceImpl : IDataService {
         val (filterQuery, filter) = this.getPreFilter(query)
 
         val indexResult =
-            dataPool.search(handleReplacements(dataPool.metadata, filterQuery), if (isSemantic) 0.8f else 0f)
+            dataPool.search(handleReplacements(dataPool.metadata, filterQuery), similarityScore)
 
         if (filter.isEmpty() && indexResult.isEmpty()) return Triple(0, 0, emptySet())
 

@@ -171,7 +171,7 @@ class TextExplorerUI(
 
             launchQuery {
                 val (count, pages, indexed) = withContext(Dispatchers.IO) {
-                    dataService.getPageCount(queryText, semanticSearch)
+                    dataService.getPageCount(queryText, if (semanticSearch) Config.queryEmbSimilarity else 0f)
                 }
 
                 amount = count
@@ -180,7 +180,12 @@ class TextExplorerUI(
 
                 if (totalPages > 0) {
                     val (pageEntries, pageLinks) = withContext(Dispatchers.IO) {
-                        dataService.getPage(queryText, semanticSearch, order, pageIndex)
+                        dataService.getPage(
+                            queryText,
+                            if (semanticSearch) Config.queryEmbSimilarity else 0f,
+                            order,
+                            pageIndex
+                        )
                     }
 
                     header = pageEntries.firstOrNull()?.keys?.toList() ?: emptyList()
@@ -213,7 +218,12 @@ class TextExplorerUI(
 
             launchQuery {
                 val (entries, pageLinks) = withContext(Dispatchers.IO) {
-                    dataService.getPage(queryText, semanticSearch, order, pageIndex)
+                    dataService.getPage(
+                        queryText,
+                        if (semanticSearch) Config.queryEmbSimilarity else 0f,
+                        order,
+                        pageIndex
+                    )
                 }
 
                 data = entries.map { it.values.toList() }
