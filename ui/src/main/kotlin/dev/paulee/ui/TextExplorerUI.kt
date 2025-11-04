@@ -33,8 +33,7 @@ import dev.paulee.ui.components.FileDialog
 import dev.paulee.ui.components.IconDropDown
 import dev.paulee.ui.components.TableView
 import dev.paulee.ui.windows.*
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 import java.nio.file.Path
 import kotlin.io.path.*
 
@@ -121,7 +120,42 @@ class TextExplorerUI(
         var loadState by remember { mutableStateOf<LoadState>(LoadState.Idle) }
         val scope = rememberCoroutineScope()
 
-        val performSearch: () -> Unit = {
+        var showSlowQueryHint by remember { mutableStateOf(false) }
+        var isSearching by remember { mutableStateOf(false) }
+        var searchJob by remember { mutableStateOf<Job?>(null) }
+
+        val launchQuery: (suspend () -> Unit) -> Unit = launch@{ block ->
+            if (searchJob?.isActive == true) return@launch
+
+            val job = scope.launch {
+                val currentJob = coroutineContext[Job]
+                isSearching = true
+                showSlowQueryHint = false
+
+                val hintJob = launch {
+                    delay(4000)
+                    showSlowQueryHint = true
+                    showTable = false
+                }
+
+                try {
+                    block()
+                } finally {
+                    hintJob.cancel()
+
+                    if (searchJob == currentJob) {
+                        showSlowQueryHint = false
+                        isSearching = false
+                        searchJob = null
+                    }
+                }
+            }
+            searchJob = job
+        }
+
+        val performSearch: () -> Unit = search@{
+            if (isSearching) return@search
+
             showSuggestions = false
 
             currentPage = 0
@@ -131,27 +165,69 @@ class TextExplorerUI(
             selectedRows = emptyList()
 
             val queryText = textField.text
+            val semanticSearch = isSemantic
+            val order = queryOrderState
+            val pageIndex = currentPage
 
-            val (count, pages, indexed) = dataService.getPageCount(queryText, isSemantic)
-            amount = count
+            launchQuery {
+                val (count, pages, indexed) = withContext(Dispatchers.IO) {
+                    dataService.getPageCount(queryText, if (semanticSearch) Config.queryEmbSimilarity else 0f)
+                }
 
-            totalPages = pages
+                amount = count
+                totalPages = pages
+                indexStrings = indexed
 
-            indexStrings = indexed
-
-            if (totalPages > 0) {
-                dataService.getPage(queryText, isSemantic, queryOrderState, currentPage)
-                    .let { (pageEntries, pageLinks) ->
-                        val first = pageEntries.firstOrNull() ?: return@let
-
-                        header = first.keys.toList()
-
-                        data = pageEntries.map { it.values.toList() }
-
-                        links = pageLinks
-
-                        showTable = true
+                if (totalPages > 0) {
+                    val (pageEntries, pageLinks) = withContext(Dispatchers.IO) {
+                        dataService.getPage(
+                            queryText,
+                            if (semanticSearch) Config.queryEmbSimilarity else 0f,
+                            order,
+                            pageIndex
+                        )
                     }
+
+                    header = pageEntries.firstOrNull()?.keys?.toList() ?: emptyList()
+                    data = pageEntries.map { it.values.toList() }
+                    links = pageLinks
+                } else {
+                    header = emptyList()
+                    data = emptyList()
+                    links = emptyMap()
+                }
+
+                showTable = true
+            }
+        }
+
+        fun cancelActiveSearch() {
+            searchJob?.cancel()
+            searchJob = null
+            isSearching = false
+            showSlowQueryHint = false
+        }
+
+        fun fetchResults() {
+            if (isSearching) return
+
+            val queryText = textField.text
+            val semanticSearch = isSemantic
+            val order = queryOrderState
+            val pageIndex = currentPage
+
+            launchQuery {
+                val (entries, pageLinks) = withContext(Dispatchers.IO) {
+                    dataService.getPage(
+                        queryText,
+                        if (semanticSearch) Config.queryEmbSimilarity else 0f,
+                        order,
+                        pageIndex
+                    )
+                }
+
+                data = entries.map { it.values.toList() }
+                links = pageLinks
             }
         }
 
@@ -243,6 +319,12 @@ class TextExplorerUI(
                                     value = textField,
                                     onValueChange = { newValue ->
                                         textField = newValue
+
+                                        if (newValue.text.isBlank()) {
+                                            cancelActiveSearch()
+                                            showTable = false
+                                        }
+
                                         val text = newValue.text
                                         val caret = newValue.selection.start
 
@@ -324,6 +406,7 @@ class TextExplorerUI(
                                             IconButton(onClick = {
                                                 textField = TextFieldValue("")
                                                 showSuggestions = false
+                                                cancelActiveSearch()
                                                 showTable = false
                                             }) {
                                                 Icon(
@@ -414,8 +497,10 @@ class TextExplorerUI(
                                     Spacer(Modifier.weight(1f))
 
                                     IconButton(
-                                        onClick = { performSearch() },
-                                        enabled = textField.text.isNotBlank() && dataService.hasSelectedPool()
+                                        onClick = {
+                                            performSearch()
+                                        },
+                                        enabled = textField.text.isNotBlank() && dataService.hasSelectedPool() && !isSearching
                                     ) {
                                         Icon(Icons.Default.Search, contentDescription = locale["main.icon.search"])
                                     }
@@ -426,6 +511,21 @@ class TextExplorerUI(
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
+
+                AnimatedVisibility(visible = isSearching && showSlowQueryHint) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(locale["main.slow_query_hint"], color = MaterialTheme.colors.onSurface)
+                    }
+                }
 
                 AnimatedVisibility(visible = showTable) {
                     Column(
@@ -456,11 +556,8 @@ class TextExplorerUI(
                                 selectedRows = emptyList()
 
                                 currentPage = 0
-                                dataService.getPage(textField.text, isSemantic, queryOrderState, currentPage)
-                                    .let { result ->
-                                        data = result.first.map { it.values.toList() }
-                                        links = result.second
-                                    }
+
+                                fetchResults()
                             },
                             totalAmountOfSelectedRows = selectedRows.size,
                             selectedIndices = selectedByPage[currentPage] ?: emptySet(),
@@ -510,14 +607,9 @@ class TextExplorerUI(
                                     if (currentPage > 0) {
                                         currentPage--
 
-                                        dataService.getPage(textField.text, isSemantic, queryOrderState, currentPage)
-                                            .let { result ->
-                                                data = result.first.map { it.values.toList() }
-
-                                                links = result.second
-                                            }
+                                        fetchResults()
                                     }
-                                }, enabled = currentPage > 0
+                                }, enabled = currentPage > 0 && !isSearching
                             ) {
                                 Icon(
                                     Icons.AutoMirrored.Filled.KeyboardArrowLeft,
@@ -532,14 +624,9 @@ class TextExplorerUI(
                                     if (currentPage < totalPages - 1) {
                                         currentPage++
 
-                                        dataService.getPage(textField.text, isSemantic, queryOrderState, currentPage)
-                                            .let { result ->
-                                                data = result.first.map { it.values.toList() }
-
-                                                links = result.second
-                                            }
+                                        fetchResults()
                                     }
-                                }, enabled = currentPage < totalPages - 1
+                                }, enabled = currentPage < totalPages - 1 && !isSearching
                             ) {
                                 Icon(
                                     Icons.AutoMirrored.Filled.KeyboardArrowRight,

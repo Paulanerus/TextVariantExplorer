@@ -1,7 +1,10 @@
 package dev.paulee.ui.components
 
 import androidx.compose.animation.*
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
@@ -11,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -35,8 +39,13 @@ import androidx.compose.ui.unit.dp
 import dev.paulee.api.data.provider.QueryOrder
 import dev.paulee.api.plugin.Tag
 import dev.paulee.ui.*
+import java.awt.Toolkit
+import java.awt.datatransfer.StringSelection
+import kotlin.math.round
 
-@OptIn(ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class)
+private val systemClipboard = Toolkit.getDefaultToolkit().systemClipboard
+
+@OptIn(ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class, ExperimentalLayoutApi::class)
 @Composable
 fun TableView(
     modifier: Modifier = Modifier,
@@ -60,6 +69,7 @@ fun TableView(
 
     var hiddenColumns by remember { mutableStateOf(Config.getHidden(pool)) }
     var panelExpanded by remember { mutableStateOf(false) }
+    var settingsExpanded by remember { mutableStateOf(false) }
 
     val textMeasurer = rememberTextMeasurer()
     val density = LocalDensity.current
@@ -86,24 +96,62 @@ fun TableView(
 
             val maxDataWidth = with(density) { maxDataWidthPx.toDp() }
 
-            if (Config.noWidthRestriction) maxOf(headerWidth, maxDataWidth) + 16.dp
-            else minOf(maxOf(headerWidth, maxDataWidth) + 16.dp, 700.dp)
+            if (Config.noWidthRestriction) maxOf(headerWidth, maxDataWidth) + 40.dp
+            else minOf(maxOf(headerWidth, maxDataWidth) + 40.dp, 700.dp)
         }
     }
 
     Box(modifier = modifier) {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment = Alignment.Top,
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                IconButton(
-                    onClick = {
-                        onSelectionChange(emptySet())
-                    }, enabled = selectedIndices.isNotEmpty(), modifier = Modifier.width(48.dp).padding(bottom = 12.dp)
-                ) {
-                    Icon(Icons.Default.Delete, contentDescription = locale["table.delete"])
+                Column(horizontalAlignment = Alignment.Start) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(
+                            onClick = {
+                                onSelectionChange(emptySet())
+                            },
+                            enabled = selectedIndices.isNotEmpty(),
+                            modifier = Modifier.width(48.dp).padding(bottom = 12.dp)
+                        ) {
+                            Icon(Icons.Default.Delete, contentDescription = locale["table.delete"])
+                        }
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        OutlinedButton(
+                            onClick = {
+                                settingsExpanded = !settingsExpanded
+                                if (settingsExpanded) panelExpanded = false
+                            },
+                            shape = RoundedCornerShape(50.dp),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                            modifier = Modifier.width(130.dp).padding(bottom = 12.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (settingsExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                contentDescription = locale["settings.title"],
+                                modifier = Modifier.size(18.dp)
+                            )
+
+                            Spacer(Modifier.width(8.dp))
+
+                            Text(locale["settings.title"])
+                        }
+                    }
+
+                    AnimatedVisibility(
+                        visible = settingsExpanded,
+                        enter = fadeIn() + expandVertically(),
+                        exit = fadeOut() + shrinkVertically()
+                    ) {
+                        QuerySettingsPanel(
+                            modifier = Modifier.padding(bottom = 12.dp)
+                        )
+                    }
                 }
 
                 Column(
@@ -115,7 +163,10 @@ fun TableView(
                         horizontalArrangement = Arrangement.End
                     ) {
                         OutlinedButton(
-                            onClick = { panelExpanded = !panelExpanded },
+                            onClick = {
+                                panelExpanded = !panelExpanded
+                                if (panelExpanded) settingsExpanded = false
+                            },
                             shape = RoundedCornerShape(50.dp),
                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
                             modifier = Modifier.width(170.dp)
@@ -327,21 +378,72 @@ fun TableView(
                                                     }
                                                 }
                                             ) {
-                                                SelectionContainer {
-                                                    MarkedText(
-                                                        modifier = Modifier
-                                                            .width(columnWidths[colIndex])
-                                                            .padding(horizontal = 8.dp),
-                                                        underline = link != null,
-                                                        text = cell,
-                                                        highlights = if (indexStrings.isEmpty()) emptyMap() else indexStrings.associateWith {
-                                                            Tag(
-                                                                "",
-                                                                App.Colors.GREEN_HIGHLIGHT
+                                                var cellHovered by remember { mutableStateOf(false) }
+
+                                                Row(
+                                                    modifier = Modifier
+                                                        .width(columnWidths[colIndex])
+                                                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                                                        .onPointerEvent(PointerEventType.Enter) { cellHovered = true }
+                                                        .onPointerEvent(PointerEventType.Exit) { cellHovered = false }
+                                                        .animateContentSize(),
+                                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                ) {
+                                                    SelectionContainer {
+                                                        MarkedText(
+                                                            modifier = Modifier.widthIn(max = columnWidths[colIndex]),
+                                                            underline = link != null,
+                                                            text = cell,
+                                                            highlights = if (indexStrings.isEmpty()) emptyMap() else indexStrings.associateWith {
+                                                                Tag(
+                                                                    "",
+                                                                    App.Colors.GREEN_HIGHLIGHT
+                                                                )
+                                                            },
+                                                            exact = Config.exactHighlighting
+                                                        )
+                                                    }
+
+                                                    if (cell.isBlank()) return@Row
+
+                                                    AnimatedVisibility(
+                                                        visible = cellHovered,
+                                                        enter = fadeIn(animationSpec = tween(durationMillis = 100)) + scaleIn(
+                                                            animationSpec = spring(
+                                                                dampingRatio = Spring.DampingRatioMediumBouncy,
+                                                                stiffness = Spring.StiffnessMedium
                                                             )
-                                                        },
-                                                        exact = Config.exactHighlighting
-                                                    )
+                                                        ),
+                                                        exit = fadeOut(animationSpec = tween(durationMillis = 5)) + scaleOut(
+                                                            animationSpec = tween(durationMillis = 5)
+                                                        )
+                                                    ) {
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .size(19.dp)
+                                                                .clip(RoundedCornerShape(6.dp))
+                                                                .background(MaterialTheme.colors.primary.copy(alpha = 0.08f))
+                                                                .border(
+                                                                    width = 1.dp,
+                                                                    color = MaterialTheme.colors.primary.copy(alpha = 0.18f),
+                                                                    shape = RoundedCornerShape(6.dp)
+                                                                )
+                                                                .clickable(role = Role.Button) {
+                                                                    systemClipboard.setContents(
+                                                                        StringSelection(cell),
+                                                                        null
+                                                                    )
+                                                                },
+                                                            contentAlignment = Alignment.Center
+                                                        ) {
+                                                            Icon(
+                                                                imageVector = Icons.Default.ContentCopy,
+                                                                contentDescription = locale["table.copy"],
+                                                                modifier = Modifier.size(18.dp),
+                                                                tint = MaterialTheme.colors.primary
+                                                            )
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
@@ -365,6 +467,42 @@ fun TableView(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun QuerySettingsPanel(
+    modifier: Modifier = Modifier,
+) {
+    val locale = LocalI18n.current
+
+    Surface(
+        modifier = modifier.widthIn(min = 200.dp, max = 280.dp),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colors.onSurface.copy(alpha = 0.08f))
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+            Text(
+                text = locale["main.query_settings.title"],
+                style = MaterialTheme.typography.subtitle1
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            SliderControl(
+                text = locale["main.query_settings.similarity"],
+                value = Config.queryEmbSimilarity,
+                onValueChange = {
+                    Config.queryEmbSimilarity = round(it * 100) / 100f
+                },
+                minValue = 0.5f,
+                maxValue = 1.0f,
+                defaultValue = 0.8f,
+                scaleFactor = 100f,
+                decimalCount = 0,
+                postfix = " %"
+            )
         }
     }
 }

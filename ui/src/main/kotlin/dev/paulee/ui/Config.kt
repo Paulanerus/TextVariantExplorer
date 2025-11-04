@@ -36,6 +36,8 @@ object Config {
 
     var searchExpanded by mutableStateOf(true)
 
+    var queryEmbSimilarity by mutableStateOf(0.8f)
+
     private var configFile = "config"
 
     private var configPath = Path(configFile)

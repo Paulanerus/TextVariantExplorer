@@ -26,7 +26,7 @@ import kotlin.coroutines.cancellation.CancellationException
 import kotlin.io.path.*
 import kotlin.math.ceil
 
-typealias QueryKey = Triple<Int, String, QueryOrder?>
+private data class QueryKey(val pageCount: Int, val query: String, val order: QueryOrder?, val similarity: Float)
 
 typealias PageResult = Pair<List<Map<String, String>>, Map<String, List<Map<String, String>>>>
 
@@ -537,13 +537,18 @@ object DataServiceImpl : IDataService {
         return result
     }
 
-    override fun getPage(query: String, isSemantic: Boolean, order: QueryOrder?, pageCount: Int): PageResult {
+    override suspend fun getPage(
+        query: String,
+        similarityScore: Float,
+        order: QueryOrder?,
+        pageCount: Int,
+    ): PageResult {
 
         if (this.currentPool == null || this.currentField == null) return Pair(emptyList(), emptyMap())
 
-        logger.info("Query (${order ?: "None"} | Semantic: $isSemantic): $query")
+        logger.info("Query (${order ?: "None"} | Similarity: $similarityScore): $query")
 
-        val key = Triple(pageCount, query, order)
+        val key = QueryKey(pageCount, query, order, similarityScore)
 
         pageCache.getIfPresent(key)?.let { return it }
 
@@ -553,7 +558,8 @@ object DataServiceImpl : IDataService {
 
         val (filterQuery, filter) = this.getPreFilter(query)
 
-        val indexResult = dataPool.search(this.handleReplacements(dataPool.metadata, filterQuery), isSemantic)
+        val indexResult =
+            dataPool.search(this.handleReplacements(dataPool.metadata, filterQuery), similarityScore)
 
         if (filter.isEmpty() && indexResult.isEmpty()) return Pair(emptyList(), emptyMap())
 
@@ -589,7 +595,7 @@ object DataServiceImpl : IDataService {
         return result
     }
 
-    override fun getPageCount(query: String, isSemantic: Boolean): Triple<Long, Long, Set<String>> {
+    override suspend fun getPageCount(query: String, similarityScore: Float): Triple<Long, Long, Set<String>> {
         if (this.currentPool == null || this.currentField == null) return Triple(-1, -1, emptySet())
 
         val dataPool = this.dataPools[this.currentPool] ?: return Triple(-1, -1, emptySet())
@@ -598,7 +604,8 @@ object DataServiceImpl : IDataService {
 
         val (filterQuery, filter) = this.getPreFilter(query)
 
-        val indexResult = dataPool.search(handleReplacements(dataPool.metadata, filterQuery), isSemantic)
+        val indexResult =
+            dataPool.search(handleReplacements(dataPool.metadata, filterQuery), similarityScore)
 
         if (filter.isEmpty() && indexResult.isEmpty()) return Triple(0, 0, emptySet())
 
@@ -718,4 +725,3 @@ object DataServiceImpl : IDataService {
         else token.trim()
     }
 }
-    
