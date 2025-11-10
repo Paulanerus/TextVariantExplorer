@@ -7,6 +7,7 @@ type: software
 authors:
   - given-names: Paul
     family-names: Fröhlich
+    orcid: 'https://orcid.org/0009-0002-5553-2007'
 repository-code: 'https://github.com/Paulanerus/TextExplorer'
 url: 'https://paulee.dev/textvariantexplorer/'
 repository-artifact: >-
