@@ -30,7 +30,12 @@ fun normalizeSourceName(str: String): String {
     return (if (needsUnderscore) "_$replaced" else replaced).trim()
 }
 
-fun splitStr(str: String, delimiter: Char, quoteCharacters: Array<Char> = arrayOf('"')): List<String> {
+fun splitStr(
+    str: String,
+    delimiter: Char,
+    quoteCharacters: Array<Char> = arrayOf('"'),
+    includeQuotation: Boolean = false,
+): List<String> {
     val result = ArrayList<String>()
     val sb = StringBuilder(str.length)
 
@@ -40,7 +45,12 @@ fun splitStr(str: String, delimiter: Char, quoteCharacters: Array<Char> = arrayO
 
         for (c in str) {
             when (c) {
-                quote -> inside = !inside
+                quote -> {
+                    inside = !inside
+
+                    if (includeQuotation) sb.append(c)
+                }
+
                 delimiter if !inside -> {
                     result.add(sb.toString())
                     sb.setLength(0)
@@ -55,6 +65,7 @@ fun splitStr(str: String, delimiter: Char, quoteCharacters: Array<Char> = arrayO
         for (c in str) {
             if (quoteCharacters.contains(c)) {
                 inside = !inside
+                if (includeQuotation) sb.append(c)
             } else if (c == delimiter && !inside) {
                 result.add(sb.toString())
                 sb.setLength(0)

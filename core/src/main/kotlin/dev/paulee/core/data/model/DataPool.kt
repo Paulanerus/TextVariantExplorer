@@ -111,19 +111,17 @@ internal class DataPool(val indexer: Indexer?, val dataInfo: DataInfo, val stora
 
             val queryToken = mutableListOf<String>()
 
-            splitStr(query, delimiter = ' ').forEach { str ->
+            splitStr(query, delimiter = ' ', includeQuotation = true).forEach { str ->
 
                 var colon = -1
-                var hasSpace = false
 
                 for (i in str.indices) {
                     val ch = str[i]
                     if (ch == ':') { colon = i; break }
-                    if (ch == ' ') hasSpace = true
                 }
 
                 if (colon == -1) {
-                    queryToken.add(if (hasSpace) "\"$str\"" else str)
+                    queryToken.add(str)
                     return@forEach
                 }
 
