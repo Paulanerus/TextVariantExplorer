@@ -29,6 +29,16 @@ object Embedding {
                 maxLength = 512,
             )
         ),
+        AncientGreekVariantSBERT(
+            "Paulanerus/AncientGreekVariantSBERT-ONNX",
+            "model_management.ancient_greek_variant_sbert.desc",
+            "Paulanerus",
+            "110M",
+            "https://huggingface.co/Paulanerus/AncientGreekVariantSBERT-ONNX",
+            ModelData(
+                maxLength = 512,
+            )
+        ),
         GreekTransfer(
             "onnx-community/stsb-xlm-r-greek-transfer-ONNX",
             "model_management.greek_transfer.desc",
