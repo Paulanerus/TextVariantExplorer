@@ -43,31 +43,39 @@ private data class Column(
     override fun toString(): String = "$name $type ${if (primary) "PRIMARY KEY" else if (nullable) "" else "NOT NULL"}"
 }
 
-private class Table(val name: String, columns: List<Column>) {
+private class Table(val name: String, val columns: List<Column>) {
 
     val primaryKey: Column = columns.find { it.primary } ?: Column(
         "${name}_ag_id", ColumnType.INTEGER, primary = true, nullable = false
     )
 
-    val columns = listOf(primaryKey) + columns.filter { !it.primary }
+    val orderedColumns = listOf(primaryKey) + columns.filter { !it.primary }
 
     val tempTables = mutableMapOf<String, String>()
 
     fun import(connection: DuckDBConnection, path: Path, hasId: Boolean) {
+        val readCsvStmt = buildString {
+            append("read_csv('$path', header = true, columns = {")
+            append(columns.joinToString(", ") { column ->
+                "'${column.name}': '${column.type}'"
+            })
+            append("})")
+        }
+
         val query = buildString {
             append("CREATE TABLE IF NOT EXISTS ")
             append(name)
 
             if (hasId)
-                append(" AS SELECT * FROM '$path';")
+                append(" AS SELECT * FROM $readCsvStmt;")
             else
-                append(" AS SELECT CAST(row_number() OVER () - 1 AS INTEGER) AS ${name}_ag_id, t.* FROM (SELECT * FROM '$path') AS t;")
+                append(" AS SELECT CAST(row_number() OVER () - 1 AS INTEGER) AS ${name}_ag_id, t.* FROM (SELECT * FROM $readCsvStmt) AS t;")
         }
 
         connection.createStatement().use {
             it.execute(query)
 
-            columns.mapNotNull { column ->
+            orderedColumns.mapNotNull { column ->
                 val name = column.name
                 val normalized = normalizeSourceName(name)
 
@@ -113,7 +121,7 @@ private class Table(val name: String, columns: List<Column>) {
                 val results = mutableListOf<Map<String, String>>()
 
                 while (it.next()) {
-                    val row = columns.associate { column -> column.name to (it.getString(column.name) ?: "") }
+                    val row = orderedColumns.associate { column -> column.name to (it.getString(column.name) ?: "") }
 
                     results.add(row)
                 }
@@ -164,9 +172,9 @@ private class Table(val name: String, columns: List<Column>) {
         }
     }
 
-    fun getColumnType(name: String): ColumnType? = columns.find { it.name == name }?.type
+    fun getColumnType(name: String): ColumnType? = orderedColumns.find { it.name == name }?.type
 
-    override fun toString(): String = "$name primary=${primaryKey}, columns={${columns.joinToString(", ")}}"
+    override fun toString(): String = "$name primary=${primaryKey}, columns={${orderedColumns.joinToString(", ")}}"
 
     private fun buildWhereClause(connection: DuckDBConnection, whereClause: Map<String, List<String>>): String {
         if (whereClause.isEmpty()) return ""
