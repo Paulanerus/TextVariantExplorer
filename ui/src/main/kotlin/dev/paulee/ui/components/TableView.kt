@@ -70,6 +70,7 @@ fun TableView(
     var hiddenColumns by remember { mutableStateOf(Config.getHidden(pool)) }
     var panelExpanded by remember { mutableStateOf(false) }
     var settingsExpanded by remember { mutableStateOf(false) }
+    val showQuerySettings = false
 
     val textMeasurer = rememberTextMeasurer()
     val density = LocalDensity.current
@@ -120,26 +121,28 @@ fun TableView(
                             Icon(Icons.Default.Delete, contentDescription = locale["table.delete"])
                         }
 
-                        Spacer(modifier = Modifier.width(8.dp))
+                        if (showQuerySettings) {
+                            Spacer(modifier = Modifier.width(8.dp))
 
-                        OutlinedButton(
-                            onClick = {
-                                settingsExpanded = !settingsExpanded
-                                if (settingsExpanded) panelExpanded = false
-                            },
-                            shape = RoundedCornerShape(50.dp),
-                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-                            modifier = Modifier.width(130.dp).padding(bottom = 12.dp)
-                        ) {
-                            Icon(
-                                imageVector = if (settingsExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                                contentDescription = locale["settings.title"],
-                                modifier = Modifier.size(18.dp)
-                            )
+                            OutlinedButton(
+                                onClick = {
+                                    settingsExpanded = !settingsExpanded
+                                    if (settingsExpanded) panelExpanded = false
+                                },
+                                shape = RoundedCornerShape(50.dp),
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                                modifier = Modifier.width(130.dp).padding(bottom = 12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (settingsExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                    contentDescription = locale["settings.title"],
+                                    modifier = Modifier.size(18.dp)
+                                )
 
-                            Spacer(Modifier.width(8.dp))
+                                Spacer(Modifier.width(8.dp))
 
-                            Text(locale["settings.title"])
+                                Text(locale["settings.title"])
+                            }
                         }
                     }
 
