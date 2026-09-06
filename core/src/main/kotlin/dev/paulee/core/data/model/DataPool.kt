@@ -14,6 +14,7 @@ internal data class IndexSearchResult(
     val ids: LinkedHashSet<Long> = LinkedHashSet(),
     val tokens: List<String> = emptyList(),
     val indexedValues: Set<String> = emptySet(),
+    val scores: Map<Long, Float> = emptyMap(),
 ) {
     fun isEmpty(): Boolean = ids.isEmpty() && tokens.isEmpty()
 }
@@ -94,12 +95,25 @@ internal class DataPool(val indexer: Indexer?, val dataInfo: DataInfo, val stora
         if (indexer == null) return IndexSearchResult()
 
         val ids = LinkedHashSet<Long>()
+        val scores = HashMap<Long, Float>()
 
         fun addIdsFrom(docs: List<Document>, fieldClass: String?) {
             val classKey = fieldClass ?: return
             val idFieldName = identifier[classKey] ?: return
 
             docs.forEach { it.getField(idFieldName)?.numericValue()?.toLong()?.let(ids::add) }
+        }
+
+        fun addScoredIdsFrom(docs: List<Pair<Document, Float>>, fieldClass: String?) {
+            val classKey = fieldClass ?: return
+            val idFieldName = identifier[classKey] ?: return
+
+            docs.forEach { (doc, score) ->
+                doc.getField(idFieldName)?.numericValue()?.toLong()?.let {
+                    ids.add(it)
+                    scores.merge(it, score, ::maxOf)
+                }
+            }
         }
 
         val isSemantic = similarityThreshold > 0 && similarityThreshold <= 1.0
@@ -136,11 +150,11 @@ internal class DataPool(val indexer: Indexer?, val dataInfo: DataInfo, val stora
 
                     indexedValues.add(value)
 
-                    val docs =
-                        if (isSemantic) indexer.searchMatchingVec(field, value, similarityThreshold)
-                        else indexer.searchFieldIndex(field, value)
-
-                    addIdsFrom(docs, fieldClass)
+                    if (isSemantic) addScoredIdsFrom(
+                        indexer.searchMatchingVec(field, value, similarityThreshold),
+                        fieldClass
+                    )
+                    else addIdsFrom(indexer.searchFieldIndex(field, value), fieldClass)
                 } else token.add(str)
             }
 
@@ -150,25 +164,25 @@ internal class DataPool(val indexer: Indexer?, val dataInfo: DataInfo, val stora
                 indexedValues.add(joined)
 
                 defaultIndexField?.let { defaultField ->
-                    val docs =
-                        if (isSemantic) indexer.searchMatchingVec(defaultField, joined, similarityThreshold)
-                        else indexer.searchFieldIndex(defaultField, joined)
-
-                    addIdsFrom(docs, defaultClass)
+                    if (isSemantic) addScoredIdsFrom(
+                        indexer.searchMatchingVec(defaultField, joined, similarityThreshold),
+                        defaultClass
+                    )
+                    else addIdsFrom(indexer.searchFieldIndex(defaultField, joined), defaultClass)
                 }
             }
         } else {
             defaultIndexField?.let {
-                val docs =
-                    if (isSemantic) indexer.searchMatchingVec(it, query, similarityThreshold)
-                    else indexer.searchFieldIndex(it, query)
-
-                addIdsFrom(docs, defaultClass)
+                if (isSemantic) addScoredIdsFrom(
+                    indexer.searchMatchingVec(it, query, similarityThreshold),
+                    defaultClass
+                )
+                else addIdsFrom(indexer.searchFieldIndex(it, query), defaultClass)
             }
 
             indexedValues.add(query)
         }
 
-        return IndexSearchResult(ids, token, indexedValues)
+        return IndexSearchResult(ids, token, indexedValues, scores)
     }
 }

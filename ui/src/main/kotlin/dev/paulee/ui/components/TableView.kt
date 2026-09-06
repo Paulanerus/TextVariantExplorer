@@ -85,7 +85,7 @@ fun TableView(
     val columnWidths = remember(columns, data, Config.noWidthRestriction) {
         columns.mapIndexed { colIndex, colName ->
             val headerWidthPx = textMeasurer.measure(
-                text = AnnotatedString(colName), style = headerTextStyle
+                text = AnnotatedString(if (colName == "table.similarity.column") locale[colName] else colName), style = headerTextStyle
             ).size.width
             val headerWidth = with(density) { headerWidthPx.toDp() * 2 }
 
@@ -300,7 +300,7 @@ fun TableView(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        text = columnName,
+                                        text = if (columnName == "table.similarity.column") locale[columnName] else columnName,
                                         style = headerTextStyle,
                                         modifier = Modifier.weight(1f)
                                     )

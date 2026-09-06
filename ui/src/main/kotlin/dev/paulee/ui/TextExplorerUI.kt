@@ -36,6 +36,7 @@ import dev.paulee.ui.windows.*
 import kotlinx.coroutines.*
 import java.nio.file.Path
 import kotlin.io.path.*
+import kotlin.time.Duration.Companion.milliseconds
 
 enum class Window {
     None,
@@ -133,7 +134,7 @@ class TextExplorerUI(
                 showSlowQueryHint = false
 
                 val hintJob = launch {
-                    delay(4000)
+                    delay(4000.milliseconds)
                     showSlowQueryHint = true
                     showTable = false
                 }
@@ -166,6 +167,10 @@ class TextExplorerUI(
 
             val queryText = textField.text
             val semanticSearch = isSemantic
+
+            queryOrderState = if (semanticSearch) QueryOrder("table.similarity.column", true)
+            else queryOrderState?.takeUnless { it.first == "table.similarity.column" }
+
             val order = queryOrderState
             val pageIndex = currentPage
 
@@ -184,7 +189,8 @@ class TextExplorerUI(
                             queryText,
                             if (semanticSearch) Config.queryEmbSimilarity else 0f,
                             order,
-                            pageIndex
+                            pageIndex,
+                            App.Language.current.locale
                         )
                     }
 
@@ -222,7 +228,8 @@ class TextExplorerUI(
                         queryText,
                         if (semanticSearch) Config.queryEmbSimilarity else 0f,
                         order,
-                        pageIndex
+                        pageIndex,
+                        App.Language.current.locale
                     )
                 }
 
@@ -332,7 +339,7 @@ class TextExplorerUI(
 
                                         if (ctx != null && ctx.value.isNotEmpty()) {
                                             scope.launch {
-                                                delay(300)
+                                                delay(300.milliseconds)
 
                                                 if (textField.text == text) {
                                                     suggestions = dataService.getSuggestions(ctx.field, ctx.value)
@@ -659,7 +666,7 @@ class TextExplorerUI(
                         )
                     }
                     LaunchedEffect(loadState) {
-                        delay(4000)
+                        delay(4000.milliseconds)
                         loadState = LoadState.Idle
                     }
                 }
@@ -685,7 +692,7 @@ class TextExplorerUI(
                         )
                     }
                     LaunchedEffect(loadState) {
-                        delay(4000)
+                        delay(4000.milliseconds)
                         loadState = LoadState.Idle
                     }
                 }

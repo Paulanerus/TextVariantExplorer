@@ -20,13 +20,15 @@ import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory.getLogger
 import java.io.IOException
 import java.nio.file.Path
+import java.text.NumberFormat
 import java.time.Duration
+import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.io.path.*
 import kotlin.math.ceil
 
-private data class QueryKey(val pageCount: Int, val query: String, val order: QueryOrder?, val similarity: Float)
+private data class QueryKey(val pageCount: Int, val query: String, val order: QueryOrder?, val similarity: Float, val locale: Locale)
 
 typealias PageResult = Pair<List<Map<String, String>>, Map<String, List<Map<String, String>>>>
 
@@ -38,9 +40,9 @@ object DataServiceImpl : IDataService {
 
     private const val BATCH_SIZE = 1000
 
-    private val variantPattern = Regex("@([^:]+):(\\S+)")
+    private val variantPattern = Regex("@([^:\\s]+):(\"[^\"]+\"|\\S+)")
 
-    private val preFilterPattern = Regex("@[^:\\s]+:[^:\\s]+:[^:\\s]+")
+    private val preFilterPattern = Regex("@([^:\\s])+:([^:\\s])+:(\"[^\"]+\"|\\S+)")
 
     private var currentPool: String? = null
 
@@ -542,13 +544,14 @@ object DataServiceImpl : IDataService {
         similarityScore: Float,
         order: QueryOrder?,
         pageCount: Int,
+        locale: Locale
     ): PageResult {
 
         if (this.currentPool == null || this.currentField == null) return Pair(emptyList(), emptyMap())
 
         logger.info("Query (${order ?: "None"} | Similarity: $similarityScore): $query")
 
-        val key = QueryKey(pageCount, query, order, similarityScore)
+        val key = QueryKey(pageCount, query, order, similarityScore, locale)
 
         pageCache.getIfPresent(key)?.let { return it }
 
@@ -563,15 +566,38 @@ object DataServiceImpl : IDataService {
 
         if (filter.isEmpty() && indexResult.isEmpty()) return Pair(emptyList(), emptyMap())
 
+        val idColumn = dataPool.identifier[this.currentField!!]?.substringAfter('.')
+
+        val queryOrder =
+            if (order?.first != "table.similarity.column") order
+            else if (indexResult.scores.isEmpty() || idColumn == null) null
+            else QueryOrder(
+                "list_position([${
+                    indexResult.ids.sortedBy { indexResult.scores[it] ?: 0f }.joinToString(",")
+                }], $idColumn)",
+                order.second
+            )
+
+        val numberFormat = NumberFormat.getPercentInstance(locale).apply {
+            minimumFractionDigits = 1
+            maximumFractionDigits = 1
+        }
+
         val entries = dataPool.storageProvider.get(
             this.currentField!!,
             indexResult.ids,
             indexResult.tokens,
             filter,
-            order,
+            queryOrder,
             offset = pageCount * PAGE_SIZE,
             limit = PAGE_SIZE
-        )
+        ).let { rows ->
+            if (indexResult.scores.isEmpty() || idColumn == null) rows
+            else rows.map { row ->
+                val score = row[idColumn]?.toLongOrNull()?.let { indexResult.scores[it] } ?: 0f
+                row + ("table.similarity.column" to numberFormat.format(score.toDouble()))
+            }
+        }
 
         val links = mutableMapOf<String, List<Map<String, String>>>()
         dataPool.links.forEach { (key, value) ->
@@ -664,8 +690,9 @@ object DataServiceImpl : IDataService {
         if (dataPool.storageProvider == null) return query
 
         return variantPattern.replace(query) {
-            val key = it.groupValues[1]
-            val value = it.groupValues[2]
+            val (key, rawVal) = it.destructured
+
+            val value = rawVal.removeSurrounding("\"")
 
             when (val transform = replacements[key]) {
                 is VariantMapping -> {
@@ -684,36 +711,40 @@ object DataServiceImpl : IDataService {
 
         if (dataPool.storageProvider == null) return Pair(query, emptyList())
 
-        val filters = preFilterPattern.findAll(query).map { it.value }.toSet()
+        val filters = mutableSetOf<MatchResult>()
 
-        val queryWithoutFilter = filters.fold(query) { acc, filter -> acc.replace(filter, "") }.trim()
+        val queryWithoutFilter = preFilterPattern.replace(query) {
+            filters += it
+            ""
+        }.trim()
 
-        return queryWithoutFilter to filters.filter { it.startsWith("@") && it.count { c -> c == ':' } == 2 }
-            .flatMap { rawFilter ->
-                val (filter, linkValue, value) = rawFilter.substring(1).split(":", limit = 3)
+        return queryWithoutFilter to filters.flatMap { rawFilter ->
+            val (filter, linkValue, rawValue) = rawFilter.destructured
 
-                dataPool.metadata.entries.filter { it.key == filter && it.value is PreFilter }
-                    .flatMap { (key, transform) ->
-                        val preFilter = transform as PreFilter
+            val value = rawValue.removeSurrounding("\"")
 
-                        val linkEntries = dataPool.links.filterKeys { it.startsWith(key) }.mapValues { link ->
-                            val (source, field) = link.value.split(".", limit = 2)
-                            source to field
-                        }
+            dataPool.metadata.entries.filter { it.key == filter && it.value is PreFilter }
+                .flatMap { (key, transform) ->
+                    val preFilter = transform as PreFilter
 
-                        linkEntries.values.flatMap { (source, field) ->
-                            val ids = dataPool.storageProvider.get(
-                                source, whereClause = listOf("${preFilter.linkKey}:$linkValue")
-                            ).mapNotNull { it[field]?.let { id -> "$field:$id" } }.distinct()
-
-                            val transformKey = preFilter.key
-
-                            dataPool.storageProvider.get(
-                                key, whereClause = ids + "${preFilter.value}:$value"
-                            ).mapNotNull { it[transformKey]?.let { id -> "$transformKey:$id" } }
-                        }
+                    val linkEntries = dataPool.links.filterKeys { it.startsWith(key) }.mapValues { link ->
+                        val (source, field) = link.value.split(".", limit = 2)
+                        source to field
                     }
-            }.distinct()
+
+                    linkEntries.values.flatMap { (source, field) ->
+                        val ids = dataPool.storageProvider.get(
+                            source, whereClause = listOf("${preFilter.linkKey}:$linkValue")
+                        ).mapNotNull { it[field]?.let { id -> "$field:$id" } }.distinct()
+
+                        val transformKey = preFilter.key
+
+                        dataPool.storageProvider.get(
+                            key, whereClause = ids + "${preFilter.value}:$value"
+                        ).mapNotNull { it[transformKey]?.let { id -> "$transformKey:$id" } }
+                    }
+                }
+        }.distinct()
     }
 
     private fun flattenToken(token: String): String? {

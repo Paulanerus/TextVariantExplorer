@@ -5,6 +5,7 @@ import dev.paulee.api.data.provider.QueryOrder
 import dev.paulee.api.internal.Embedding
 import java.io.Closeable
 import java.nio.file.Path
+import java.util.Locale
 
 interface IDataService : Closeable {
 
@@ -37,6 +38,7 @@ interface IDataService : Closeable {
         similarityScore: Float,
         order: QueryOrder?,
         pageCount: Int,
+        locale: Locale
     ): Pair<List<Map<String, String>>, Map<String, List<Map<String, String>>>>
 
     suspend fun getPageCount(query: String, similarityScore: Float): Triple<Long, Long, Set<String>>
