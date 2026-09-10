@@ -4,7 +4,6 @@ import dev.paulee.api.data.FieldType
 import dev.paulee.api.data.Source
 import dev.paulee.api.data.UniqueField
 import dev.paulee.api.data.provider.QueryOrder
-import dev.paulee.core.data.FileService
 import dev.paulee.core.normalizeDataSource
 import dev.paulee.core.normalizeSourceName
 import dev.paulee.core.sha1Hex
@@ -43,6 +42,10 @@ private data class Column(
     override fun toString(): String = "$name $type ${if (primary) "PRIMARY KEY" else if (nullable) "" else "NOT NULL"}"
 }
 
+private data class WhereClause(val statement: String, val unresolved: Map<String, List<String>>)
+
+private data class LinkRef(val source: String, val field: String)
+
 private class Table(val name: String, val columns: List<Column>) {
 
     val primaryKey: Column = columns.find { it.primary } ?: Column(
@@ -52,6 +55,8 @@ private class Table(val name: String, val columns: List<Column>) {
     val orderedColumns = listOf(primaryKey) + columns.filter { !it.primary }
 
     val tempTables = mutableMapOf<String, String>()
+
+    val references = mutableMapOf<LinkRef, Table>()
 
     fun import(connection: DuckDBConnection, path: Path, hasId: Boolean) {
         val readCsvStmt = buildString {
@@ -96,11 +101,13 @@ private class Table(val name: String, val columns: List<Column>) {
         offset: Int = 0,
         limit: Int = Int.MAX_VALUE,
     ): List<Map<String, String>> {
+        val (statement, unresolved) = buildWhereClause(connection, whereClause)
+
         val query = buildString {
             append("SELECT * FROM ")
             append(name)
 
-            append(buildWhereClause(connection, whereClause))
+            append(statement)
 
             order?.takeIf { it.first.isNotBlank() }?.let {
                 append(" ORDER BY ")
@@ -132,11 +139,13 @@ private class Table(val name: String, val columns: List<Column>) {
     }
 
     fun count(connection: DuckDBConnection, whereClause: Map<String, List<String>> = emptyMap()): Long {
+        val (statement, unresolved) = buildWhereClause(connection, whereClause)
+
         val query = buildString {
             append("SELECT COUNT(*) FROM ")
             append(name)
 
-            append(buildWhereClause(connection, whereClause))
+            append(statement)
         }
 
         return connection.createStatement().use { statement ->
@@ -176,54 +185,61 @@ private class Table(val name: String, val columns: List<Column>) {
 
     override fun toString(): String = "$name primary=${primaryKey}, columns={${orderedColumns.joinToString(", ")}}"
 
-    private fun buildWhereClause(connection: DuckDBConnection, whereClause: Map<String, List<String>>): String {
-        if (whereClause.isEmpty()) return ""
+    private fun buildWhereClause(connection: DuckDBConnection, whereClause: Map<String, List<String>>): WhereClause {
+        if (whereClause.isEmpty()) return WhereClause("", emptyMap())
 
-        val parts =
-            whereClause.entries.filter { getColumnType(it.key) != null }.joinToString(" AND ") { (column, values) ->
-                val columnType = getColumnType(column) ?: return@joinToString ""
+        val (resolvedEntries, unresolvedEntries) = whereClause.entries.partition { getColumnType(it.key) != null }
 
-                val (wildcards, nonWildcards) = values.distinct().partition { it.hasWildcard() }
+        val unresolved = unresolvedEntries.associate { it.toPair() }
 
-                val cause = buildString {
-                    if (nonWildcards.isNotEmpty()) {
-                        if (nonWildcards.size == 1) {
-                            val value = nonWildcards.first()
+        val parts = resolvedEntries.joinToString(" AND ") { (column, values) ->
+            val columnType = getColumnType(column) ?: return@joinToString ""
 
-                            append("$column = ${if (columnType == ColumnType.TEXT) "'${value.escapeLiteral()}'" else value}")
-                        } else {
+            val columnName = "$name.$column"
 
-                            if (nonWildcards.size > 500) {
-                                val hash = sha1Hex(nonWildcards.joinToString(""))
+            val (wildcards, nonWildcards) = values.distinct().partition { it.hasWildcard() }
 
-                                val tempQuery = tempTables.getOrPut(hash) {
-                                    createAndUpdateTempTable(connection, hash, nonWildcards, columnType)
-                                }
+            val cause = buildString {
+                if (nonWildcards.isNotEmpty()) {
+                    if (nonWildcards.size == 1) {
+                        val value = nonWildcards.first()
 
-                                append("$column IN ($tempQuery)")
-                            } else {
-                                val inClause = nonWildcards.joinToString(
-                                    ", ", prefix = "IN (", postfix = ")"
-                                ) { if (columnType == ColumnType.TEXT) "'${it.escapeLiteral()}'" else it }
+                        append("$columnName = ${if (columnType == ColumnType.TEXT) "'${value.escapeLiteral()}'" else value}")
+                    } else {
 
-                                append("$column $inClause")
+                        if (nonWildcards.size > 500) {
+                            val hash = sha1Hex(
+                                (listOf(name, columnType.name, columnName) + nonWildcards).joinToString("")
+                            )
+
+                            val tempQuery = tempTables.getOrPut(hash) {
+                                createAndUpdateTempTable(connection, hash, nonWildcards, columnType)
                             }
+
+                            append("$columnName IN ($tempQuery)")
+                        } else {
+                            val inClause = nonWildcards.joinToString(
+                                ", ", prefix = "IN (", postfix = ")"
+                            ) { if (columnType == ColumnType.TEXT) "'${it.escapeLiteral()}'" else it }
+
+                            append("$columnName $inClause")
                         }
-
-                        if (wildcards.isNotEmpty()) append(" OR ")
                     }
 
-                    if (columnType == ColumnType.TEXT) {
-                        wildcards.takeIf { it.isNotEmpty() }
-                            ?.joinToString(" OR ") { "$column LIKE '${it.replaceWildCard()}' ESCAPE '\\'" }
-                            ?.let { append(it) }
-                    }
+                    if (wildcards.isNotEmpty()) append(" OR ")
                 }
 
-                if (cause.isNotBlank()) "($cause)" else ""
+                if (columnType == ColumnType.TEXT) {
+                    wildcards.takeIf { it.isNotEmpty() }
+                        ?.joinToString(" OR ") { "$columnName LIKE '${it.replaceWildCard()}' ESCAPE '\\'" }
+                        ?.let { append(it) }
+                }
             }
 
-        return if (parts.isEmpty()) "" else " WHERE $parts"
+            if (cause.isNotBlank()) "($cause)" else ""
+        }
+
+        return WhereClause(if (parts.isEmpty()) "" else " WHERE $parts", unresolved)
     }
 
     private fun String.escapeLiteral() = this.replace("'", "''")
@@ -298,6 +314,8 @@ internal class Database(private val path: Path) : Closeable {
 
     val dbFileExists = path.exists()
 
+    private val linkRefs = mutableMapOf<String, MutableList<LinkRef>>()
+
     companion object {
 
         private val logger = getLogger(Database::class.java)
@@ -347,7 +365,28 @@ internal class Database(private val path: Path) : Closeable {
         }
     }
 
-    fun import(source: Source) {
+    fun importAll(sources: List<Source>) {
+        sources.forEach { import(it) }
+
+        linkRefs.forEach { (targetName, refs) ->
+            val target = tables.firstOrNull { it.name == targetName } ?: return@forEach
+
+            refs.forEach { ref ->
+                val source = tables.firstOrNull { it.name == ref.source } ?: return@forEach
+
+                val type = source.getColumnType(ref.field)
+
+                if (type == null || type != target.getColumnType(ref.field)) {
+                    logger.error("Source field '${ref.field}' not found")
+                    return@forEach
+                }
+
+                target.references[ref] = source
+            }
+        }
+    }
+
+    private fun import(source: Source) {
         if (hasNoSQLModule || connection == null) return
 
         val sourcePath = path.parent?.resolve("data")?.resolve("${source.name}.csv")
@@ -370,15 +409,22 @@ internal class Database(private val path: Path) : Closeable {
                 }
         }
 
+        val normalizedDataSource = normalizeDataSource(source.name)
+
         val columns = source.fields.map { field ->
             val isNullable = false //param.hasAnnotation<Nullable>()
 
             val isPrimary = (field is UniqueField) // && !isNullable
 
+            if (field.sourceLink.isNotBlank()) {
+                linkRefs.getOrPut(field.sourceLink) { mutableListOf() }
+                    .add(LinkRef(normalizedDataSource, field.name))
+            }
+
             Column(headerMap[field.name] ?: field.name, typeToColumnType(field.fieldType), isPrimary, isNullable)
         }
 
-        val table = Table(normalizeDataSource(source.name), columns)
+        val table = Table(normalizedDataSource, columns)
         tables.add(table)
 
         val hasId = source.fields.any { it is UniqueField && it.identify }

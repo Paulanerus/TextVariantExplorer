@@ -7,8 +7,6 @@ import dev.paulee.api.data.provider.QueryOrder
 import dev.paulee.core.data.sql.Database
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
-import java.util.LinkedHashMap
-import java.util.LinkedHashSet
 import kotlin.io.path.exists
 
 internal class DefaultProvider : IStorageProvider {
@@ -34,7 +32,7 @@ internal class DefaultProvider : IStorageProvider {
                 return ProviderStatus.Failed
             }
 
-        dataInfo.sources.forEach(database::import)
+        database.importAll(dataInfo.sources)
 
         this.initialized = true
 
