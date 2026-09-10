@@ -103,13 +103,11 @@ internal class DefaultProvider : IStorageProvider {
 
             if (entries.isEmpty()) return groupedFilters
 
-            entries.replaceAll { key, values ->
-                groupedFilters[key]?.let { filterValues -> values.filter { it in filterValues } } ?: values
+            groupedFilters.forEach { (key, values) ->
+                entries[key] = entries[key]?.filter { it in values } ?: values
             }
 
-            entries.entries.removeAll { it.value.isEmpty() }
-
-            if (entries.isEmpty()) return null
+            if (entries.values.any { it.isEmpty() }) return null
         }
 
         return entries
