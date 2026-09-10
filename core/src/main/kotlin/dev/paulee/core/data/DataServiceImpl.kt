@@ -22,7 +22,7 @@ import java.io.IOException
 import java.nio.file.Path
 import java.text.NumberFormat
 import java.time.Duration
-import java.util.Locale
+import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.io.path.*
@@ -42,7 +42,7 @@ object DataServiceImpl : IDataService {
 
     private val variantPattern = Regex("@([^:\\s]+):(\"[^\"]+\"|\\S+)")
 
-    private val preFilterPattern = Regex("@([^:\\s])+:([^:\\s])+:(\"[^\"]+\"|\\S+)")
+    private val preFilterPattern = Regex("@([^:\\s]+):([^:\\s]+):(\"[^\"]+\"|\\S+)")
 
     private var currentPool: String? = null
 
@@ -574,7 +574,7 @@ object DataServiceImpl : IDataService {
             else QueryOrder(
                 "list_position([${
                     indexResult.ids.sortedBy { indexResult.scores[it] ?: 0f }.joinToString(",")
-                }], $idColumn)",
+                }], ${this.currentField}.$idColumn)",
                 order.second
             )
 
