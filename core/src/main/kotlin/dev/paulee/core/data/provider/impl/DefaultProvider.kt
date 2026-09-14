@@ -49,9 +49,10 @@ internal class DefaultProvider : IStorageProvider {
         order: QueryOrder?,
         offset: Int,
         limit: Int,
+        allowLinks: Boolean,
     ): List<Map<String, String>> {
         val entries = this.getEntries(name, ids, whereClause, filter) ?: return emptyList()
-        return this.database.selectAll(name, entries, order, offset = offset, limit = limit)
+        return this.database.selectAll(name, entries, order, offset = offset, limit = limit, allowLinks = allowLinks)
     }
 
     override fun count(

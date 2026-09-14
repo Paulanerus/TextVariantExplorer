@@ -100,12 +100,36 @@ private class Table(val name: String, val columns: List<Column>) {
         order: QueryOrder?,
         offset: Int = 0,
         limit: Int = Int.MAX_VALUE,
+        allowLinks: Boolean = true,
     ): List<Map<String, String>> {
         val (statement, unresolved) = buildWhereClause(connection, whereClause)
 
+        val selected = mutableMapOf<String, String>()
+        val joins = mutableListOf<String>()
+
+        if (allowLinks) {
+            references.forEach { (ref, source) ->
+                val availableFields = unresolved.filterKeys { source.getColumnType(it) != null }
+
+                val fields =
+                    source.columns.filter { !it.primary && getColumnType(it.name) == null }
+                        .map { it.name }
+
+                fields.forEach { field -> selected[field] = "${ref.source}.$field" }
+
+                joins.add(buildJoin(connection, availableFields, source, ref.field, fields))
+            }
+        }
+
         val query = buildString {
-            append("SELECT * FROM ")
-            append(name)
+            append("SELECT $name.*")
+
+            selected.forEach { (field, column) ->
+                append(", coalesce(to_json($column), '[]') AS $field")
+            }
+
+            append(" FROM $name")
+            append(joins.joinToString(""))
 
             append(statement)
 
@@ -124,11 +148,12 @@ private class Table(val name: String, val columns: List<Column>) {
         }
 
         return connection.createStatement().use { statement ->
-            statement.executeQuery(query).use {
+            statement.executeQuery(query).use { result ->
                 val results = mutableListOf<Map<String, String>>()
+                val fields = orderedColumns.map { it.name } + selected.keys
 
-                while (it.next()) {
-                    val row = orderedColumns.associate { column -> column.name to (it.getString(column.name) ?: "") }
+                while (result.next()) {
+                    val row = fields.associateWith { field -> (result.getString(field) ?: "") }
 
                     results.add(row)
                 }
@@ -141,9 +166,18 @@ private class Table(val name: String, val columns: List<Column>) {
     fun count(connection: DuckDBConnection, whereClause: Map<String, List<String>> = emptyMap()): Long {
         val (statement, unresolved) = buildWhereClause(connection, whereClause)
 
+        val joins = references.mapNotNull { (ref, source) ->
+            val availableFields = unresolved.filterKeys { source.getColumnType(it) != null }
+
+            if (availableFields.isEmpty()) return@mapNotNull null
+
+            buildJoin(connection, availableFields, source, ref.field)
+        }
+
         val query = buildString {
             append("SELECT COUNT(*) FROM ")
             append(name)
+            append(joins.joinToString(""))
 
             append(statement)
         }
@@ -184,6 +218,35 @@ private class Table(val name: String, val columns: List<Column>) {
     fun getColumnType(name: String): ColumnType? = orderedColumns.find { it.name == name }?.type
 
     override fun toString(): String = "$name primary=${primaryKey}, columns={${orderedColumns.joinToString(", ")}}"
+
+    private fun buildJoin(
+        connection: DuckDBConnection,
+        whereClause: Map<String, List<String>>,
+        source: Table,
+        commonField: String,
+        fields: List<String> = emptyList(),
+    ): String {
+        val having = whereClause.entries.joinToString(" AND ") { (key, values) ->
+            val (statement, _) = source.buildWhereClause(connection, mapOf(key to values))
+
+            "bool_or(${statement.removePrefix(" WHERE ")})"
+        }
+
+        return buildString {
+            append(if (whereClause.isEmpty()) " LEFT JOIN (" else " JOIN (")
+            append("SELECT $commonField")
+
+            fields.forEach {
+                append(", list(DISTINCT $it ORDER BY $it) AS $it")
+            }
+
+            append(" FROM ${source.name} GROUP BY $commonField")
+
+            if (having.isNotEmpty()) append(" HAVING $having")
+
+            append(") AS ${source.name} ON ${source.name}.$commonField = $name.$commonField")
+        }
+    }
 
     private fun buildWhereClause(connection: DuckDBConnection, whereClause: Map<String, List<String>>): WhereClause {
         if (whereClause.isEmpty()) return WhereClause("", emptyMap())
@@ -376,10 +439,8 @@ internal class Database(private val path: Path) : Closeable {
 
                 val type = source.getColumnType(ref.field)
 
-                if (type == null || type != target.getColumnType(ref.field)) {
-                    logger.error("Source field '${ref.field}' not found")
+                if (type == null || type != target.getColumnType(ref.field))
                     return@forEach
-                }
 
                 target.references[ref] = source
             }
@@ -442,6 +503,7 @@ internal class Database(private val path: Path) : Closeable {
         order: QueryOrder?,
         offset: Int = 0,
         limit: Int = Int.MAX_VALUE,
+        allowLinks: Boolean = true,
     ): List<Map<String, String>> {
         if (hasNoSQLModule) return emptyList()
 
@@ -449,7 +511,7 @@ internal class Database(private val path: Path) : Closeable {
 
         return runCatching {
             transaction {
-                table.selectAll(this, whereClause, order, offset, limit)
+                table.selectAll(this, whereClause, order, offset, limit, allowLinks)
             }
         }.getOrElse { e ->
             logger.error("Exception: Failed to retrieve entries from table '$name' due to an unexpected error.", e)
