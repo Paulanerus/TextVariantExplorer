@@ -86,8 +86,11 @@ internal class DefaultProvider : IStorageProvider {
         whereClause: List<String>,
         filter: List<String>,
     ): MutableMap<String, List<String>>? {
-        val entries = whereClause.filter { it.contains(":") }.groupBy { it.substringBefore(":") }
-            .mapValues { entry -> entry.value.map { it.substringAfter(":") } }.toMutableMap()
+        val entries = whereClause.filter { it.contains(":") }
+            .groupBy { it.substringBefore(":") }
+            .mapValues { entry -> entry.value.map { it.substringAfter(":") }.filter { it.isNotBlank() } }
+            .filterValues { it.isNotEmpty() }
+            .toMutableMap()
 
         val primaryKey = this.database.primaryKeyOf(name)
 
