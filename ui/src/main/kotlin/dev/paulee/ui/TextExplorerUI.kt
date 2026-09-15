@@ -529,6 +529,7 @@ class TextExplorerUI(
                             indexStrings = indexStrings,
                             columns = header,
                             data = data,
+                            getValues = dataService::getValues,
                             links = links,
                             queryOrder = queryOrderState,
                             onQueryOrderChange = { newQueryOrder ->
