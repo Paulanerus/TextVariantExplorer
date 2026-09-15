@@ -43,6 +43,8 @@ interface IDataService : Closeable {
 
     suspend fun getPageCount(query: String, similarityScore: Float): Triple<Long, Long, Set<String>>
 
+    fun getValues(value: String): List<String>
+
     fun createStorageProvider(infoName: String, path: Path): IStorageProvider?
 
     fun dataInfoToString(dataInfo: DataInfo): String?

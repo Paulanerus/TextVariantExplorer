@@ -1,5 +1,7 @@
 package dev.paulee.core.data
 
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.module.kotlin.readValue
 import com.github.benmanes.caffeine.cache.Cache
 import com.github.benmanes.caffeine.cache.Caffeine
 import dev.paulee.api.data.*
@@ -28,7 +30,13 @@ import kotlin.coroutines.cancellation.CancellationException
 import kotlin.io.path.*
 import kotlin.math.ceil
 
-private data class QueryKey(val pageCount: Int, val query: String, val order: QueryOrder?, val similarity: Float, val locale: Locale)
+private data class QueryKey(
+    val pageCount: Int,
+    val query: String,
+    val order: QueryOrder?,
+    val similarity: Float,
+    val locale: Locale
+)
 
 typealias PageResult = Pair<List<Map<String, String>>, Map<String, List<Map<String, String>>>>
 
@@ -56,6 +64,8 @@ object DataServiceImpl : IDataService {
     private val storageProvider = mutableMapOf<String, IStorageProvider>()
 
     private val dataPools = ConcurrentHashMap<String, DataPool>()
+
+    private val objectMapper = jacksonObjectMapper()
 
     private val mutex = Mutex()
 
@@ -601,16 +611,23 @@ object DataServiceImpl : IDataService {
 
         val links = mutableMapOf<String, List<Map<String, String>>>()
         dataPool.links.forEach { (key, value) ->
+            if (value == "$currentField.$idColumn")
+                return@forEach
+
             val keyField = key.substringAfter('.')
 
             val (valSource, valField) = value.split('.', limit = 2)
 
-            val fields = entries.asSequence().mapNotNull { it[keyField] }.toSet()
+            val fields = entries.asSequence()
+                .mapNotNull { it[keyField] }
+                .distinct()
+                .flatMap(::getValues)
+                .toSet()
 
             if (fields.isEmpty()) return@forEach
 
             links[keyField] = dataPool.storageProvider.get(
-                valSource, whereClause = fields.map { "$valField:$it" }.toList()
+                valSource, whereClause = fields.map { "$valField:$it" }.toList(), allowLinks = false
             )
         }
 
@@ -643,6 +660,13 @@ object DataServiceImpl : IDataService {
             .mapNotNull { flattenToken(it) }.toSet()
 
         return Triple(count, ceil(count / PAGE_SIZE.toDouble()).toLong(), indexedValues)
+    }
+
+    override fun getValues(value: String): List<String> {
+        return if (value.startsWith("[") && value.endsWith("]")) runCatching {
+            objectMapper.readValue<List<String?>>(value).filterNotNull()
+        }.getOrElse { listOf(value) }
+        else listOf(value)
     }
 
     override fun createStorageProvider(infoName: String, path: Path): IStorageProvider? {
