@@ -229,7 +229,7 @@ internal class Indexer(path: Path, dataInfo: DataInfo) : Closeable {
         return hits.scoreDocs.map { searcher.storedFields().document(it.doc) }
     }
 
-    fun searchMatchingVec(field: String, query: String, similarity: Float): List<Document> {
+    fun searchMatchingVec(field: String, query: String, similarity: Float): List<Pair<Document, Float>> {
         val model = embeddingFields[field] ?: return emptyList()
 
         if (query.isBlank()) return emptyList()
@@ -239,10 +239,10 @@ internal class Indexer(path: Path, dataInfo: DataInfo) : Closeable {
         val embedding =
             EmbeddingProvider.createEmbeddings(model, listOf(query), true).firstOrNull() ?: return emptyList()
 
-        val query = FloatVectorSimilarityQuery("$field.vec", embedding, similarity)
+        val query = FloatVectorSimilarityQuery("$field.vec", embedding, minOf(similarity, 0.33f), similarity)
 
         val hits = searcher.search(query, Int.MAX_VALUE)
-        return hits.scoreDocs.map { searcher.storedFields().document(it.doc) }
+        return hits.scoreDocs.map { searcher.storedFields().document(it.doc) to it.score }
     }
 
     override fun close() {

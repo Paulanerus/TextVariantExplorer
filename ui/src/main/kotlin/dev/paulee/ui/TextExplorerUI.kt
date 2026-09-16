@@ -2,7 +2,6 @@ package dev.paulee.ui
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -31,11 +30,13 @@ import dev.paulee.api.data.provider.QueryOrder
 import dev.paulee.api.plugin.IPluginService
 import dev.paulee.ui.components.FileDialog
 import dev.paulee.ui.components.IconDropDown
+import dev.paulee.ui.components.SemanticSearchControl
 import dev.paulee.ui.components.TableView
 import dev.paulee.ui.windows.*
 import kotlinx.coroutines.*
 import java.nio.file.Path
 import kotlin.io.path.*
+import kotlin.time.Duration.Companion.milliseconds
 
 enum class Window {
     None,
@@ -133,7 +134,7 @@ class TextExplorerUI(
                 showSlowQueryHint = false
 
                 val hintJob = launch {
-                    delay(4000)
+                    delay(4000.milliseconds)
                     showSlowQueryHint = true
                     showTable = false
                 }
@@ -166,6 +167,10 @@ class TextExplorerUI(
 
             val queryText = textField.text
             val semanticSearch = isSemantic
+
+            queryOrderState = if (semanticSearch) QueryOrder("table.similarity.column", true)
+            else queryOrderState?.takeUnless { it.first == "table.similarity.column" }
+
             val order = queryOrderState
             val pageIndex = currentPage
 
@@ -184,7 +189,8 @@ class TextExplorerUI(
                             queryText,
                             if (semanticSearch) Config.queryEmbSimilarity else 0f,
                             order,
-                            pageIndex
+                            pageIndex,
+                            App.Language.current.locale
                         )
                     }
 
@@ -222,7 +228,8 @@ class TextExplorerUI(
                         queryText,
                         if (semanticSearch) Config.queryEmbSimilarity else 0f,
                         order,
-                        pageIndex
+                        pageIndex,
+                        App.Language.current.locale
                     )
                 }
 
@@ -332,7 +339,7 @@ class TextExplorerUI(
 
                                         if (ctx != null && ctx.value.isNotEmpty()) {
                                             scope.launch {
-                                                delay(300)
+                                                delay(300.milliseconds)
 
                                                 if (textField.text == text) {
                                                     suggestions = dataService.getSuggestions(ctx.field, ctx.value)
@@ -464,35 +471,11 @@ class TextExplorerUI(
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    val semanticOutlineColor by animateColorAsState(
-                                        targetValue = if (isSemantic) MaterialTheme.colors.primary else Color.LightGray
+                                    SemanticSearchControl(
+                                        selected = isSemantic,
+                                        enabled = isSemanticAvailable,
+                                        onSelectedChange = { isSemantic = it }
                                     )
-
-                                    Tooltip(
-                                        state = !isSemanticAvailable,
-                                        tooltip = {
-                                            Text(
-                                                modifier = Modifier.padding(8.dp),
-                                                text = locale["main.tooltip.no_semantic"]
-                                            )
-                                        }
-                                    ) {
-                                        OutlinedButton(
-                                            onClick = { isSemantic = !isSemantic },
-                                            enabled = isSemanticAvailable,
-                                            shape = RoundedCornerShape(sharedCorner),
-                                            border = BorderStroke(0.75.dp, semanticOutlineColor),
-                                            colors = ButtonDefaults.outlinedButtonColors(
-                                                backgroundColor = if (isSemantic)
-                                                    MaterialTheme.colors.primary.copy(alpha = 0.08f)
-                                                else Color.Gray.copy(alpha = 0.02f),
-                                                contentColor = if (isSemantic) MaterialTheme.colors.primary else Color.Gray
-                                            ),
-                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                                        ) {
-                                            Text(locale["main.search.semantic"])
-                                        }
-                                    }
 
                                     Spacer(Modifier.weight(1f))
 
@@ -546,6 +529,7 @@ class TextExplorerUI(
                             indexStrings = indexStrings,
                             columns = header,
                             data = data,
+                            getValues = dataService::getValues,
                             links = links,
                             queryOrder = queryOrderState,
                             onQueryOrderChange = { newQueryOrder ->
@@ -683,7 +667,7 @@ class TextExplorerUI(
                         )
                     }
                     LaunchedEffect(loadState) {
-                        delay(4000)
+                        delay(4000.milliseconds)
                         loadState = LoadState.Idle
                     }
                 }
@@ -709,7 +693,7 @@ class TextExplorerUI(
                         )
                     }
                     LaunchedEffect(loadState) {
-                        delay(4000)
+                        delay(4000.milliseconds)
                         loadState = LoadState.Idle
                     }
                 }

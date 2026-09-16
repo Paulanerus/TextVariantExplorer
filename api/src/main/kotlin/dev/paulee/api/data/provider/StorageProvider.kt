@@ -3,7 +3,6 @@ package dev.paulee.api.data.provider
 import dev.paulee.api.data.DataInfo
 import java.io.Closeable
 import java.nio.file.Path
-import java.util.LinkedHashMap
 
 typealias QueryOrder = Pair<String, Boolean>
 
@@ -32,6 +31,7 @@ interface IStorageProvider : Closeable {
         order: QueryOrder? = null,
         offset: Int = 0,
         limit: Int = Int.MAX_VALUE,
+        allowLinks: Boolean = true,
     ): List<Map<String, String>>
 
     fun count(

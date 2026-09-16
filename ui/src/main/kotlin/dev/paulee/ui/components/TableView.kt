@@ -45,7 +45,7 @@ import kotlin.math.round
 
 private val systemClipboard = Toolkit.getDefaultToolkit().systemClipboard
 
-@OptIn(ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun TableView(
     modifier: Modifier = Modifier,
@@ -53,6 +53,7 @@ fun TableView(
     indexStrings: Set<String> = emptySet(),
     columns: List<String>,
     data: List<List<String>>,
+    getValues: (String) -> List<String>,
     links: Map<String, List<Map<String, String>>> = emptyMap(),
     queryOrder: QueryOrder?,
     onQueryOrderChange: (QueryOrder) -> Unit = {},
@@ -70,6 +71,7 @@ fun TableView(
     var hiddenColumns by remember { mutableStateOf(Config.getHidden(pool)) }
     var panelExpanded by remember { mutableStateOf(false) }
     var settingsExpanded by remember { mutableStateOf(false) }
+    val showQuerySettings = false
 
     val textMeasurer = rememberTextMeasurer()
     val density = LocalDensity.current
@@ -81,18 +83,23 @@ fun TableView(
     val headerTextStyle = LocalTextStyle.current.copy(fontWeight = FontWeight.SemiBold)
     val cellTextStyle = LocalTextStyle.current
 
-    val columnWidths = remember(columns, data, Config.noWidthRestriction) {
+    val cells = remember(data, getValues) {
+        data.map { row -> row.map(getValues) }
+    }
+
+    val columnWidths = remember(columns, cells, Config.noWidthRestriction) {
         columns.mapIndexed { colIndex, colName ->
             val headerWidthPx = textMeasurer.measure(
-                text = AnnotatedString(colName), style = headerTextStyle
+                text = AnnotatedString(if (colName == "table.similarity.column") locale[colName] else colName),
+                style = headerTextStyle
             ).size.width
             val headerWidth = with(density) { headerWidthPx.toDp() * 2 }
 
-            val maxDataWidthPx = data.map { it[colIndex] }.maxOf { text ->
+            val maxDataWidthPx = cells.maxOfOrNull { row ->
                 textMeasurer.measure(
-                    text = AnnotatedString(text), style = cellTextStyle
+                    text = AnnotatedString(row[colIndex].joinToString("; ")), style = cellTextStyle
                 ).size.width
-            }
+            } ?: 0
 
             val maxDataWidth = with(density) { maxDataWidthPx.toDp() }
 
@@ -120,26 +127,28 @@ fun TableView(
                             Icon(Icons.Default.Delete, contentDescription = locale["table.delete"])
                         }
 
-                        Spacer(modifier = Modifier.width(8.dp))
+                        if (showQuerySettings) {
+                            Spacer(modifier = Modifier.width(8.dp))
 
-                        OutlinedButton(
-                            onClick = {
-                                settingsExpanded = !settingsExpanded
-                                if (settingsExpanded) panelExpanded = false
-                            },
-                            shape = RoundedCornerShape(50.dp),
-                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-                            modifier = Modifier.width(130.dp).padding(bottom = 12.dp)
-                        ) {
-                            Icon(
-                                imageVector = if (settingsExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                                contentDescription = locale["settings.title"],
-                                modifier = Modifier.size(18.dp)
-                            )
+                            OutlinedButton(
+                                onClick = {
+                                    settingsExpanded = !settingsExpanded
+                                    if (settingsExpanded) panelExpanded = false
+                                },
+                                shape = RoundedCornerShape(50.dp),
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                                modifier = Modifier.width(130.dp).padding(bottom = 12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (settingsExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                    contentDescription = locale["settings.title"],
+                                    modifier = Modifier.size(18.dp)
+                                )
 
-                            Spacer(Modifier.width(8.dp))
+                                Spacer(Modifier.width(8.dp))
 
-                            Text(locale["settings.title"])
+                                Text(locale["settings.title"])
+                            }
                         }
                     }
 
@@ -200,7 +209,7 @@ fun TableView(
                                     val isHidden = hiddenColumns.contains(index)
 
                                     ColumnChip(
-                                        label = label,
+                                        label = if (label == "table.similarity.column") locale[label] else label,
                                         selected = !isHidden,
                                         onClick = {
                                             hiddenColumns =
@@ -297,7 +306,7 @@ fun TableView(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        text = columnName,
+                                        text = if (columnName == "table.similarity.column") locale[columnName] else columnName,
                                         style = headerTextStyle,
                                         modifier = Modifier.weight(1f)
                                     )
@@ -318,7 +327,7 @@ fun TableView(
                         Box(modifier = Modifier.horizontalScroll(horizontalScrollState)) {
                             LazyColumn(state = verticalScrollState) {
                                 items(data.size) { rowIndex ->
-                                    val row = data[rowIndex]
+                                    val row = cells[rowIndex]
 
                                     val isSelected = selectedIndices.contains(rowIndex)
                                     var hovered by remember { mutableStateOf(false) }
@@ -355,26 +364,38 @@ fun TableView(
                                             .background(rowBg)
                                             .padding(vertical = 10.dp),
                                     ) {
-                                        row.forEachIndexed { colIndex, cell ->
+                                        row.forEachIndexed { colIndex, values ->
                                             if (hiddenColumns.contains(colIndex)) return@forEachIndexed
 
+                                            val cell = values.joinToString("; ")
                                             val col = columns[colIndex]
-                                            val link = links[col]?.find { it[col] == cell }
+                                            val cellLinks = remember(values, col, links) {
+                                                values.distinct().mapNotNull { value ->
+                                                    links[col]?.find { it[col] == value }
+                                                }
+                                            }
 
                                             Tooltip(
-                                                state = link != null,
+                                                state = cellLinks.isNotEmpty(),
                                                 tooltip = {
-                                                    Column(modifier = Modifier.padding(8.dp)) {
-                                                        link?.filter { !it.key.endsWith("_ag_id") }
-                                                            ?.forEach { entry ->
-                                                                Row {
-                                                                    Text(
-                                                                        text = entry.key,
-                                                                        fontWeight = FontWeight.SemiBold
-                                                                    )
-                                                                    Text(text = ": ${entry.value}")
-                                                                }
+                                                    Column(
+                                                        modifier = Modifier.padding(8.dp),
+                                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                                    ) {
+                                                        cellLinks.forEach { link ->
+                                                            Column {
+                                                                link.filter { !it.key.endsWith("_ag_id") }
+                                                                    .forEach { entry ->
+                                                                        Row {
+                                                                            Text(
+                                                                                text = entry.key,
+                                                                                fontWeight = FontWeight.SemiBold
+                                                                            )
+                                                                            Text(text = ": ${entry.value}")
+                                                                        }
+                                                                    }
                                                             }
+                                                        }
                                                     }
                                                 }
                                             ) {
@@ -392,7 +413,7 @@ fun TableView(
                                                     SelectionContainer {
                                                         MarkedText(
                                                             modifier = Modifier.widthIn(max = columnWidths[colIndex]),
-                                                            underline = link != null,
+                                                            underline = cellLinks.isNotEmpty(),
                                                             text = cell,
                                                             highlights = if (indexStrings.isEmpty()) emptyMap() else indexStrings.associateWith {
                                                                 Tag(

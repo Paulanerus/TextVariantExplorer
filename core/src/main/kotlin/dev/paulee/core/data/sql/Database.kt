@@ -4,7 +4,6 @@ import dev.paulee.api.data.FieldType
 import dev.paulee.api.data.Source
 import dev.paulee.api.data.UniqueField
 import dev.paulee.api.data.provider.QueryOrder
-import dev.paulee.core.data.FileService
 import dev.paulee.core.normalizeDataSource
 import dev.paulee.core.normalizeSourceName
 import dev.paulee.core.sha1Hex
@@ -43,6 +42,10 @@ private data class Column(
     override fun toString(): String = "$name $type ${if (primary) "PRIMARY KEY" else if (nullable) "" else "NOT NULL"}"
 }
 
+private data class WhereClause(val statement: String, val unresolved: Map<String, List<String>>)
+
+private data class LinkRef(val source: String, val field: String)
+
 private class Table(val name: String, val columns: List<Column>) {
 
     val primaryKey: Column = columns.find { it.primary } ?: Column(
@@ -52,6 +55,8 @@ private class Table(val name: String, val columns: List<Column>) {
     val orderedColumns = listOf(primaryKey) + columns.filter { !it.primary }
 
     val tempTables = mutableMapOf<String, String>()
+
+    val references = mutableMapOf<LinkRef, Table>()
 
     fun import(connection: DuckDBConnection, path: Path, hasId: Boolean) {
         val readCsvStmt = buildString {
@@ -95,12 +100,38 @@ private class Table(val name: String, val columns: List<Column>) {
         order: QueryOrder?,
         offset: Int = 0,
         limit: Int = Int.MAX_VALUE,
+        allowLinks: Boolean = true,
     ): List<Map<String, String>> {
-        val query = buildString {
-            append("SELECT * FROM ")
-            append(name)
+        val (statement, unresolved) = buildWhereClause(connection, whereClause)
 
-            append(buildWhereClause(connection, whereClause))
+        val selected = mutableMapOf<String, String>()
+        val joins = mutableListOf<String>()
+
+        if (allowLinks) {
+            references.forEach { (ref, source) ->
+                val availableFields = unresolved.filterKeys { source.getColumnType(it) != null }
+
+                val fields =
+                    source.columns.filter { !it.primary && getColumnType(it.name) == null }
+                        .map { it.name }
+
+                fields.forEach { field -> selected[field] = "${ref.source}.$field" }
+
+                joins.add(buildJoin(connection, availableFields, source, ref.field, fields))
+            }
+        }
+
+        val query = buildString {
+            append("SELECT $name.*")
+
+            selected.forEach { (field, column) ->
+                append(", coalesce(to_json($column), '[]') AS $field")
+            }
+
+            append(" FROM $name")
+            append(joins.joinToString(""))
+
+            append(statement)
 
             order?.takeIf { it.first.isNotBlank() }?.let {
                 append(" ORDER BY ")
@@ -117,11 +148,12 @@ private class Table(val name: String, val columns: List<Column>) {
         }
 
         return connection.createStatement().use { statement ->
-            statement.executeQuery(query).use {
+            statement.executeQuery(query).use { result ->
                 val results = mutableListOf<Map<String, String>>()
+                val fields = orderedColumns.map { it.name } + selected.keys
 
-                while (it.next()) {
-                    val row = orderedColumns.associate { column -> column.name to (it.getString(column.name) ?: "") }
+                while (result.next()) {
+                    val row = fields.associateWith { field -> (result.getString(field) ?: "") }
 
                     results.add(row)
                 }
@@ -132,11 +164,22 @@ private class Table(val name: String, val columns: List<Column>) {
     }
 
     fun count(connection: DuckDBConnection, whereClause: Map<String, List<String>> = emptyMap()): Long {
+        val (statement, unresolved) = buildWhereClause(connection, whereClause)
+
+        val joins = references.mapNotNull { (ref, source) ->
+            val availableFields = unresolved.filterKeys { source.getColumnType(it) != null }
+
+            if (availableFields.isEmpty()) return@mapNotNull null
+
+            buildJoin(connection, availableFields, source, ref.field)
+        }
+
         val query = buildString {
             append("SELECT COUNT(*) FROM ")
             append(name)
+            append(joins.joinToString(""))
 
-            append(buildWhereClause(connection, whereClause))
+            append(statement)
         }
 
         return connection.createStatement().use { statement ->
@@ -176,54 +219,90 @@ private class Table(val name: String, val columns: List<Column>) {
 
     override fun toString(): String = "$name primary=${primaryKey}, columns={${orderedColumns.joinToString(", ")}}"
 
-    private fun buildWhereClause(connection: DuckDBConnection, whereClause: Map<String, List<String>>): String {
-        if (whereClause.isEmpty()) return ""
+    private fun buildJoin(
+        connection: DuckDBConnection,
+        whereClause: Map<String, List<String>>,
+        source: Table,
+        commonField: String,
+        fields: List<String> = emptyList(),
+    ): String {
+        val having = whereClause.entries.joinToString(" AND ") { (key, values) ->
+            val (statement, _) = source.buildWhereClause(connection, mapOf(key to values))
 
-        val parts =
-            whereClause.entries.filter { getColumnType(it.key) != null }.joinToString(" AND ") { (column, values) ->
-                val columnType = getColumnType(column) ?: return@joinToString ""
+            "bool_or(${statement.removePrefix(" WHERE ")})"
+        }
 
-                val (wildcards, nonWildcards) = values.distinct().partition { it.hasWildcard() }
+        return buildString {
+            append(if (whereClause.isEmpty()) " LEFT JOIN (" else " JOIN (")
+            append("SELECT $commonField")
 
-                val cause = buildString {
-                    if (nonWildcards.isNotEmpty()) {
-                        if (nonWildcards.size == 1) {
-                            val value = nonWildcards.first()
-
-                            append("$column = ${if (columnType == ColumnType.TEXT) "'${value.escapeLiteral()}'" else value}")
-                        } else {
-
-                            if (nonWildcards.size > 500) {
-                                val hash = sha1Hex(nonWildcards.joinToString(""))
-
-                                val tempQuery = tempTables.getOrPut(hash) {
-                                    createAndUpdateTempTable(connection, hash, nonWildcards, columnType)
-                                }
-
-                                append("$column IN ($tempQuery)")
-                            } else {
-                                val inClause = nonWildcards.joinToString(
-                                    ", ", prefix = "IN (", postfix = ")"
-                                ) { if (columnType == ColumnType.TEXT) "'${it.escapeLiteral()}'" else it }
-
-                                append("$column $inClause")
-                            }
-                        }
-
-                        if (wildcards.isNotEmpty()) append(" OR ")
-                    }
-
-                    if (columnType == ColumnType.TEXT) {
-                        wildcards.takeIf { it.isNotEmpty() }
-                            ?.joinToString(" OR ") { "$column LIKE '${it.replaceWildCard()}' ESCAPE '\\'" }
-                            ?.let { append(it) }
-                    }
-                }
-
-                if (cause.isNotBlank()) "($cause)" else ""
+            fields.forEach {
+                append(", list(DISTINCT $it ORDER BY $it) AS $it")
             }
 
-        return if (parts.isEmpty()) "" else " WHERE $parts"
+            append(" FROM ${source.name} GROUP BY $commonField")
+
+            if (having.isNotEmpty()) append(" HAVING $having")
+
+            append(") AS ${source.name} ON ${source.name}.$commonField = $name.$commonField")
+        }
+    }
+
+    private fun buildWhereClause(connection: DuckDBConnection, whereClause: Map<String, List<String>>): WhereClause {
+        if (whereClause.isEmpty()) return WhereClause("", emptyMap())
+
+        val (resolvedEntries, unresolvedEntries) = whereClause.entries.partition { getColumnType(it.key) != null }
+
+        val unresolved = unresolvedEntries.associate { it.toPair() }
+
+        val parts = resolvedEntries.joinToString(" AND ") { (column, values) ->
+            val columnType = getColumnType(column) ?: return@joinToString ""
+
+            val columnName = "$name.$column"
+
+            val (wildcards, nonWildcards) = values.distinct().partition { it.hasWildcard() }
+
+            val cause = buildString {
+                if (nonWildcards.isNotEmpty()) {
+                    if (nonWildcards.size == 1) {
+                        val value = nonWildcards.first()
+
+                        append("$columnName = ${if (columnType == ColumnType.TEXT) "'${value.escapeLiteral()}'" else value}")
+                    } else {
+
+                        if (nonWildcards.size > 500) {
+                            val hash = sha1Hex(
+                                (listOf(name, columnType.name, columnName) + nonWildcards).joinToString("")
+                            )
+
+                            val tempQuery = tempTables.getOrPut(hash) {
+                                createAndUpdateTempTable(connection, hash, nonWildcards, columnType)
+                            }
+
+                            append("$columnName IN ($tempQuery)")
+                        } else {
+                            val inClause = nonWildcards.joinToString(
+                                ", ", prefix = "IN (", postfix = ")"
+                            ) { if (columnType == ColumnType.TEXT) "'${it.escapeLiteral()}'" else it }
+
+                            append("$columnName $inClause")
+                        }
+                    }
+
+                    if (wildcards.isNotEmpty()) append(" OR ")
+                }
+
+                if (columnType == ColumnType.TEXT) {
+                    wildcards.takeIf { it.isNotEmpty() }
+                        ?.joinToString(" OR ") { "$columnName LIKE '${it.replaceWildCard()}' ESCAPE '\\'" }
+                        ?.let { append(it) }
+                }
+            }
+
+            if (cause.isNotBlank()) "($cause)" else ""
+        }
+
+        return WhereClause(if (parts.isEmpty()) "" else " WHERE $parts", unresolved)
     }
 
     private fun String.escapeLiteral() = this.replace("'", "''")
@@ -298,6 +377,8 @@ internal class Database(private val path: Path) : Closeable {
 
     val dbFileExists = path.exists()
 
+    private val linkRefs = mutableMapOf<String, MutableList<LinkRef>>()
+
     companion object {
 
         private val logger = getLogger(Database::class.java)
@@ -347,7 +428,26 @@ internal class Database(private val path: Path) : Closeable {
         }
     }
 
-    fun import(source: Source) {
+    fun importAll(sources: List<Source>) {
+        sources.forEach { import(it) }
+
+        linkRefs.forEach { (targetName, refs) ->
+            val target = tables.firstOrNull { it.name == targetName } ?: return@forEach
+
+            refs.forEach { ref ->
+                val source = tables.firstOrNull { it.name == ref.source } ?: return@forEach
+
+                val type = source.getColumnType(ref.field)
+
+                if (type == null || type != target.getColumnType(ref.field))
+                    return@forEach
+
+                target.references[ref] = source
+            }
+        }
+    }
+
+    private fun import(source: Source) {
         if (hasNoSQLModule || connection == null) return
 
         val sourcePath = path.parent?.resolve("data")?.resolve("${source.name}.csv")
@@ -370,15 +470,22 @@ internal class Database(private val path: Path) : Closeable {
                 }
         }
 
+        val normalizedDataSource = normalizeDataSource(source.name)
+
         val columns = source.fields.map { field ->
             val isNullable = false //param.hasAnnotation<Nullable>()
 
             val isPrimary = (field is UniqueField) // && !isNullable
 
+            if (field.sourceLink.isNotBlank()) {
+                linkRefs.getOrPut(field.sourceLink) { mutableListOf() }
+                    .add(LinkRef(normalizedDataSource, field.name))
+            }
+
             Column(headerMap[field.name] ?: field.name, typeToColumnType(field.fieldType), isPrimary, isNullable)
         }
 
-        val table = Table(normalizeDataSource(source.name), columns)
+        val table = Table(normalizedDataSource, columns)
         tables.add(table)
 
         val hasId = source.fields.any { it is UniqueField && it.identify }
@@ -396,6 +503,7 @@ internal class Database(private val path: Path) : Closeable {
         order: QueryOrder?,
         offset: Int = 0,
         limit: Int = Int.MAX_VALUE,
+        allowLinks: Boolean = true,
     ): List<Map<String, String>> {
         if (hasNoSQLModule) return emptyList()
 
@@ -403,7 +511,7 @@ internal class Database(private val path: Path) : Closeable {
 
         return runCatching {
             transaction {
-                table.selectAll(this, whereClause, order, offset, limit)
+                table.selectAll(this, whereClause, order, offset, limit, allowLinks)
             }
         }.getOrElse { e ->
             logger.error("Exception: Failed to retrieve entries from table '$name' due to an unexpected error.", e)

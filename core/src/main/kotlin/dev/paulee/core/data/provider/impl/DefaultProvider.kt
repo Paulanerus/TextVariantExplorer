@@ -7,8 +7,6 @@ import dev.paulee.api.data.provider.QueryOrder
 import dev.paulee.core.data.sql.Database
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
-import java.util.LinkedHashMap
-import java.util.LinkedHashSet
 import kotlin.io.path.exists
 
 internal class DefaultProvider : IStorageProvider {
@@ -34,7 +32,7 @@ internal class DefaultProvider : IStorageProvider {
                 return ProviderStatus.Failed
             }
 
-        dataInfo.sources.forEach(database::import)
+        database.importAll(dataInfo.sources)
 
         this.initialized = true
 
@@ -51,9 +49,10 @@ internal class DefaultProvider : IStorageProvider {
         order: QueryOrder?,
         offset: Int,
         limit: Int,
+        allowLinks: Boolean,
     ): List<Map<String, String>> {
         val entries = this.getEntries(name, ids, whereClause, filter) ?: return emptyList()
-        return this.database.selectAll(name, entries, order, offset = offset, limit = limit)
+        return this.database.selectAll(name, entries, order, offset = offset, limit = limit, allowLinks = allowLinks)
     }
 
     override fun count(
@@ -87,8 +86,11 @@ internal class DefaultProvider : IStorageProvider {
         whereClause: List<String>,
         filter: List<String>,
     ): MutableMap<String, List<String>>? {
-        val entries = whereClause.filter { it.contains(":") }.groupBy { it.substringBefore(":") }
-            .mapValues { entry -> entry.value.map { it.substringAfter(":") } }.toMutableMap()
+        val entries = whereClause.filter { it.contains(":") }
+            .groupBy { it.substringBefore(":") }
+            .mapValues { entry -> entry.value.map { it.substringAfter(":") }.filter { it.isNotBlank() } }
+            .filterValues { it.isNotEmpty() }
+            .toMutableMap()
 
         val primaryKey = this.database.primaryKeyOf(name)
 
@@ -105,13 +107,11 @@ internal class DefaultProvider : IStorageProvider {
 
             if (entries.isEmpty()) return groupedFilters
 
-            entries.replaceAll { key, values ->
-                groupedFilters[key]?.let { filterValues -> values.filter { it in filterValues } } ?: values
+            groupedFilters.forEach { (key, values) ->
+                entries[key] = entries[key]?.filter { it in values } ?: values
             }
 
-            entries.entries.removeAll { it.value.isEmpty() }
-
-            if (entries.isEmpty()) return null
+            if (entries.values.any { it.isEmpty() }) return null
         }
 
         return entries
