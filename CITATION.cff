@@ -8,14 +8,14 @@ authors:
   - given-names: Paul
     family-names: Fröhlich
     orcid: 'https://orcid.org/0009-0002-5553-2007'
-repository-code: 'https://github.com/Paulanerus/TextExplorer'
+repository-code: 'https://github.com/Paulanerus/TextVariantExplorer'
 url: 'https://paulee.dev/textvariantexplorer/'
 repository-artifact: >-
-  https://github.com/Paulanerus/TextExplorer/releases/tag/v1.7.1
+  https://github.com/Paulanerus/TextVariantExplorer/releases/tag/v1.7.3
 abstract: >-
   A tool designed for the exploration, analysis, and
   comparison of textual data variants.
 license: GPL-3.0
-commit: 260eb42
-version: 1.7.1
-date-released: '2026-03-20'
+commit: ad61182
+version: 1.7.3
+date-released: '2026-09-16'
