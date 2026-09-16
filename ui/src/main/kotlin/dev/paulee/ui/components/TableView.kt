@@ -209,7 +209,7 @@ fun TableView(
                                     val isHidden = hiddenColumns.contains(index)
 
                                     ColumnChip(
-                                        label = label,
+                                        label = if (label == "table.similarity.column") locale[label] else label,
                                         selected = !isHidden,
                                         onClick = {
                                             hiddenColumns =
