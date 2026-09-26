@@ -87,7 +87,7 @@ fun TableView(
         data.map { row -> row.map(getValues) }
     }
 
-    val columnWidths = remember(columns, cells, Config.noWidthRestriction) {
+    val measuredWidths = remember(columns, cells, Config.noWidthRestriction) {
         columns.mapIndexed { colIndex, colName ->
             val headerWidthPx = textMeasurer.measure(
                 text = AnnotatedString(if (colName == "table.similarity.column") locale[colName] else colName),
@@ -108,7 +108,17 @@ fun TableView(
         }
     }
 
-    Box(modifier = modifier) {
+    BoxWithConstraints(modifier = modifier) {
+        val lastVisibleColumn = columns.indices.lastOrNull { !hiddenColumns.contains(it) }
+
+        val remainingWidth = measuredWidths.foldIndexed(maxWidth) { index, remaining, width ->
+            if (hiddenColumns.contains(index)) remaining else remaining - width
+        }.coerceAtLeast(0.dp)
+
+        val columnWidths = measuredWidths.mapIndexed { index, width ->
+            if (index == lastVisibleColumn) width + remainingWidth else width
+        }
+
         Column(modifier = Modifier.fillMaxSize()) {
             Row(
                 verticalAlignment = Alignment.Top,
@@ -286,7 +296,7 @@ fun TableView(
                                         onQueryOrderChange(newQueryOrderState)
                                     }
                                     .drawBehind {
-                                        if (columns.lastIndex == index) return@drawBehind
+                                        if (lastVisibleColumn == index) return@drawBehind
                                         drawLine(
                                             color = divider,
                                             start = Offset(size.width - 0.5.dp.toPx(), 0f),
