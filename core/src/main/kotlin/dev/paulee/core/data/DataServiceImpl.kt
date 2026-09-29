@@ -229,7 +229,6 @@ object DataServiceImpl : IDataService {
         return created
     }
 
-    @OptIn(ExperimentalPathApi::class)
     fun loadDataPools(path: Path) {
         if (path.notExists()) {
             logger.warn("Data pool directory does not exist.")
@@ -512,7 +511,6 @@ object DataServiceImpl : IDataService {
         return true
     }
 
-    @OptIn(ExperimentalPathApi::class)
     override suspend fun exportPool(dataInfo: DataInfo, path: Path): Boolean {
         logger.info("Exporting pool '${dataInfo.name}' to '$path'.")
 

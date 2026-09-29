@@ -1,0 +1,7 @@
+{
+  "languages": {
+    "Kotlin": {
+      "language_servers": ["kotlin-lsp"],
+    },
+  },
+}
