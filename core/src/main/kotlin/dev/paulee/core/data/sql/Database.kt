@@ -188,17 +188,27 @@ private class Table(val name: String, val columns: List<Column>) {
     }
 
     fun suggestions(connection: DuckDBConnection, field: String, value: String, amount: Int): List<String> {
+        val source = if (getColumnType(field) != null) {
+            this
+        } else {
+            references.values.lastOrNull { source ->
+                source.columns.any { it.name == field && !it.primary }
+            } ?: return emptyList()
+        }
+
         val query = buildString {
             append("SELECT DISTINCT ")
             append(field)
             append(" FROM ")
-            append(name)
+            append(source.name)
 
-            append(" WHERE ")
+            append(" WHERE CAST(")
             append(field)
-            append(" LIKE '")
+            append(" AS VARCHAR) LIKE '")
             append(value.replaceWildCard())
             append("%' ESCAPE '\\'")
+
+            append(" ORDER BY length(CAST($field AS VARCHAR)), $field")
 
             append(" LIMIT ")
             append(amount)
@@ -292,11 +302,9 @@ private class Table(val name: String, val columns: List<Column>) {
                     if (wildcards.isNotEmpty()) append(" OR ")
                 }
 
-                if (columnType == ColumnType.TEXT) {
-                    wildcards.takeIf { it.isNotEmpty() }
-                        ?.joinToString(" OR ") { "$columnName LIKE '${it.replaceWildCard()}' ESCAPE '\\'" }
-                        ?.let { append(it) }
-                }
+                wildcards.takeIf { it.isNotEmpty() }
+                    ?.joinToString(" OR ") { "CAST($columnName AS VARCHAR) LIKE '${it.replaceWildCard()}' ESCAPE '\\'" }
+                    ?.let { append(it) }
             }
 
             if (cause.isNotBlank()) "($cause)" else ""

@@ -354,13 +354,6 @@ object DataServiceImpl : IDataService {
 
         if (dataPool.storageProvider == null) return emptyList()
 
-        val fieldExists = dataPool.dataInfo.sources
-            .firstOrNull { it.name == current }
-            ?.fields
-            ?.any { it.name == field } == true
-
-        if (!fieldExists) return emptyList()
-
         return dataPool.storageProvider.suggestions(current, field, value, 6)
     }
 
