@@ -62,7 +62,9 @@ fun ModelManagerWindow(dataService: IDataService, onClose: () -> Unit) {
             var busy by remember { mutableStateOf<Embedding.Model?>(null) }
 
             LaunchedEffect(modelDir) {
-                installedDirs = scanModelDirs(modelDir)
+                installedDirs = withContext(Dispatchers.IO) {
+                    scanModelDirs(modelDir)
+                }
             }
 
             suspend fun refresh() {
