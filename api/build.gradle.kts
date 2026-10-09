@@ -12,5 +12,5 @@ repositories {
 dependencies {
     implementation(kotlin("stdlib"))
 
-    implementation("com.fasterxml.jackson.core:jackson-annotations:${rootProject.extra["jackson.version"]}")
+    implementation("com.fasterxml.jackson.core:jackson-annotations:${rootProject.extra["jackson.annotations.version"]}")
 }
