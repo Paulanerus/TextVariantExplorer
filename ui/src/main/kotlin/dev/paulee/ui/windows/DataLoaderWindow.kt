@@ -70,12 +70,6 @@ fun DataLoaderWindow(dataService: IDataService, onClose: (DataInfo?, Path?) -> U
     var downloadsExpanded by remember { mutableStateOf(true) }
     var pendingDownloadModels by remember { mutableStateOf<List<Embedding.Model>>(emptyList()) }
 
-    DisposableEffect(Unit) {
-        onDispose {
-            downloadJobs.values.toList().forEach { it.cancel() }
-        }
-    }
-
     val availableModels by produceState(emptyList(), dataService, modelRefreshKey) {
         value = withContext(Dispatchers.IO) {
             Embedding.Model.entries.filter {
@@ -1116,7 +1110,12 @@ fun DataLoaderWindow(dataService: IDataService, onClose: (DataInfo?, Path?) -> U
                     }
 
                     DialogState.Add, DialogState.Import -> {
-                        FileDialog(extensions = if (dialogState == DialogState.Add) listOf("csv") else listOf("json", "zip")) {
+                        FileDialog(
+                            extensions = if (dialogState == DialogState.Add) listOf("csv") else listOf(
+                                "json",
+                                "zip"
+                            )
+                        ) {
 
                             if (dialogState == DialogState.Add) {
                                 val newSources = it.filterNot { path ->
@@ -1156,7 +1155,7 @@ fun DataLoaderWindow(dataService: IDataService, onClose: (DataInfo?, Path?) -> U
                             } else {
                                 val file = it.firstOrNull() ?: return@FileDialog
 
-                                if(file.extension == "zip"){
+                                if (file.extension == "zip") {
                                     onClose(null, file)
 
                                     return@FileDialog

@@ -124,6 +124,13 @@ class TextExplorerUI(
         var showSlowQueryHint by remember { mutableStateOf(false) }
         var isSearching by remember { mutableStateOf(false) }
         var searchJob by remember { mutableStateOf<Job?>(null) }
+        var suggestionJob by remember { mutableStateOf<Job?>(null) }
+
+        fun cancelSuggestions() {
+            suggestionJob?.cancel()
+            suggestionJob = null
+            showSuggestions = false
+        }
 
         val launchQuery: (suspend () -> Unit) -> Unit = launch@{ block ->
             if (searchJob?.isActive == true) return@launch
@@ -157,7 +164,7 @@ class TextExplorerUI(
         val performSearch: () -> Unit = search@{
             if (isSearching) return@search
 
-            showSuggestions = false
+            cancelSuggestions()
 
             currentPage = 0
 
@@ -255,6 +262,7 @@ class TextExplorerUI(
                     menuItems.forEach { item ->
                         DropdownMenuItem(
                             onClick = {
+                                cancelSuggestions()
                                 dataService.selectDataPool(item.first)
                                 Config.selectedPool = item.first
                                 poolSelected = !poolSelected
@@ -325,6 +333,7 @@ class TextExplorerUI(
                                 TextField(
                                     value = textField,
                                     onValueChange = { newValue ->
+                                        cancelSuggestions()
                                         textField = newValue
 
                                         if (newValue.text.isBlank()) {
@@ -338,17 +347,17 @@ class TextExplorerUI(
                                         val ctx = Autocomplete.getAutocompleteContext(text, caret)
 
                                         if (ctx != null && ctx.value.isNotEmpty()) {
-                                            scope.launch {
+                                            suggestionJob = scope.launch {
                                                 delay(300.milliseconds)
 
-                                                if (textField.text == text) {
-                                                    suggestions = dataService.getSuggestions(ctx.field, ctx.value)
-                                                    highlightedIndex = 0
-                                                    showSuggestions = suggestions.isNotEmpty()
+                                                val matches = withContext(Dispatchers.IO) {
+                                                    dataService.getSuggestions(ctx.field, ctx.value)
                                                 }
+
+                                                suggestions = matches
+                                                highlightedIndex = 0
+                                                showSuggestions = suggestions.isNotEmpty()
                                             }
-                                        } else {
-                                            showSuggestions = false
                                         }
                                     },
                                     placeholder = { Text(locale["main.search.placeholder"]) },
@@ -374,7 +383,7 @@ class TextExplorerUI(
                                                                 Autocomplete.acceptSuggestion(textField, it)
                                                                     ?.let { newValue ->
                                                                         textField = newValue
-                                                                        showSuggestions = false
+                                                                        cancelSuggestions()
                                                                     }
                                                             }
                                                         suppressNextEnterSearch = event.key == Key.Enter
@@ -382,7 +391,7 @@ class TextExplorerUI(
                                                     }
 
                                                     KeyEventType.KeyDown if event.key == Key.Escape -> {
-                                                        showSuggestions = false
+                                                        cancelSuggestions()
                                                         true
                                                     }
 
@@ -412,7 +421,7 @@ class TextExplorerUI(
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             IconButton(onClick = {
                                                 textField = TextFieldValue("")
-                                                showSuggestions = false
+                                                cancelSuggestions()
                                                 cancelActiveSearch()
                                                 showTable = false
                                             }) {
@@ -440,7 +449,7 @@ class TextExplorerUI(
 
                                 DropdownMenu(
                                     expanded = showSuggestions,
-                                    onDismissRequest = { showSuggestions = false },
+                                    onDismissRequest = { cancelSuggestions() },
                                     properties = PopupProperties(focusable = false)
                                 ) {
                                     suggestions.forEachIndexed { idx, s ->
@@ -448,7 +457,7 @@ class TextExplorerUI(
                                             onClick = {
                                                 Autocomplete.acceptSuggestion(textField, s)?.let { newValue ->
                                                     textField = newValue
-                                                    showSuggestions = false
+                                                    cancelSuggestions()
                                                 }
                                             }
                                         ) {

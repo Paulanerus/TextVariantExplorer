@@ -229,7 +229,6 @@ object DataServiceImpl : IDataService {
         return created
     }
 
-    @OptIn(ExperimentalPathApi::class)
     fun loadDataPools(path: Path) {
         if (path.notExists()) {
             logger.warn("Data pool directory does not exist.")
@@ -354,13 +353,6 @@ object DataServiceImpl : IDataService {
         val dataPool = this.dataPools[this.currentPool] ?: return emptyList()
 
         if (dataPool.storageProvider == null) return emptyList()
-
-        val fieldExists = dataPool.dataInfo.sources
-            .firstOrNull { it.name == current }
-            ?.fields
-            ?.any { it.name == field } == true
-
-        if (!fieldExists) return emptyList()
 
         return dataPool.storageProvider.suggestions(current, field, value, 6)
     }
@@ -512,7 +504,6 @@ object DataServiceImpl : IDataService {
         return true
     }
 
-    @OptIn(ExperimentalPathApi::class)
     override suspend fun exportPool(dataInfo: DataInfo, path: Path): Boolean {
         logger.info("Exporting pool '${dataInfo.name}' to '$path'.")
 
