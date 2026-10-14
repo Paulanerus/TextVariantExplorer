@@ -11,6 +11,7 @@ import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -18,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.*
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -27,6 +29,7 @@ import dev.paulee.api.data.DiffService
 import dev.paulee.api.data.IDataService
 import dev.paulee.api.data.IndexField
 import dev.paulee.api.data.provider.QueryOrder
+import dev.paulee.api.other.IUpdateService
 import dev.paulee.api.plugin.IPluginService
 import dev.paulee.ui.components.FileDialog
 import dev.paulee.ui.components.IconDropDown
@@ -36,7 +39,9 @@ import dev.paulee.ui.windows.*
 import kotlinx.coroutines.*
 import java.nio.file.Path
 import kotlin.io.path.*
+import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 enum class Window {
     None,
@@ -55,6 +60,7 @@ class TextExplorerUI(
     private val pluginService: IPluginService,
     private val dataService: IDataService,
     private val diffService: DiffService,
+    private val updateService: IUpdateService
 ) {
     init {
         Config.load(dataService.appDir())
@@ -67,6 +73,21 @@ class TextExplorerUI(
     @Composable
     private fun content() {
         val locale = LocalI18n.current
+        val uriHandler = LocalUriHandler.current
+
+        var updateAvailable by remember { mutableStateOf(false) }
+
+        LaunchedEffect(Unit) {
+            delay(5.seconds)
+
+            val now = System.currentTimeMillis()
+            val last = Config.lastUpdateCheck
+
+            if (last == 0L || now - last >= 1.days.inWholeMilliseconds) {
+                Config.lastUpdateCheck = now
+                updateAvailable = updateService.isNewerVersionAvailable()
+            }
+        }
 
         var textField by remember { mutableStateOf(TextFieldValue("")) }
         var isSemantic by remember { mutableStateOf(false) }
@@ -311,6 +332,34 @@ class TextExplorerUI(
                 Text(App.NAME, fontSize = 32.sp)
 
                 Spacer(modifier = Modifier.height(16.dp))
+
+                if (updateAvailable) {
+                    OutlinedButton(
+                        onClick = {
+                            uriHandler.openUri("https://github.com/Paulanerus/TextVariantExplorer/releases/latest")
+                        },
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.SystemUpdateAlt,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+
+                        Text(locale["main.update_available"])
+
+                        Spacer(Modifier.width(8.dp))
+
+                        Icon(
+                            Icons.AutoMirrored.Filled.OpenInNew,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     val sharedCorner = 24.dp

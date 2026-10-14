@@ -34,6 +34,8 @@ object Config {
     var windowX by mutableStateOf(-1)
     var windowY by mutableStateOf(-1)
 
+    var lastUpdateCheck by mutableStateOf(0L)
+
     var searchExpanded by mutableStateOf(true)
 
     var queryEmbSimilarity by mutableStateOf(0.8f)
