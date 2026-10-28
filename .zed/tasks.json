@@ -1,7 +1,7 @@
 [
   {
     "label": "Run TextVariant Explorer",
-    "command": ".\\gradlew.bat",
+    "command": "./gradlew",
     "args": ["run", "--console=plain", "--quiet"],
     "cwd": "$ZED_WORKTREE_ROOT",
     "save": "all",
