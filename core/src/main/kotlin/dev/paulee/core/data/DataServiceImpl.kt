@@ -61,6 +61,8 @@ object DataServiceImpl : IDataService {
         .expireAfterAccess(Duration.ofDays(3))
         .build()
 
+    private var lastQueryKey: QueryKey? = null
+
     private val storageProvider = mutableMapOf<String, IStorageProvider>()
 
     private val dataPools = ConcurrentHashMap<String, DataPool>()
@@ -161,6 +163,8 @@ object DataServiceImpl : IDataService {
             if (isCurrent) {
                 currentPool = null
                 currentField = null
+                lastQueryKey = null
+                pageCache.invalidateAll()
             }
 
             val externalProvider = storageProvider.remove(name)
@@ -329,6 +333,11 @@ object DataServiceImpl : IDataService {
         if (!selection.contains(".")) return
 
         val (pool, field) = selection.split(".", limit = 2)
+
+        if (currentPool != pool || currentField != field) {
+            lastQueryKey = null
+            pageCache.invalidateAll()
+        }
 
         this.currentPool = pool
         this.currentField = field
@@ -554,7 +563,11 @@ object DataServiceImpl : IDataService {
 
         val key = QueryKey(pageCount, query, order, similarityScore, locale)
 
-        pageCache.getIfPresent(key)?.let { return it }
+        lastQueryKey = null
+        pageCache.getIfPresent(key)?.let {
+            lastQueryKey = key
+            return it
+        }
 
         val dataPool = this.dataPools[this.currentPool] ?: return Pair(emptyList(), emptyMap())
 
@@ -579,11 +592,6 @@ object DataServiceImpl : IDataService {
                 order.second
             )
 
-        val numberFormat = NumberFormat.getPercentInstance(locale).apply {
-            minimumFractionDigits = 1
-            maximumFractionDigits = 1
-        }
-
         val entries = dataPool.storageProvider.get(
             this.currentField!!,
             indexResult.ids,
@@ -594,9 +602,16 @@ object DataServiceImpl : IDataService {
             limit = PAGE_SIZE
         ).let { rows ->
             if (indexResult.scores.isEmpty() || idColumn == null) rows
-            else rows.map { row ->
-                val score = row[idColumn]?.toLongOrNull()?.let { indexResult.scores[it] } ?: 0f
-                row + ("table.similarity.column" to numberFormat.format(score.toDouble()))
+            else {
+                val numberFormat = NumberFormat.getPercentInstance(locale).apply {
+                    minimumFractionDigits = 1
+                    maximumFractionDigits = 1
+                }
+
+                rows.map { row ->
+                    val score = row[idColumn]?.toLongOrNull()?.let { indexResult.scores[it] } ?: 0f
+                    row + ("table.similarity.column" to numberFormat.format(score.toDouble()))
+                }
             }
         }
 
@@ -625,6 +640,7 @@ object DataServiceImpl : IDataService {
         val result = PageResult(entries, links)
 
         pageCache.put(key, result)
+        lastQueryKey = key
 
         return result
     }
@@ -652,6 +668,55 @@ object DataServiceImpl : IDataService {
 
         return Triple(count, ceil(count / PAGE_SIZE.toDouble()).toLong(), indexedValues)
     }
+
+    override suspend fun exportData(path: Path, columns: List<String>, selectedIds: Set<Long>?): Boolean =
+        withContext(Dispatchers.IO) {
+            val activeQuery = lastQueryKey ?: return@withContext false
+
+            val pool = dataPools[currentPool ?: return@withContext false] ?: return@withContext false
+
+            val field = currentField ?: return@withContext false
+
+            val storageProvider = pool.storageProvider ?: return@withContext false
+
+            val (filterQuery, filter) = getPreFilter(activeQuery.query)
+
+            val indexResult =
+                pool.search(handleReplacements(pool.metadata, filterQuery), activeQuery.similarity)
+
+            if (filter.isEmpty() && indexResult.isEmpty()) return@withContext false
+
+            val entryIds = when {
+                selectedIds == null -> indexResult.ids
+                indexResult.ids.isEmpty() -> selectedIds.toCollection(LinkedHashSet())
+                else -> indexResult.ids.filterTo(LinkedHashSet()) { it in selectedIds }
+            }
+
+            if (selectedIds != null && entryIds.isEmpty()) return@withContext false
+
+            val idColumn = pool.identifier[field]?.substringAfter('.')
+
+            val queryOrder =
+                if (activeQuery.order?.first != "table.similarity.column") activeQuery.order
+                else if (indexResult.scores.isEmpty() || idColumn == null) null
+                else QueryOrder(
+                    "list_position([${
+                        entryIds.sortedBy { indexResult.scores[it] ?: 0f }.joinToString(",")
+                    }], ${field}.$idColumn)",
+                    activeQuery.order.second
+                )
+
+            storageProvider.export(
+                path,
+                field,
+                columns,
+                entryIds,
+                indexResult.tokens,
+                filter,
+                queryOrder,
+                indexResult.scores
+            )
+        }
 
     override fun getValues(value: String): List<String> {
         return if (value.startsWith("[") && value.endsWith("]")) runCatching {
