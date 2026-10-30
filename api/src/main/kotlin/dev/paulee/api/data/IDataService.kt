@@ -47,6 +47,8 @@ interface IDataService : Closeable {
 
     fun getValues(value: String): List<String>
 
+    fun getIdentifierField(): String?
+
     fun createStorageProvider(infoName: String, path: Path): IStorageProvider?
 
     fun dataInfoToString(dataInfo: DataInfo): String?

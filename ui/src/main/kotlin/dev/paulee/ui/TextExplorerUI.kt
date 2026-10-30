@@ -629,6 +629,24 @@ class TextExplorerUI(
                                     .map { header.zip(it).toMap() }
                                     .toList()
                             },
+                            exportEnabled = !isSearching && loadState !is LoadState.Loading,
+                            onExport = { path, columns, selectedOnly ->
+                                loadState = LoadState.Loading(locale["table.export.loading"])
+
+                                scope.launch {
+                                    val selectedIds = if (selectedOnly) {
+                                        dataService.getIdentifierField()?.let { id ->
+                                            selectedRows.mapNotNull { it[id]?.toLongOrNull() }.toSet()
+
+                                        }
+                                    } else null
+
+                                    val success = dataService.exportData(path, columns, selectedIds)
+
+                                    loadState = if (success) LoadState.Success(locale["table.export.success"])
+                                    else LoadState.Error(locale["table.export.error"])
+                                }
+                            },
                             clicked = { openWindow = Window.Diff }
                         )
 

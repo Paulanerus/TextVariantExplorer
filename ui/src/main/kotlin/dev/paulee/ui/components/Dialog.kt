@@ -1,12 +1,17 @@
 package dev.paulee.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.awt.SwingPanel
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.awt.AwtWindow
+import androidx.compose.ui.awt.SwingPanel
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import dev.paulee.ui.Config
@@ -216,6 +221,94 @@ fun LegacyFileDialog(
                 },
                 update = { it.configure(false) }
             )
+        }
+    }
+}
+
+@Composable
+fun ExportDialog(
+    hasSelectedRows: Boolean,
+    exportEnabled: Boolean,
+    onDismissRequest: () -> Unit,
+    onConfirmClick: () -> Unit,
+) {
+    val locale = LocalI18n.current
+    val hairline = MaterialTheme.colors.onSurface.copy(alpha = 0.08f)
+
+    Dialog(onDismissRequest = onDismissRequest) {
+        Surface(
+            modifier = Modifier.width(360.dp),
+            shape = RoundedCornerShape(8.dp),
+            border = BorderStroke(1.dp, hairline),
+            elevation = 4.dp
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(locale["table.export"], style = MaterialTheme.typography.h6)
+
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().toggleable(
+                            value = Config.exportVisibleOnly,
+                            role = Role.Checkbox,
+                            onValueChange = { Config.exportVisibleOnly = it }
+                        ).padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = Config.exportVisibleOnly, onCheckedChange = null,
+                            colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colors.primary)
+                        )
+
+                        Spacer(Modifier.width(10.dp))
+
+                        Text(locale["table.export.visible"], style = MaterialTheme.typography.body2)
+                    }
+
+                    if (hasSelectedRows) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().toggleable(
+                                value = Config.exportSelectedOnly,
+                                role = Role.Checkbox,
+                                onValueChange = { Config.exportSelectedOnly = it }
+                            ).padding(vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = Config.exportSelectedOnly, onCheckedChange = null,
+                                colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colors.primary)
+                            )
+
+                            Spacer(Modifier.width(10.dp))
+
+                            Text(locale["table.export.selected"], style = MaterialTheme.typography.body2)
+                        }
+                    }
+                }
+
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(
+                        onClick = onDismissRequest,
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colors.onSurface.copy(
+                                alpha = 0.7f
+                            )
+                        )
+                    ) { Text(locale["input.cancel"], style = MaterialTheme.typography.body2) }
+
+                    Spacer(Modifier.width(8.dp))
+
+                    Button(
+                        onClick = onConfirmClick,
+                        enabled = exportEnabled,
+                        elevation = ButtonDefaults.elevation(0.dp, 0.dp)
+                    ) {
+                        Text(locale["table.export.confirm"], style = MaterialTheme.typography.body2)
+                    }
+                }
+            }
         }
     }
 }

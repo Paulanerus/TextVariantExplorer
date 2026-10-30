@@ -24,6 +24,10 @@ object Config {
 
     var useLegacyFileDialog by mutableStateOf(false)
 
+    var exportVisibleOnly by mutableStateOf(false)
+
+    var exportSelectedOnly by mutableStateOf(false)
+
     var selectedPool by mutableStateOf("")
 
     var windowState by mutableStateOf("Floating")

@@ -725,6 +725,13 @@ object DataServiceImpl : IDataService {
         else listOf(value)
     }
 
+    override fun getIdentifierField(): String? {
+        val pool = dataPools[currentPool] ?: return null
+        val field = currentField ?: return null
+
+        return pool.identifier[field]?.substringAfter(".")
+    }
+
     override fun createStorageProvider(infoName: String, path: Path): IStorageProvider? {
         val dataInfo = this.dataPools[infoName]?.dataInfo ?: return null
 
