@@ -65,6 +65,20 @@ internal class DefaultProvider : IStorageProvider {
         return this.database.count(name, entries)
     }
 
+    override fun export(
+        path: Path,
+        name: String,
+        columns: List<String>,
+        ids: LinkedHashSet<Long>,
+        whereClause: List<String>,
+        filter: List<String>,
+        order: QueryOrder?,
+        scores: Map<Long, Float>,
+    ): Boolean {
+        val entries = this.getEntries(name, ids, whereClause, filter) ?: return false
+        return database.exportResults(path, name, columns, entries, order, scores)
+    }
+
     override fun suggestions(
         name: String,
         field: String,

@@ -187,6 +187,74 @@ private class Table(val name: String, val columns: List<Column>) {
         }
     }
 
+    fun export(
+        connection: DuckDBConnection,
+        path: Path,
+        columns: List<String>,
+        whereClause: Map<String, List<String>>,
+        order: QueryOrder?,
+        scores: Map<Long, Float>,
+    ): Boolean {
+        val (statement, unresolved) = buildWhereClause(connection, whereClause)
+
+        val selected = mutableMapOf<String, String>()
+        val joins = mutableListOf<String>()
+        val includeScores = scores.isNotEmpty() && "table.similarity.column" in columns
+
+        references.forEach { (ref, source) ->
+            val availableFields = unresolved.filterKeys { source.getColumnType(it) != null }
+
+            val fields =
+                source.columns.filter { !it.primary && getColumnType(it.name) == null }
+                    .map { it.name }
+
+            fields.forEach { field -> selected[field] = "${ref.source}.$field" }
+
+            joins.add(buildJoin(connection, availableFields, source, ref.field, fields))
+        }
+
+        val query = buildString {
+            append("SELECT $name.*")
+
+            selected.forEach { (field, column) ->
+                append(", coalesce(to_json($column), '[]') AS $field")
+            }
+
+            if (includeScores)
+                append(", coalesce(export_scores.\"table.similarity.column\", 0) AS \"table.similarity.column\"")
+
+            append(" FROM $name")
+
+            if (includeScores) {
+                append(" LEFT JOIN (VALUES ")
+                append(scores.entries.joinToString(", ") { (id, score) -> "($id, '$score'::FLOAT)" })
+                append(") AS export_scores(${primaryKey.name}, \"table.similarity.column\") USING (${primaryKey.name})")
+            }
+
+            append(joins.joinToString(""))
+
+            append(statement)
+
+            order?.takeIf { it.first.isNotBlank() }?.let {
+                append(" ORDER BY ")
+                append(order.first)
+
+                if (order.second) append(" DESC")
+            }
+        }
+
+        val selectedColumns = columns.joinToString(", ") { "\"$it\"" }
+
+        return connection.createStatement().use { statement ->
+            statement.execute(
+                "COPY (SELECT $selectedColumns FROM ($query)) TO '${
+                    path.toAbsolutePath().toString().escapeLiteral()
+                }' (FORMAT CSV, HEADER)"
+            )
+            true
+        }
+    }
+
     fun suggestions(connection: DuckDBConnection, field: String, value: String, amount: Int): List<String> {
         val source = if (getColumnType(field) != null) {
             this
@@ -542,6 +610,28 @@ internal class Database(private val path: Path) : Closeable {
         }
     }
 
+    fun exportResults(
+        path: Path,
+        name: String,
+        columns: List<String>,
+        whereClause: Map<String, List<String>> = emptyMap(),
+        order: QueryOrder? = null,
+        scores: Map<Long, Float> = emptyMap(),
+    ): Boolean {
+        if (hasNoSQLModule) return false
+
+        val table = tables.find { it.name == name } ?: return false
+
+        return runCatching {
+            transaction {
+                table.export(this, path, columns, whereClause, order, scores)
+            }
+        }.getOrElse { e ->
+            logger.error("Exception: Failed to export results from table '$name' due to an unexpected error.", e)
+            false
+        }
+    }
+
     fun suggestions(name: String, field: String, value: String, amount: Int): List<String> {
         if (hasNoSQLModule) return emptyList()
 
@@ -572,7 +662,7 @@ internal class Database(private val path: Path) : Closeable {
             failure = e
             try {
                 conn.rollback()
-            }catch (other: Throwable){
+            } catch (other: Throwable) {
                 e.addSuppressed(other)
             }
             throw e

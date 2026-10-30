@@ -41,6 +41,17 @@ interface IStorageProvider : Closeable {
         filter: List<String> = emptyList(),
     ): Long
 
+    fun export(
+        path: Path,
+        name: String,
+        columns: List<String>,
+        ids: LinkedHashSet<Long>,
+        whereClause: List<String>,
+        filter: List<String>,
+        order: QueryOrder?,
+        scores: Map<Long, Float> = emptyMap(),
+    ): Boolean
+
     fun suggestions(name: String, field: String, value: String, amount: Int): List<String>
 
     fun streamData(name: String): Sequence<LinkedHashMap<String, String>>

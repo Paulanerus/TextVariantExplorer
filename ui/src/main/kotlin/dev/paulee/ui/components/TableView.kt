@@ -14,10 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -41,6 +38,7 @@ import dev.paulee.api.plugin.Tag
 import dev.paulee.ui.*
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
+import java.nio.file.Path
 import kotlin.math.round
 
 private val systemClipboard = Toolkit.getDefaultToolkit().systemClipboard
@@ -60,6 +58,8 @@ fun TableView(
     totalAmountOfSelectedRows: Int,
     selectedIndices: Set<Int>,
     onSelectionChange: (Set<Int>) -> Unit,
+    exportEnabled: Boolean,
+    onExport: (Path, List<String>, Boolean) -> Unit,
     clicked: () -> Unit = {},
 ) {
     val locale = LocalI18n.current
@@ -68,7 +68,9 @@ fun TableView(
     val horizontalScrollState = rememberScrollState()
     val verticalScrollState = rememberLazyListState()
 
-    var hiddenColumns by remember { mutableStateOf(Config.getHidden(pool)) }
+    var hiddenColumns by remember(pool) { mutableStateOf(Config.getHidden(pool)) }
+    var showExportDialog by remember(pool, columns, exportEnabled) { mutableStateOf(false) }
+    var showFileDialog by remember(pool, columns, exportEnabled) { mutableStateOf(false) }
     var panelExpanded by remember { mutableStateOf(false) }
     var settingsExpanded by remember { mutableStateOf(false) }
     val showQuerySettings = false
@@ -85,6 +87,30 @@ fun TableView(
 
     val cells = remember(data, getValues) {
         data.map { row -> row.map(getValues) }
+    }
+
+    val exportColumns =
+        if (Config.exportVisibleOnly) columns.filterIndexed { index, _ -> index !in hiddenColumns } else columns
+
+    if (showExportDialog) {
+        ExportDialog(
+            hasSelectedRows = totalAmountOfSelectedRows > 0,
+            exportEnabled = exportColumns.isNotEmpty(),
+            onDismissRequest = { showExportDialog = false },
+            onConfirmClick = {
+                showExportDialog = false
+                showFileDialog = true
+            }
+        )
+    }
+
+    if (showFileDialog) {
+        FileDialog(dialogType = DialogType.SAVE, extensions = listOf("csv")) { paths ->
+            showFileDialog = false
+            paths.firstOrNull()?.let {
+                onExport(it, exportColumns, Config.exportSelectedOnly && totalAmountOfSelectedRows > 0)
+            }
+        }
     }
 
     val measuredWidths = remember(columns, cells, Config.noWidthRestriction) {
@@ -135,6 +161,14 @@ fun TableView(
                             modifier = Modifier.width(48.dp).padding(bottom = 12.dp)
                         ) {
                             Icon(Icons.Default.Delete, contentDescription = locale["table.delete"])
+                        }
+
+                        IconButton(
+                            onClick = { showExportDialog = true },
+                            enabled = exportEnabled && columns.isNotEmpty(),
+                            modifier = Modifier.width(48.dp).padding(bottom = 12.dp)
+                        ) {
+                            Icon(Icons.Default.Save, contentDescription = locale["table.export"])
                         }
 
                         if (showQuerySettings) {
