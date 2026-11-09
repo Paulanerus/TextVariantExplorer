@@ -102,7 +102,9 @@ internal class DefaultProvider : IStorageProvider {
     ): MutableMap<String, List<String>>? {
         val entries = whereClause.filter { it.contains(":") }
             .groupBy { it.substringBefore(":") }
-            .mapValues { entry -> entry.value.map { it.substringAfter(":") }.filter { it.isNotBlank() } }
+            .mapValues { entry ->
+                entry.value.map { it.substringAfter(":").removeSurrounding("\"") }.filter { it.isNotBlank() }
+            }
             .filterValues { it.isNotEmpty() }
             .toMutableMap()
 
