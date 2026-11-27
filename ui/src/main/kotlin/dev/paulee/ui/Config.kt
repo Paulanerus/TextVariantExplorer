@@ -28,6 +28,8 @@ object Config {
 
     var exportSelectedOnly by mutableStateOf(false)
 
+    var resetScrollOnPageChange by mutableStateOf(true)
+
     var selectedPool by mutableStateOf("")
 
     var windowState by mutableStateOf("Floating")

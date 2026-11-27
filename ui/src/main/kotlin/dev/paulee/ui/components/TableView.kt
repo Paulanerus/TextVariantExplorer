@@ -68,6 +68,10 @@ fun TableView(
     val horizontalScrollState = rememberScrollState()
     val verticalScrollState = rememberLazyListState()
 
+    LaunchedEffect(data) {
+        if (Config.resetScrollOnPageChange) verticalScrollState.scrollToItem(0)
+    }
+
     var hiddenColumns by remember(pool) { mutableStateOf(Config.getHidden(pool)) }
     var showExportDialog by remember(pool, columns, exportEnabled) { mutableStateOf(false) }
     var showFileDialog by remember(pool, columns, exportEnabled) { mutableStateOf(false) }

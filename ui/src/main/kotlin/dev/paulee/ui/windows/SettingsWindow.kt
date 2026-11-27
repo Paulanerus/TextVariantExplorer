@@ -138,6 +138,19 @@ fun SettingsWindow(onClose: () -> Unit) {
                             )
                         )
                     }
+
+                    SettingRow(
+                        label = locale["settings.reset_scroll.label"],
+                        description = locale["settings.reset_scroll.desc"]
+                    ) {
+                        Switch(
+                            checked = Config.resetScrollOnPageChange,
+                            onCheckedChange = { Config.resetScrollOnPageChange = it },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = MaterialTheme.colors.primary
+                            )
+                        )
+                    }
                 }
             }
         }
